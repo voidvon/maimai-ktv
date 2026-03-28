@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'models/media_source.dart';
@@ -87,6 +88,8 @@ class _PlayerHomePageState extends State<PlayerHomePage> {
       builder: (context, _) {
         final colorScheme = Theme.of(context).colorScheme;
         final videoView = _controller.buildVideoView();
+        final shouldClipVideoView = defaultTargetPlatform != TargetPlatform.android;
+        final videoFrameBorderRadius = BorderRadius.circular(24);
         return Scaffold(
           appBar: AppBar(
             title: const Text('KTV Player'),
@@ -107,23 +110,47 @@ class _PlayerHomePageState extends State<PlayerHomePage> {
               child: Column(
                 children: [
                   Expanded(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: colorScheme.outlineVariant),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ?videoView,
-                            if (_controller.currentMediaPath == null)
-                              const _EmptyState(),
-                          ],
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: videoFrameBorderRadius,
+                          ),
                         ),
-                      ),
+                        if (shouldClipVideoView)
+                          ClipRRect(
+                            borderRadius: videoFrameBorderRadius,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ?videoView,
+                                if (_controller.currentMediaPath == null)
+                                  const _EmptyState(),
+                              ],
+                            ),
+                          )
+                        else
+                          Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ?videoView,
+                              if (_controller.currentMediaPath == null)
+                                const _EmptyState(),
+                            ],
+                          ),
+                        IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: videoFrameBorderRadius,
+                              border: Border.all(
+                                color: colorScheme.outlineVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),

@@ -67,12 +67,11 @@ class MainActivity : FlutterActivity() {
 
         val takeFlags =
             data.flags and
-                (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         try {
-            contentResolver.takePersistableUriPermission(
-                uri,
-                takeFlags or Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
+            if (takeFlags != 0) {
+                contentResolver.takePersistableUriPermission(uri, takeFlags)
+            }
         } catch (_: SecurityException) {
             try {
                 contentResolver.takePersistableUriPermission(
@@ -108,6 +107,8 @@ class MainActivity : FlutterActivity() {
             Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "*/*"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
             }
         startActivityForResult(intent, videoPickerRequestCode)
     }

@@ -21,6 +21,7 @@ import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.util.VLCVideoLayout
 import java.io.File
+import java.io.FileOutputStream
 
 class NativeKtvPlayerHost(
     context: Context,
@@ -83,6 +84,7 @@ class NativeKtvPlayerHost(
     private var eventSink: EventChannel.EventSink? = null
     private var videoLayout: VLCVideoLayout? = null
     private var currentMediaPath: String? = null
+    private var currentPlaybackPath: String? = null
     private var playbackCompleted = false
     private var playbackError: String? = null
     private var requestedAudioOutputMode = AudioOutputMode.ORIGINAL
@@ -96,6 +98,9 @@ class NativeKtvPlayerHost(
     private var singleTrackAudioRoutingRetryCount = 0
     private var pendingPlaybackRequest: PendingPlaybackRequest? = null
     private var pendingAttachStateListener: View.OnAttachStateChangeListener? = null
+    private var pendingLayoutChangeListener: View.OnLayoutChangeListener? = null
+    private var lastAttachedLayoutWidth = 0
+    private var lastAttachedLayoutHeight = 0
     private var singleTrackNativeChannelRoutingAvailable: Boolean? =
         if (libVlcBridgeLoaded) {
             null
@@ -219,6 +224,7 @@ class NativeKtvPlayerHost(
                     playbackError = null
                     updateSelectedAudioTrackInfo()
                     applyRequestedAudioOutputModeIfPossible()
+                    videoLayout?.let { attachPlayerViews(it, reason = "event:Playing") }
                 }
                 MediaPlayer.Event.Paused -> {
                     updateSelectedAudioTrackInfo()
@@ -241,6 +247,7 @@ class NativeKtvPlayerHost(
                 }
                 MediaPlayer.Event.Vout -> {
                     lastKnownVoutCount = voutCount
+                    videoLayout?.let { attachPlayerViews(it, reason = "event:Vout") }
                 }
                 MediaPlayer.Event.ESAdded,
                 MediaPlayer.Event.ESDeleted,
@@ -250,6 +257,21 @@ class NativeKtvPlayerHost(
                     updateSelectedAudioTrackInfo()
                     applyRequestedAudioOutputModeIfPossible()
                 }
+            }
+            if (
+                eventType == MediaPlayer.Event.Opening ||
+                eventType == MediaPlayer.Event.Playing ||
+                eventType == MediaPlayer.Event.Buffering ||
+                eventType == MediaPlayer.Event.Vout ||
+                eventType == MediaPlayer.Event.EncounteredError ||
+                eventType == MediaPlayer.Event.ESAdded ||
+                eventType == MediaPlayer.Event.ESSelected ||
+                eventType == MediaPlayer.Event.LengthChanged
+            ) {
+                Log.i(
+                    tag,
+                    "event type=${eventName(eventType)} time=$timeChanged length=$lengthChanged vout=$voutCount error=$playbackError playbackPath=$currentPlaybackPath",
+                )
             }
             pushSnapshot()
         }
@@ -261,10 +283,13 @@ class NativeKtvPlayerHost(
         eventChannel.setStreamHandler(null)
         methodChannel.setMethodCallHandler(null)
         clearPendingAttachStateListener()
+        clearPendingLayoutChangeListener()
         val player = playerOrNull
         if (player?.getVLCVout()?.areViewsAttached() == true) {
             player.detachViews()
         }
+        lastAttachedLayoutWidth = 0
+        lastAttachedLayoutHeight = 0
         videoLayout = null
         player?.stop()
         player?.release()
@@ -282,23 +307,30 @@ class NativeKtvPlayerHost(
             return
         }
         clearPendingAttachStateListener()
+        clearPendingLayoutChangeListener()
         val player = playerOrNull
         if (player?.getVLCVout()?.areViewsAttached() == true) {
             player.detachViews()
         }
+        lastAttachedLayoutWidth = 0
+        lastAttachedLayoutHeight = 0
         videoLayout = null
         pushSnapshot()
     }
 
     private fun attachVideoLayout(layout: VLCVideoLayout) {
         clearPendingAttachStateListener()
+        clearPendingLayoutChangeListener()
         val player = playerOrNull
         if (player?.getVLCVout()?.areViewsAttached() == true) {
             player.detachViews()
         }
+        lastAttachedLayoutWidth = 0
+        lastAttachedLayoutHeight = 0
         videoLayout = layout
+        installLayoutChangeListener(layout)
         if (layout.isAttachedToWindow) {
-            attachPlayerViews(layout)
+            attachPlayerViews(layout, reason = "layout:attached")
         } else {
             val listener =
                 object : View.OnAttachStateChangeListener {
@@ -307,7 +339,7 @@ class NativeKtvPlayerHost(
                         if (pendingAttachStateListener === this) {
                             pendingAttachStateListener = null
                         }
-                        attachPlayerViews(layout)
+                        attachPlayerViews(layout, reason = "layout:onAttachedToWindow")
                     }
 
                     override fun onViewDetachedFromWindow(view: View) = Unit
@@ -318,7 +350,34 @@ class NativeKtvPlayerHost(
         pushSnapshot()
     }
 
-    private fun attachPlayerViews(layout: VLCVideoLayout) {
+    private fun installLayoutChangeListener(layout: VLCVideoLayout) {
+        val listener =
+            View.OnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+                val width = right - left
+                val height = bottom - top
+                val oldWidth = oldRight - oldLeft
+                val oldHeight = oldBottom - oldTop
+                if (width <= 0 || height <= 0) {
+                    return@OnLayoutChangeListener
+                }
+                if (width == oldWidth && height == oldHeight) {
+                    return@OnLayoutChangeListener
+                }
+                attachPlayerViews(
+                    layout,
+                    reason = "layout:${oldWidth}x${oldHeight}->${width}x${height}",
+                    forceReattach = lastAttachedLayoutWidth != width || lastAttachedLayoutHeight != height,
+                )
+            }
+        pendingLayoutChangeListener = listener
+        layout.addOnLayoutChangeListener(listener)
+    }
+
+    private fun attachPlayerViews(
+        layout: VLCVideoLayout,
+        reason: String,
+        forceReattach: Boolean = false,
+    ) {
         if (videoLayout !== layout || !layout.isAttachedToWindow) {
             return
         }
@@ -328,12 +387,31 @@ class NativeKtvPlayerHost(
                 if (videoLayout !== layout || !layout.isAttachedToWindow) {
                     return@post
                 }
+                val width = layout.width
+                val height = layout.height
+                if (width <= 0 || height <= 0) {
+                    Log.i(
+                        tag,
+                        "attachPlayerViews skipped reason=$reason width=$width height=$height attached=${layout.isAttachedToWindow}",
+                    )
+                    return@post
+                }
                 val player = player
-                if (player.getVLCVout().areViewsAttached()) {
+                val vout = player.getVLCVout()
+                if (forceReattach && vout.areViewsAttached()) {
                     player.detachViews()
                 }
-                player.attachViews(layout, null, false, true)
+                if (!vout.areViewsAttached()) {
+                    player.attachViews(layout, null, false, false)
+                }
+                vout.setWindowSize(width, height)
                 player.updateVideoSurfaces()
+                lastAttachedLayoutWidth = width
+                lastAttachedLayoutHeight = height
+                Log.i(
+                    tag,
+                    "attachPlayerViews reason=$reason width=$width height=$height forceReattach=$forceReattach viewsAttached=${vout.areViewsAttached()}",
+                )
                 flushPendingPlaybackRequestIfPossible()
                 pushSnapshot()
             } catch (error: Throwable) {
@@ -349,6 +427,13 @@ class NativeKtvPlayerHost(
         }
     }
 
+    private fun clearPendingLayoutChangeListener() {
+        pendingLayoutChangeListener?.let { listener ->
+            videoLayout?.removeOnLayoutChangeListener(listener)
+            pendingLayoutChangeListener = null
+        }
+    }
+
     private fun open(
         path: String,
         mode: AudioOutputMode,
@@ -356,6 +441,7 @@ class NativeKtvPlayerHost(
         ensurePlayablePath(path)
         currentMediaPath = path
         requestedAudioOutputMode = mode
+        currentPlaybackPath = resolvePlaybackPath(path)
         playbackError = null
         playbackCompleted = false
         lastKnownPositionMs = 0L
@@ -365,7 +451,11 @@ class NativeKtvPlayerHost(
         resetSingleTrackAudioRoutingRetry()
         selectedAudioTrackTitle = null
         selectedAudioChannelCount = null
-        queueOrOpenPlaybackMedia(path, 0L, shouldResume = true)
+        Log.i(
+            tag,
+            "open sourcePath=$path playbackPath=$currentPlaybackPath mode=$mode",
+        )
+        queueOrOpenPlaybackMedia(currentPlaybackPath ?: path, 0L, shouldResume = true)
         return snapshot()
     }
 
@@ -375,35 +465,18 @@ class NativeKtvPlayerHost(
         shouldResume: Boolean,
     ) {
         ensurePlayablePath(path)
-        if (!areVideoViewsReadyForPlayback()) {
-            pendingPlaybackRequest =
-                PendingPlaybackRequest(
-                    path = path,
-                    preservePositionMs = preservePositionMs,
-                    shouldResume = shouldResume,
-                )
-            return
-        }
         pendingPlaybackRequest = null
         openPlaybackMedia(path, preservePositionMs, shouldResume)
     }
 
     private fun flushPendingPlaybackRequestIfPossible() {
         val pendingRequest = pendingPlaybackRequest ?: return
-        if (!areVideoViewsReadyForPlayback()) {
-            return
-        }
         pendingPlaybackRequest = null
         openPlaybackMedia(
             pendingRequest.path,
             preservePositionMs = pendingRequest.preservePositionMs,
             shouldResume = pendingRequest.shouldResume,
         )
-    }
-
-    private fun areVideoViewsReadyForPlayback(): Boolean {
-        val layout = videoLayout ?: return false
-        return layout.isAttachedToWindow && playerOrNull?.getVLCVout()?.areViewsAttached() == true
     }
 
     private fun openPlaybackMedia(
@@ -428,6 +501,7 @@ class NativeKtvPlayerHost(
             media.release()
         }
 
+        currentPlaybackPath = path
         player.play()
         if (preservePositionMs > 0L) {
             player.setTime(preservePositionMs.coerceAtLeast(0L))
@@ -435,7 +509,12 @@ class NativeKtvPlayerHost(
         if (!shouldResume) {
             player.pause()
         }
+        videoLayout?.let { attachPlayerViews(it, reason = "openPlaybackMedia") }
         updateSelectedAudioTrackInfo()
+        Log.i(
+            tag,
+            "openPlaybackMedia path=$path shouldResume=$shouldResume positionMs=$preservePositionMs",
+        )
     }
 
     private fun seekToProgress(progress: Double) {
@@ -600,6 +679,10 @@ class NativeKtvPlayerHost(
         }
 
         val audioTracks = availableAudioTracks()
+        Log.i(
+            tag,
+            "applyAudioOutputMode requested=$requestedAudioOutputMode source=$mediaPath playback=$currentPlaybackPath audioTracks=${audioTracks.size}",
+        )
         isApplyingAudioOutputMode = true
         try {
             if (audioTracks.size > 1) {
@@ -737,6 +820,47 @@ class NativeKtvPlayerHost(
         return media
     }
 
+    private fun resolvePlaybackPath(path: String): String {
+        if (!path.startsWith("content://")) {
+            return path
+        }
+
+        val uri = Uri.parse(path)
+        val displayName = resolveContentDisplayName(path) ?: "selected_video"
+        val extension =
+            displayName.substringAfterLast('.', missingDelimiterValue = "")
+                .takeIf { it.isNotBlank() }
+        val safeName = displayName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val baseName = safeName.substringBeforeLast('.', safeName)
+        val targetName =
+            if (extension != null) {
+                "${baseName}_${uri.hashCode()}.$extension"
+            } else {
+                "${baseName}_${uri.hashCode()}"
+            }
+        val cacheDir = File(applicationContext.cacheDir, "playback_sources")
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs()
+        }
+        val targetFile = File(cacheDir, targetName)
+        if (targetFile.exists() && targetFile.length() > 0L) {
+            Log.i(tag, "resolvePlaybackPath reuse cached file=${targetFile.absolutePath}")
+            return targetFile.absolutePath
+        }
+
+        applicationContext.contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "无法读取所选文件。" }
+            FileOutputStream(targetFile).use { output ->
+                input.copyTo(output)
+            }
+        }
+        Log.i(
+            tag,
+            "resolvePlaybackPath copied content uri=$path to file=${targetFile.absolutePath} size=${targetFile.length()}",
+        )
+        return targetFile.absolutePath
+    }
+
     private fun shouldForceSoftwareDecode(path: String): Boolean {
         val displayName =
             if (path.startsWith("content://")) {
@@ -780,6 +904,27 @@ class NativeKtvPlayerHost(
 
     private fun localizedModeName(mode: AudioOutputMode): String {
         return if (mode == AudioOutputMode.ACCOMPANIMENT) "伴奏" else "原唱"
+    }
+
+    private fun eventName(eventType: Int): String {
+        return when (eventType) {
+            MediaPlayer.Event.MediaChanged -> "MediaChanged"
+            MediaPlayer.Event.Opening -> "Opening"
+            MediaPlayer.Event.Buffering -> "Buffering"
+            MediaPlayer.Event.Playing -> "Playing"
+            MediaPlayer.Event.Paused -> "Paused"
+            MediaPlayer.Event.Stopped -> "Stopped"
+            MediaPlayer.Event.EndReached -> "EndReached"
+            MediaPlayer.Event.EncounteredError -> "EncounteredError"
+            MediaPlayer.Event.TimeChanged -> "TimeChanged"
+            MediaPlayer.Event.PositionChanged -> "PositionChanged"
+            MediaPlayer.Event.Vout -> "Vout"
+            MediaPlayer.Event.ESAdded -> "ESAdded"
+            MediaPlayer.Event.ESDeleted -> "ESDeleted"
+            MediaPlayer.Event.ESSelected -> "ESSelected"
+            MediaPlayer.Event.LengthChanged -> "LengthChanged"
+            else -> "Unknown($eventType)"
+        }
     }
 
     private fun handlePlaybackFailure(
