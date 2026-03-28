@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.ktv.player.ktv2"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "29.0.13599879"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
