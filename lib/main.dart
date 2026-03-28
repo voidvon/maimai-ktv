@@ -80,6 +80,17 @@ class _PlayerHomePageState extends State<PlayerHomePage> {
     }
   }
 
+  Future<void> _toggleAudioOutputMode() async {
+    if (_controller.currentMediaPath == null) {
+      return;
+    }
+
+    final nextMode = _controller.audioOutputMode == AudioOutputMode.original
+        ? AudioOutputMode.accompaniment
+        : AudioOutputMode.original;
+    await _controller.applyAudioOutputMode(nextMode);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -88,19 +99,6 @@ class _PlayerHomePageState extends State<PlayerHomePage> {
         final videoView = _controller.buildVideoView();
         final hasSelection = _currentSource != null;
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('KTV Player'),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: FilledButton.tonalIcon(
-                  onPressed: _isPicking ? null : _pickAndPlay,
-                  icon: const Icon(Icons.video_library_outlined),
-                  label: Text(_isPicking ? '选择中' : '选择视频'),
-                ),
-              ),
-            ],
-          ),
           body: SafeArea(
             child: Stack(
               fit: StackFit.expand,
@@ -117,31 +115,18 @@ class _PlayerHomePageState extends State<PlayerHomePage> {
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 960),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: const Color(0xCC11161B),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _InfoCard(
-                                currentSource: _currentSource,
-                                controller: _controller,
-                              ),
-                              const SizedBox(height: 12),
-                              _ProgressCard(controller: _controller),
-                              const SizedBox(height: 12),
-                              _ControlCard(
-                                controller: _controller,
-                                onPickVideo: _pickAndPlay,
-                                isPicking: _isPicking,
-                              ),
-                            ],
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _ProgressSection(controller: _controller),
+                          const SizedBox(height: 12),
+                          _ControlSection(
+                            controller: _controller,
+                            onPickVideo: _pickAndPlay,
+                            onToggleAudioMode: _toggleAudioOutputMode,
+                            isPicking: _isPicking,
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
@@ -170,69 +155,14 @@ class _EmptyState extends StatelessWidget {
             '选择一个本地视频开始播放',
             style: TextStyle(color: Colors.white70, fontSize: 16),
           ),
-          SizedBox(height: 4),
-          Text('已保留播放器与完整原唱/伴唱切换逻辑', style: TextStyle(color: Colors.white38)),
         ],
       ),
     );
   }
 }
 
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.currentSource, required this.controller});
-
-  final MediaSource? currentSource;
-  final PlayerController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              currentSource?.displayName ?? '未选择视频',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              controller.audioModeDescription,
-              style: theme.textTheme.bodyMedium,
-            ),
-            if (controller.playbackDiagnostics case final diagnostics?)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  diagnostics,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            if (controller.playbackError case final error?)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  error,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProgressCard extends StatelessWidget {
-  const _ProgressCard({required this.controller});
+class _ProgressSection extends StatelessWidget {
+  const _ProgressSection({required this.controller});
 
   final PlayerController controller;
 
@@ -241,85 +171,74 @@ class _ProgressCard extends StatelessWidget {
     final hasMedia =
         controller.currentMediaPath != null &&
         controller.playbackDuration > Duration.zero;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        child: Column(
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Text(_formatDuration(controller.playbackPosition)),
-                const Spacer(),
-                Text(_formatDuration(controller.playbackDuration)),
-              ],
+            Text(
+              _formatDuration(controller.playbackPosition),
+              style: theme.textTheme.bodySmall,
             ),
-            Slider(
-              value: hasMedia ? controller.playbackProgress : 0,
-              onChanged: hasMedia ? controller.seekToProgress : null,
+            const Spacer(),
+            Text(
+              _formatDuration(controller.playbackDuration),
+              style: theme.textTheme.bodySmall,
             ),
           ],
         ),
-      ),
+        Slider(
+          value: hasMedia ? controller.playbackProgress : 0,
+          onChanged: hasMedia ? controller.seekToProgress : null,
+        ),
+      ],
     );
   }
 }
 
-class _ControlCard extends StatelessWidget {
-  const _ControlCard({
+class _ControlSection extends StatelessWidget {
+  const _ControlSection({
     required this.controller,
     required this.onPickVideo,
+    required this.onToggleAudioMode,
     required this.isPicking,
   });
 
   final PlayerController controller;
   final Future<void> Function() onPickVideo;
+  final Future<void> Function() onToggleAudioMode;
   final bool isPicking;
 
   @override
   Widget build(BuildContext context) {
     final hasMedia = controller.currentMediaPath != null;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            FilledButton.tonalIcon(
-              onPressed: isPicking ? null : onPickVideo,
-              icon: const Icon(Icons.folder_open),
-              label: const Text('选择视频'),
-            ),
-            FilledButton.icon(
-              onPressed: hasMedia ? controller.togglePlayback : null,
-              icon: Icon(
-                controller.isPlaying ? Icons.pause_rounded : Icons.play_arrow,
-              ),
-              label: Text(controller.isPlaying ? '暂停' : '播放'),
-            ),
-            SegmentedButton<AudioOutputMode>(
-              segments: const [
-                ButtonSegment(
-                  value: AudioOutputMode.original,
-                  label: Text('原唱'),
-                  icon: Icon(Icons.mic),
-                ),
-                ButtonSegment(
-                  value: AudioOutputMode.accompaniment,
-                  label: Text('伴唱'),
-                  icon: Icon(Icons.music_note),
-                ),
-              ],
-              selected: {controller.audioOutputMode},
-              onSelectionChanged: hasMedia
-                  ? (selection) =>
-                        controller.applyAudioOutputMode(selection.first)
-                  : null,
-            ),
-          ],
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        FilledButton.icon(
+          onPressed: isPicking ? null : onPickVideo,
+          icon: const Icon(Icons.folder_open),
+          label: Text(isPicking ? '选择中' : '选择视频'),
         ),
-      ),
+        const SizedBox(width: 12),
+        FilledButton.tonalIcon(
+          onPressed: hasMedia ? onToggleAudioMode : null,
+          icon: const Icon(Icons.mic_rounded),
+          label: Text(
+            controller.audioOutputMode == AudioOutputMode.accompaniment
+                ? '原唱'
+                : '伴唱',
+          ),
+        ),
+        const SizedBox(width: 12),
+        IconButton.filled(
+          onPressed: hasMedia ? controller.togglePlayback : null,
+          icon: Icon(
+            controller.isPlaying ? Icons.pause_rounded : Icons.play_arrow,
+          ),
+        ),
+      ],
     );
   }
 }
