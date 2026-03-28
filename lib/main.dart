@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'models/media_source.dart';
@@ -86,10 +85,8 @@ class _PlayerHomePageState extends State<PlayerHomePage> {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        final colorScheme = Theme.of(context).colorScheme;
         final videoView = _controller.buildVideoView();
-        final shouldClipVideoView = defaultTargetPlatform != TargetPlatform.android;
-        final videoFrameBorderRadius = BorderRadius.circular(24);
+        final hasSelection = _currentSource != null;
         return Scaffold(
           appBar: AppBar(
             title: const Text('KTV Player'),
@@ -105,69 +102,51 @@ class _PlayerHomePageState extends State<PlayerHomePage> {
             ],
           ),
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: videoFrameBorderRadius,
-                          ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(
+                  color: Colors.black,
+                  child: hasSelection && videoView != null
+                      ? SizedBox.expand(child: videoView)
+                      : const _EmptyState(),
+                ),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 960),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: const Color(0xCC11161B),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        if (shouldClipVideoView)
-                          ClipRRect(
-                            borderRadius: videoFrameBorderRadius,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                ?videoView,
-                                if (_controller.currentMediaPath == null)
-                                  const _EmptyState(),
-                              ],
-                            ),
-                          )
-                        else
-                          Stack(
-                            fit: StackFit.expand,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              ?videoView,
-                              if (_controller.currentMediaPath == null)
-                                const _EmptyState(),
+                              _InfoCard(
+                                currentSource: _currentSource,
+                                controller: _controller,
+                              ),
+                              const SizedBox(height: 12),
+                              _ProgressCard(controller: _controller),
+                              const SizedBox(height: 12),
+                              _ControlCard(
+                                controller: _controller,
+                                onPickVideo: _pickAndPlay,
+                                isPicking: _isPicking,
+                              ),
                             ],
                           ),
-                        IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: videoFrameBorderRadius,
-                              border: Border.all(
-                                color: colorScheme.outlineVariant,
-                              ),
-                            ),
-                          ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  _InfoCard(
-                    currentSource: _currentSource,
-                    controller: _controller,
-                  ),
-                  const SizedBox(height: 12),
-                  _ProgressCard(controller: _controller),
-                  const SizedBox(height: 12),
-                  _ControlCard(
-                    controller: _controller,
-                    onPickVideo: _pickAndPlay,
-                    isPicking: _isPicking,
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );

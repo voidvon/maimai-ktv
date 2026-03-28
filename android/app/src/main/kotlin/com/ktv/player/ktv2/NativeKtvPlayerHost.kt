@@ -1,11 +1,13 @@
 package com.ktv.player.ktv2
 
 import android.content.Context
+import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.util.Log
+import android.view.SurfaceView
 import android.view.View
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
@@ -298,11 +300,11 @@ class NativeKtvPlayerHost(
         libVlcInstance = null
     }
 
-    fun createVideoLayout(context: Context): VLCVideoLayout {
+    private fun createVideoLayout(context: Context): VLCVideoLayout {
         return VLCVideoLayout(context).also(::attachVideoLayout)
     }
 
-    fun detachVideoLayout(layout: VLCVideoLayout) {
+    private fun detachVideoLayout(layout: VLCVideoLayout) {
         if (videoLayout !== layout) {
             return
         }
@@ -402,8 +404,9 @@ class NativeKtvPlayerHost(
                     player.detachViews()
                 }
                 if (!vout.areViewsAttached()) {
-                    player.attachViews(layout, null, false, false)
+                    player.attachViews(layout, null, false, true)
                 }
+                configureVideoSurfaceOverlay(layout)
                 vout.setWindowSize(width, height)
                 player.updateVideoSurfaces()
                 lastAttachedLayoutWidth = width
@@ -432,6 +435,12 @@ class NativeKtvPlayerHost(
             videoLayout?.removeOnLayoutChangeListener(listener)
             pendingLayoutChangeListener = null
         }
+    }
+
+    private fun configureVideoSurfaceOverlay(layout: VLCVideoLayout) {
+        val surfaceView = layout.findViewById<SurfaceView?>(org.videolan.R.id.surface_video) ?: return
+        surfaceView.setZOrderOnTop(true)
+        surfaceView.holder.setFormat(PixelFormat.TRANSLUCENT)
     }
 
     private fun open(
