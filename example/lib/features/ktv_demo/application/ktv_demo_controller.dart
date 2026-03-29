@@ -5,8 +5,9 @@ import 'package:ktv2/ktv2.dart';
 
 import '../../../core/models/demo_song.dart';
 import '../../media_library/data/demo_media_library_repository.dart';
+import 'ktv_demo_state.dart';
 
-enum DemoRoute { home, songBook }
+export 'ktv_demo_state.dart' show DemoRoute, KtvDemoState;
 
 class KtvDemoController extends ChangeNotifier {
   KtvDemoController({
@@ -21,65 +22,29 @@ class KtvDemoController extends ChangeNotifier {
   final DemoMediaLibraryRepository _mediaLibraryRepository;
   final PlayerController playerController;
 
-  final List<DemoSong> _queuedSongs = <DemoSong>[];
-  List<DemoSong> _librarySongs = <DemoSong>[];
-
-  DemoRoute _route = DemoRoute.home;
-  String _selectedLanguage = allLanguagesLabel;
-  String? _libraryScanErrorMessage;
-  String? _scanDirectoryPath;
-  String _searchQuery = '';
-  bool _isScanningLibrary = false;
+  KtvDemoState _state = const KtvDemoState();
   bool _didInitialize = false;
 
   DemoMediaLibraryRepository get mediaLibraryRepository =>
       _mediaLibraryRepository;
+  KtvDemoState get state => _state;
 
-  DemoRoute get route => _route;
-  String get selectedLanguage => _selectedLanguage;
-  String? get libraryScanErrorMessage => _libraryScanErrorMessage;
-  String? get scanDirectoryPath => _scanDirectoryPath;
-  bool get isScanningLibrary => _isScanningLibrary;
-  bool get hasConfiguredDirectory => _scanDirectoryPath != null;
-  List<DemoSong> get queuedSongs => List<DemoSong>.unmodifiable(_queuedSongs);
-  List<DemoSong> get librarySongs => List<DemoSong>.unmodifiable(_librarySongs);
+  DemoRoute get route => _state.route;
+  String get selectedLanguage => _state.selectedLanguage;
+  String? get libraryScanErrorMessage => _state.libraryScanErrorMessage;
+  String? get scanDirectoryPath => _state.scanDirectoryPath;
+  bool get isScanningLibrary => _state.isScanningLibrary;
+  bool get hasConfiguredDirectory => _state.hasConfiguredDirectory;
+  List<DemoSong> get queuedSongs =>
+      List<DemoSong>.unmodifiable(_state.queuedSongs);
+  List<DemoSong> get librarySongs =>
+      List<DemoSong>.unmodifiable(_state.librarySongs);
 
-  List<DemoSong> get filteredSongs {
-    final String normalizedQuery = _searchQuery.trim().toLowerCase();
-    return _librarySongs
-        .where((DemoSong song) {
-          final bool languageMatches =
-              _selectedLanguage == allLanguagesLabel ||
-              song.language == _selectedLanguage;
-          if (!languageMatches) {
-            return false;
-          }
-          if (normalizedQuery.isEmpty) {
-            return true;
-          }
-          final String haystack =
-              '${song.title} ${song.artist} ${song.searchIndex}'.toLowerCase();
-          return haystack.contains(normalizedQuery);
-        })
-        .toList(growable: false);
-  }
+  List<DemoSong> get filteredSongs => _state.filteredSongs(allLanguagesLabel);
 
-  String get currentTitle {
-    if (_queuedSongs.isNotEmpty) {
-      return _queuedSongs.first.title;
-    }
-    return '等待点唱';
-  }
+  String get currentTitle => _state.currentTitle;
 
-  String get currentSubtitle {
-    if (_queuedSongs.isNotEmpty) {
-      return '${_queuedSongs.first.artist} · 已从目录中加载 ${_librarySongs.length} 首';
-    }
-    if (_scanDirectoryPath != null && _librarySongs.isNotEmpty) {
-      return '已从扫描目录加载 ${_librarySongs.length} 首歌曲。';
-    }
-    return '请先在设置中选择扫描目录。';
-  }
+  String get currentSubtitle => _state.currentSubtitle;
 
   Future<void> initialize() async {
     if (_didInitialize) {
@@ -90,68 +55,68 @@ class KtvDemoController extends ChangeNotifier {
   }
 
   void setSearchQuery(String query) {
-    if (_searchQuery == query) {
+    if (_state.searchQuery == query) {
       return;
     }
-    _searchQuery = query;
-    notifyListeners();
+    _setState(_state.copyWith(searchQuery: query));
   }
 
   void enterSongBook() {
-    if (_route == DemoRoute.songBook) {
+    if (_state.route == DemoRoute.songBook) {
       return;
     }
-    _route = DemoRoute.songBook;
-    notifyListeners();
+    _setState(_state.copyWith(route: DemoRoute.songBook));
   }
 
   void returnHome() {
-    if (_route == DemoRoute.home) {
+    if (_state.route == DemoRoute.home) {
       return;
     }
-    _route = DemoRoute.home;
-    notifyListeners();
+    _setState(_state.copyWith(route: DemoRoute.home));
   }
 
   void selectLanguage(String language) {
-    if (_selectedLanguage == language) {
+    if (_state.selectedLanguage == language) {
       return;
     }
-    _selectedLanguage = language;
-    notifyListeners();
+    _setState(_state.copyWith(selectedLanguage: language));
   }
 
   Future<void> handleSelectedDirectory(String directory) async {
-    _scanDirectoryPath = directory;
-    notifyListeners();
+    _setState(_state.copyWith(scanDirectoryPath: directory));
     await _mediaLibraryRepository.saveSelectedDirectory(directory);
     await scanLibrary(directory);
   }
 
   Future<bool> scanLibrary(String directory) async {
-    _isScanningLibrary = true;
-    _libraryScanErrorMessage = null;
-    notifyListeners();
+    _setState(
+      _state.copyWith(isScanningLibrary: true, libraryScanErrorMessage: null),
+    );
 
     try {
       final List<DemoSong> songs = await _mediaLibraryRepository.scanLibrary(
         directory,
       );
-      _librarySongs = songs;
-      _libraryScanErrorMessage = null;
-      _selectedLanguage = allLanguagesLabel;
-      _route = DemoRoute.songBook;
-      _searchQuery = '';
-      notifyListeners();
+      _setState(
+        _state.copyWith(
+          librarySongs: songs,
+          libraryScanErrorMessage: null,
+          selectedLanguage: allLanguagesLabel,
+          route: DemoRoute.songBook,
+          searchQuery: '',
+        ),
+      );
       return true;
     } catch (error) {
-      _librarySongs = <DemoSong>[];
-      _libraryScanErrorMessage = '扫描目录失败：$error';
-      notifyListeners();
+      _setState(
+        _state.copyWith(
+          librarySongs: <DemoSong>[],
+          libraryScanErrorMessage: '扫描目录失败：$error',
+        ),
+      );
       return false;
     } finally {
-      _isScanningLibrary = false;
-      notifyListeners();
+      _setState(_state.copyWith(isScanningLibrary: false));
     }
   }
 
@@ -159,10 +124,10 @@ class KtvDemoController extends ChangeNotifier {
     await playerController.openMedia(
       MediaSource(path: song.mediaPath, displayName: song.title),
     );
-    _queuedSongs
+    final List<DemoSong> queuedSongs = List<DemoSong>.of(_state.queuedSongs)
       ..remove(song)
       ..insert(0, song);
-    notifyListeners();
+    _setState(_state.copyWith(queuedSongs: queuedSongs));
   }
 
   void togglePlayback() {
@@ -201,9 +166,16 @@ class KtvDemoController extends ChangeNotifier {
       return;
     }
 
-    _scanDirectoryPath = savedDirectory;
-    notifyListeners();
+    _setState(_state.copyWith(scanDirectoryPath: savedDirectory));
     await scanLibrary(savedDirectory);
+  }
+
+  void _setState(KtvDemoState nextState) {
+    if (identical(_state, nextState)) {
+      return;
+    }
+    _state = nextState;
+    notifyListeners();
   }
 
   @override
