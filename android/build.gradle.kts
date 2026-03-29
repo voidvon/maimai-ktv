@@ -1,3 +1,19 @@
+group = "com.ktv.player.ktv2"
+version = "1.0.0"
+
+buildscript {
+    val kotlinVersion = "2.2.20"
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.11.1")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+    }
+}
+
 allprojects {
     repositories {
         google()
@@ -5,20 +21,49 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory
-        .dir("../../build")
-        .get()
-rootProject.layout.buildDirectory.value(newBuildDir)
-
-subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
-subprojects {
-    project.evaluationDependsOn(":app")
+plugins {
+    id("com.android.library")
+    id("kotlin-android")
 }
 
-tasks.register<Delete>("clean") {
-    delete(rootProject.layout.buildDirectory)
+android {
+    namespace = "com.ktv.player.ktv2"
+    compileSdk = 36
+    ndkVersion = "29.0.13599879"
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("src/main/kotlin")
+        }
+    }
+
+    defaultConfig {
+        minSdk = 24
+        consumerProguardFiles("consumer-rules.pro")
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += ""
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/c/CMakeLists.txt")
+        }
+    }
+}
+
+dependencies {
+    implementation("org.videolan.android:libvlc-all:3.6.0")
 }

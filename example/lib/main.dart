@@ -3,17 +3,17 @@ import 'package:ktv2/ktv2.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const KtvPlayerApp());
+  runApp(const KtvPlayerExampleApp());
 }
 
-class KtvPlayerApp extends StatelessWidget {
-  const KtvPlayerApp({super.key});
+class KtvPlayerExampleApp extends StatelessWidget {
+  const KtvPlayerExampleApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'KTV Player',
+      title: 'KTV Player Example',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1D6B57),
@@ -37,7 +37,6 @@ class PlayerHomePage extends StatefulWidget {
 class _PlayerHomePageState extends State<PlayerHomePage> {
   final PlayerController _controller = createPlayerController();
   final VideoPickerService _videoPickerService = VideoPickerService();
-
   bool _isPicking = false;
 
   @override

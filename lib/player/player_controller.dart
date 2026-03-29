@@ -8,6 +8,7 @@ abstract class PlayerController extends ChangeNotifier {
   PlayerState get state;
 
   AudioOutputMode get audioOutputMode => state.audioOutputMode;
+  bool get hasMedia => currentMediaPath != null;
   bool get isPreparingPlayback => state.isPreparingPlayback;
   bool get isPlaying => state.isPlaying;
   bool get isPlaybackCompleted => state.isPlaybackCompleted;
@@ -27,4 +28,11 @@ abstract class PlayerController extends ChangeNotifier {
   Future<void> seekToProgress(double progress);
   Future<void> applyAudioOutputMode(AudioOutputMode mode);
   Widget? buildVideoView();
+
+  Future<void> toggleAudioOutputMode() {
+    final nextMode = audioOutputMode == AudioOutputMode.original
+        ? AudioOutputMode.accompaniment
+        : AudioOutputMode.original;
+    return applyAudioOutputMode(nextMode);
+  }
 }
