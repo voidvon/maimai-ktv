@@ -151,6 +151,10 @@ class KtvDemoController extends ChangeNotifier {
     unawaited(playerController.seekToProgress(0));
   }
 
+  Future<void> stopPlayback() {
+    return playerController.stopPlayback();
+  }
+
   Future<void> _restoreSavedDirectory() async {
     final String? savedDirectory = await _mediaLibraryRepository
         .loadSelectedDirectory();

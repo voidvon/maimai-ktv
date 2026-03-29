@@ -25,6 +25,16 @@ abstract class PlayerController extends ChangeNotifier {
 
   Future<void> openMedia(MediaSource source);
   Future<void> togglePlayback();
+  Future<void> stopPlayback() async {
+    if (currentMediaPath == null) {
+      return;
+    }
+    if (isPlaying) {
+      await togglePlayback();
+    }
+    await seekToProgress(0);
+  }
+
   Future<void> seekToProgress(double progress);
   Future<void> applyAudioOutputMode(AudioOutputMode mode);
   Widget? buildVideoView();

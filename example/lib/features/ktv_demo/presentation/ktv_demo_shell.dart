@@ -71,24 +71,36 @@ class KtvDemoShell extends StatefulWidget {
   State<KtvDemoShell> createState() => _KtvDemoShellState();
 }
 
-class _KtvDemoShellState extends State<KtvDemoShell> {
+class _KtvDemoShellState extends State<KtvDemoShell>
+    with WidgetsBindingObserver {
   final KtvDemoController _demoController = KtvDemoController();
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(_handleSearchChanged);
     unawaited(_demoController.initialize());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController
       ..removeListener(_handleSearchChanged)
       ..dispose();
     _demoController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      unawaited(_demoController.stopPlayback());
+    }
   }
 
   void _handleSearchChanged() {

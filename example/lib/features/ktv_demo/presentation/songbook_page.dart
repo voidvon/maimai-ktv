@@ -47,6 +47,8 @@ class _SongBookPage extends StatelessWidget {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool compact = constraints.maxWidth < 860;
+        final bool showLetterKeyboard =
+            MediaQuery.orientationOf(context) == Orientation.landscape;
         final Widget content = _GradientShell(
           padding: compact
               ? const EdgeInsets.all(18)
@@ -60,6 +62,7 @@ class _SongBookPage extends StatelessWidget {
                       controller: controller,
                       searchController: searchController,
                       compact: true,
+                      showLetterKeyboard: showLetterKeyboard,
                       onAppendSearchToken: onAppendSearchToken,
                       onRemoveSearchCharacter: onRemoveSearchCharacter,
                       onClearSearch: onClearSearch,
@@ -92,6 +95,7 @@ class _SongBookPage extends StatelessWidget {
                       child: _SongBookLeftColumn(
                         controller: controller,
                         searchController: searchController,
+                        showLetterKeyboard: showLetterKeyboard,
                         onAppendSearchToken: onAppendSearchToken,
                         onRemoveSearchCharacter: onRemoveSearchCharacter,
                         onClearSearch: onClearSearch,
@@ -134,6 +138,7 @@ class _SongBookLeftColumn extends StatelessWidget {
   const _SongBookLeftColumn({
     required this.controller,
     required this.searchController,
+    required this.showLetterKeyboard,
     required this.onAppendSearchToken,
     required this.onRemoveSearchCharacter,
     required this.onClearSearch,
@@ -142,6 +147,7 @@ class _SongBookLeftColumn extends StatelessWidget {
 
   final PlayerController controller;
   final TextEditingController searchController;
+  final bool showLetterKeyboard;
   final ValueChanged<String> onAppendSearchToken;
   final VoidCallback onRemoveSearchCharacter;
   final VoidCallback onClearSearch;
@@ -157,11 +163,14 @@ class _SongBookLeftColumn extends StatelessWidget {
         SizedBox(height: compact ? 4 : 6),
         _SongBookSearchField(
           controller: searchController,
+          enableSystemKeyboard: !showLetterKeyboard,
           onBackspacePressed: onRemoveSearchCharacter,
           onClearPressed: onClearSearch,
         ),
-        SizedBox(height: compact ? 6 : 8),
-        _LetterKeyboard(onKeyPressed: onAppendSearchToken),
+        if (showLetterKeyboard) ...<Widget>[
+          SizedBox(height: compact ? 6 : 8),
+          _LetterKeyboard(onKeyPressed: onAppendSearchToken),
+        ],
       ],
     );
   }
@@ -270,11 +279,13 @@ class _SongPreviewPlaceholder extends StatelessWidget {
 class _SongBookSearchField extends StatelessWidget {
   const _SongBookSearchField({
     required this.controller,
+    required this.enableSystemKeyboard,
     required this.onBackspacePressed,
     required this.onClearPressed,
   });
 
   final TextEditingController controller;
+  final bool enableSystemKeyboard;
   final VoidCallback onBackspacePressed;
   final VoidCallback onClearPressed;
 
@@ -294,6 +305,9 @@ class _SongBookSearchField extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              readOnly: !enableSystemKeyboard,
+              showCursor: enableSystemKeyboard,
+              enableInteractiveSelection: enableSystemKeyboard,
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,

@@ -82,6 +82,22 @@ void main() {
     expect(controller.queuedSongs, <DemoSong>[first, second]);
     expect(controller.currentTitle, '第一首');
   });
+
+  test('stopPlayback pauses current media and rewinds to start', () async {
+    final FakePlayerController playerController = FakePlayerController();
+    final KtvDemoController controller = KtvDemoController(
+      mediaLibraryRepository: FakeDemoMediaLibraryRepository(),
+      playerController: playerController,
+    );
+
+    await controller.playSong(_song(title: '夜空中最亮的星', artist: '逃跑计划'));
+    await playerController.seekToProgress(0.5);
+
+    await controller.stopPlayback();
+
+    expect(playerController.isPlaying, isFalse);
+    expect(playerController.playbackPosition, Duration.zero);
+  });
 }
 
 DemoSong _song({
