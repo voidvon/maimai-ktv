@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:ktv2/ktv2.dart';
 
-import '../player/audio_output_mode.dart';
-import '../player/player_controller.dart';
-
-class KtvPlayerControlBar extends StatelessWidget {
-  const KtvPlayerControlBar({
+class DemoPlayerControlBar extends StatelessWidget {
+  const DemoPlayerControlBar({
     super.key,
     required this.controller,
     this.onOpenPressed,

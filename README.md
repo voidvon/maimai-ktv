@@ -7,7 +7,7 @@
 - Android libVLC 播放链路
 - macOS 原生播放器桥接
 
-现在仓库已经提供可复用的 Flutter package API，外部项目可直接通过 `path` 或 `git` 依赖引入。
+现在仓库提供更纯粹的 Flutter package API，外部项目可直接通过 `path` 或 `git` 依赖引入。文件选择和示例控制 UI 已移到 `example/`。
 
 ## 作为组件引入
 
@@ -34,30 +34,11 @@ class DemoPage extends StatefulWidget {
 
 class _DemoPageState extends State<DemoPage> {
   final PlayerController controller = createPlayerController();
-  final VideoPickerService picker = VideoPickerService();
-  bool isPicking = false;
 
   @override
   void dispose() {
     controller.dispose();
     super.dispose();
-  }
-
-  Future<void> pickAndPlay() async {
-    if (isPicking) {
-      return;
-    }
-    setState(() => isPicking = true);
-    try {
-      final source = await picker.pickVideo();
-      if (source != null) {
-        await controller.openMedia(source);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => isPicking = false);
-      }
-    }
   }
 
   @override
@@ -66,20 +47,6 @@ class _DemoPageState extends State<DemoPage> {
       fit: StackFit.expand,
       children: [
         KtvPlayerView(controller: controller),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              KtvPlayerProgressBar(controller: controller),
-              KtvPlayerControlBar(
-                controller: controller,
-                onOpenPressed: pickAndPlay,
-                isOpening: isPicking,
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -90,10 +57,9 @@ class _DemoPageState extends State<DemoPage> {
 
 - `PlayerController` / `createPlayerController()`
 - `MediaSource`
-- `VideoPickerService`
 - `KtvPlayerView`
-- `KtvPlayerProgressBar`
-- `KtvPlayerControlBar`
+- `PlayerState`
+- `AudioOutputMode`
 
 ## 说明文档
 

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
+import 'src/demo_player_control_bar.dart';
+import 'src/demo_player_progress_bar.dart';
+import 'src/demo_video_picker_service.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const KtvPlayerExampleApp());
@@ -36,7 +40,7 @@ class PlayerHomePage extends StatefulWidget {
 
 class _PlayerHomePageState extends State<PlayerHomePage> {
   final PlayerController _controller = createPlayerController();
-  final VideoPickerService _videoPickerService = VideoPickerService();
+  final DemoVideoPickerService _videoPickerService = DemoVideoPickerService();
   bool _isPicking = false;
 
   @override
@@ -90,9 +94,9 @@ class _PlayerHomePageState extends State<PlayerHomePage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      KtvPlayerProgressBar(controller: _controller),
+                      DemoPlayerProgressBar(controller: _controller),
                       const SizedBox(height: 12),
-                      KtvPlayerControlBar(
+                      DemoPlayerControlBar(
                         controller: _controller,
                         onOpenPressed: _pickAndPlay,
                         isOpening: _isPicking,

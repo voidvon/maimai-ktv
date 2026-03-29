@@ -1,14 +1,15 @@
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:ktv2/ktv2.dart';
 
-import '../models/media_source.dart';
-import '../platform/app_platform.dart';
-
-class VideoPickerService {
-  static const MethodChannel _channel = MethodChannel('ktv/video_picker');
+class DemoVideoPickerService {
+  static const MethodChannel _channel = MethodChannel(
+    'ktv2_example/video_picker',
+  );
 
   Future<MediaSource?> pickVideo() async {
-    if (isMacOS) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) {
       return _pickVideoOnDesktop();
     }
 

@@ -4,11 +4,11 @@
 
 ## 1. 当前播放器结构
 
-- Flutter UI 入口：`lib/main.dart`
+- 示例 UI 入口：`example/lib/main.dart`
 - Android 播放控制器：`lib/player/android_native_player_controller.dart`
 - Dart 与原生通信：`lib/player/platform_channel_player_controller.dart`
-- Android 文件选择：`android/app/src/main/kotlin/com/ktv/player/ktv2/MainActivity.kt`
-- Android 原生播放器宿主：`android/app/src/main/kotlin/com/ktv/player/ktv2/NativeKtvPlayerHost.kt`
+- Android 示例文件选择：`example/android/app/src/main/kotlin/com/ktv/player/ktv2_example/MainActivity.kt`
+- Android 原生播放器宿主：`android/src/main/kotlin/com/ktv/player/ktv2/NativeKtvPlayerHost.kt`
 - 播放内核：`org.videolan.android:libvlc-all`
 
 当前模式是：
@@ -30,8 +30,8 @@ Android 文件选择器返回的通常是 `content://...`。
 
 当前做法是：
 
-- 先在 `MainActivity.kt` 中申请持久化读权限
-- 再在 `NativeKtvPlayerHost.kt` 里把 `content://` 拷到 `cache/playback_sources/`
+- 先在 example 的 `MainActivity.kt` 中申请持久化读权限
+- 再在 package 的 `NativeKtvPlayerHost.kt` 里把 `content://` 拷到 `cache/playback_sources/`
 - 真正播放时走缓存文件路径
 
 后面如果你要改文件选择逻辑，这个步骤不要删。
@@ -60,8 +60,8 @@ Android 文件选择器返回的通常是 `content://...`。
 
 相关文件：
 
-- `android/app/src/main/c/native_vlc_bridge.c`
-- `android/app/src/main/c/CMakeLists.txt`
+- `android/src/main/c/native_vlc_bridge.c`
+- `android/src/main/c/CMakeLists.txt`
 
 如果 JNI 库加载失败，单音轨原唱/伴唱能力会退化。
 
@@ -120,7 +120,7 @@ Android 文件选择器返回的通常是 `content://...`。
 
 - 删除 `resolvePlaybackPath()` 的缓存复制逻辑
 - 删除 `proguard-rules.pro`
-- 改掉 `MainActivity.kt` 里的 URI 持久权限处理
+- 改掉 example `MainActivity.kt` 里的 URI 持久权限处理
 - 把 Android 平台视图从当前实现随意切成别的承载方式
 - 把 libVLC 的 `attachViews()`、`detachViews()` 顺序大改
 - 在视频区域外层重新叠很多 Flutter 裁剪、圆角、透明背景容器

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:ktv2/ktv2.dart';
 
-import '../player/player_controller.dart';
-
-class KtvPlayerProgressBar extends StatelessWidget {
-  const KtvPlayerProgressBar({super.key, required this.controller});
+class DemoPlayerProgressBar extends StatelessWidget {
+  const DemoPlayerProgressBar({super.key, required this.controller});
 
   final PlayerController controller;
 
