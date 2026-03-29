@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ktv2/ktv2.dart';
 
+import 'demo_scan_directory_service.dart';
 import 'demo_video_picker_service.dart';
 
 const List<String> _languageTabs = <String>[
@@ -120,14 +122,19 @@ class _KtvDemoShell extends StatefulWidget {
 class _KtvDemoShellState extends State<_KtvDemoShell> {
   final PlayerController _controller = createPlayerController();
   final DemoVideoPickerService _videoPickerService = DemoVideoPickerService();
+  final DemoScanDirectoryService _scanDirectoryService =
+      DemoScanDirectoryService();
   final TextEditingController _searchController = TextEditingController();
 
   final List<_DemoSong> _queuedSongs = <_DemoSong>[];
 
   _DemoRoute _route = _DemoRoute.home;
   String _selectedLanguage = _languageTabs.first;
+  String? _directoryPickerErrorMessage;
+  String? _scanDirectoryPath;
   MediaSource? _selectedMedia;
   bool _isPickingVideo = false;
+  bool _isPickingDirectory = false;
 
   @override
   void initState() {
@@ -215,6 +222,90 @@ class _KtvDemoShellState extends State<_KtvDemoShell> {
         });
       }
     }
+  }
+
+  Future<void> _pickScanDirectory() async {
+    if (_isPickingDirectory) {
+      return;
+    }
+
+    setState(() {
+      _isPickingDirectory = true;
+      _directoryPickerErrorMessage = null;
+    });
+
+    try {
+      final String? directory = await _scanDirectoryService.pickDirectory(
+        initialDirectory: _scanDirectoryPath,
+      );
+      if (!mounted || directory == null) {
+        return;
+      }
+
+      final bool hasAccess = await _scanDirectoryService.ensureDirectoryAccess(
+        directory,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (!hasAccess) {
+        setState(() {
+          _directoryPickerErrorMessage = '系统没有保留这个目录的读取授权，请重新选择目录。';
+        });
+        return;
+      }
+
+      setState(() {
+        _scanDirectoryPath = directory;
+        _directoryPickerErrorMessage = null;
+      });
+    } on PlatformException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _directoryPickerErrorMessage = error.message ?? '系统目录选择器没有成功启动。';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _directoryPickerErrorMessage = '系统目录选择器没有成功启动。';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPickingDirectory = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openSettingsDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            Future<void> handlePickDirectory() async {
+              await _pickScanDirectory();
+
+              if (context.mounted) {
+                setDialogState(() {});
+              }
+            }
+
+            return _ScanDirectoryDialog(
+              scanDirectoryPath: _scanDirectoryPath,
+              errorMessage: _directoryPickerErrorMessage,
+              isPickingDirectory: _isPickingDirectory,
+              onPickDirectory: handlePickDirectory,
+            );
+          },
+        );
+      },
+    );
   }
 
   void _togglePlayback() {
@@ -346,6 +437,8 @@ class _KtvDemoShellState extends State<_KtvDemoShell> {
                                           currentTitle: _currentTitle,
                                           currentSubtitle: _currentSubtitle,
                                           onEnterSongBook: _enterSongBook,
+                                          onSettingsPressed:
+                                              _openSettingsDialog,
                                           onToggleAudioMode: _toggleAudioMode,
                                           onTogglePlayback: _togglePlayback,
                                         )
@@ -366,6 +459,8 @@ class _KtvDemoShellState extends State<_KtvDemoShell> {
                                               _removeSearchCharacter,
                                           onClearSearch: _clearSearch,
                                           onQueueSong: _queueSong,
+                                          onSettingsPressed:
+                                              _openSettingsDialog,
                                           onToggleAudioMode: _toggleAudioMode,
                                           onTogglePlayback: _togglePlayback,
                                           onRestartPlayback: _restartPlayback,
@@ -409,6 +504,7 @@ class _HomePage extends StatelessWidget {
     required this.currentTitle,
     required this.currentSubtitle,
     required this.onEnterSongBook,
+    required this.onSettingsPressed,
     required this.onToggleAudioMode,
     required this.onTogglePlayback,
   });
@@ -418,6 +514,7 @@ class _HomePage extends StatelessWidget {
   final String currentTitle;
   final String currentSubtitle;
   final VoidCallback onEnterSongBook;
+  final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
 
@@ -439,6 +536,7 @@ class _HomePage extends StatelessWidget {
                 queueCount: queueCount,
                 compact: compact,
                 onQueuePressed: onEnterSongBook,
+                onSettingsPressed: onSettingsPressed,
                 onToggleAudioMode: onToggleAudioMode,
                 onTogglePlayback: onTogglePlayback,
               ),
@@ -507,6 +605,7 @@ class _SongBookPage extends StatelessWidget {
     required this.onRemoveSearchCharacter,
     required this.onClearSearch,
     required this.onQueueSong,
+    required this.onSettingsPressed,
     required this.onToggleAudioMode,
     required this.onTogglePlayback,
     required this.onRestartPlayback,
@@ -523,6 +622,7 @@ class _SongBookPage extends StatelessWidget {
   final VoidCallback onRemoveSearchCharacter;
   final VoidCallback onClearSearch;
   final ValueChanged<_DemoSong> onQueueSong;
+  final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
   final VoidCallback onRestartPlayback;
@@ -559,6 +659,7 @@ class _SongBookPage extends StatelessWidget {
                       onBackPressed: onBackPressed,
                       onLanguageSelected: onLanguageSelected,
                       onQueueSong: onQueueSong,
+                      onSettingsPressed: onSettingsPressed,
                       onToggleAudioMode: onToggleAudioMode,
                       onTogglePlayback: onTogglePlayback,
                       onRestartPlayback: onRestartPlayback,
@@ -588,6 +689,7 @@ class _SongBookPage extends StatelessWidget {
                         onBackPressed: onBackPressed,
                         onLanguageSelected: onLanguageSelected,
                         onQueueSong: onQueueSong,
+                        onSettingsPressed: onSettingsPressed,
                         onToggleAudioMode: onToggleAudioMode,
                         onTogglePlayback: onTogglePlayback,
                         onRestartPlayback: onRestartPlayback,
@@ -660,6 +762,7 @@ class _HomeToolbar extends StatelessWidget {
     required this.queueCount,
     required this.compact,
     required this.onQueuePressed,
+    required this.onSettingsPressed,
     required this.onToggleAudioMode,
     required this.onTogglePlayback,
   });
@@ -668,6 +771,7 @@ class _HomeToolbar extends StatelessWidget {
   final int queueCount;
   final bool compact;
   final VoidCallback onQueuePressed;
+  final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
 
@@ -690,6 +794,7 @@ class _HomeToolbar extends StatelessWidget {
             label: controller.isPlaying ? '暂停' : '播放',
             onPressed: controller.hasMedia ? onTogglePlayback : null,
           ),
+          _ToolbarPill(label: '设置', onPressed: onSettingsPressed),
         ];
 
         return Container(
@@ -1340,6 +1445,7 @@ class _SongBookRightColumn extends StatelessWidget {
     required this.onBackPressed,
     required this.onLanguageSelected,
     required this.onQueueSong,
+    required this.onSettingsPressed,
     required this.onToggleAudioMode,
     required this.onTogglePlayback,
     required this.onRestartPlayback,
@@ -1353,6 +1459,7 @@ class _SongBookRightColumn extends StatelessWidget {
   final VoidCallback onBackPressed;
   final ValueChanged<String> onLanguageSelected;
   final ValueChanged<_DemoSong> onQueueSong;
+  final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
   final VoidCallback onRestartPlayback;
@@ -1367,6 +1474,7 @@ class _SongBookRightColumn extends StatelessWidget {
           controller: controller,
           queueCount: queuedSongs.length,
           compact: compact,
+          onSettingsPressed: onSettingsPressed,
           onToggleAudioMode: onToggleAudioMode,
           onTogglePlayback: onTogglePlayback,
           onRestartPlayback: onRestartPlayback,
@@ -1487,6 +1595,7 @@ class _SongBookActionRow extends StatelessWidget {
     required this.controller,
     required this.queueCount,
     required this.compact,
+    required this.onSettingsPressed,
     required this.onToggleAudioMode,
     required this.onTogglePlayback,
     required this.onRestartPlayback,
@@ -1495,6 +1604,7 @@ class _SongBookActionRow extends StatelessWidget {
   final PlayerController controller;
   final int queueCount;
   final bool compact;
+  final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
   final VoidCallback onRestartPlayback;
@@ -1540,10 +1650,122 @@ class _SongBookActionRow extends StatelessWidget {
                 icon: Icons.replay_rounded,
                 onPressed: controller.hasMedia ? onRestartPlayback : null,
               ),
+              _ActionPill(
+                label: '设置',
+                icon: Icons.settings_rounded,
+                onPressed: onSettingsPressed,
+              ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _ScanDirectoryDialog extends StatelessWidget {
+  const _ScanDirectoryDialog({
+    required this.scanDirectoryPath,
+    required this.errorMessage,
+    required this.isPickingDirectory,
+    required this.onPickDirectory,
+  });
+
+  final String? scanDirectoryPath;
+  final String? errorMessage;
+  final bool isPickingDirectory;
+  final Future<void> Function() onPickDirectory;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      title: const Text('媒体库设置'),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width > 560
+              ? 520
+              : MediaQuery.sizeOf(context).width - 48,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                '配置扫描目录后，后续点歌页会基于这个目录建立扫描范围。Android 这里走系统文档树授权，不依赖额外存储权限。',
+                style: TextStyle(height: 1.5),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F2FF),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      '扫描目录',
+                      style: TextStyle(
+                        color: Color(0xFF1D1230),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      scanDirectoryPath ?? '当前还没有配置扫描目录。',
+                      style: const TextStyle(
+                        color: Color(0xFF6B5D7C),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: isPickingDirectory ? null : onPickDirectory,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6E67),
+                ),
+                icon: const Icon(Icons.folder_open_rounded),
+                label: Text(isPickingDirectory ? '选择中' : '选择目录'),
+              ),
+              if (errorMessage != null) ...<Widget>[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1F1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    errorMessage!,
+                    style: const TextStyle(
+                      color: Color(0xFF9C2F2F),
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('完成'),
+        ),
+      ],
     );
   }
 }
