@@ -1,0 +1,35 @@
+PODS:
+  - file_selector_macos (0.0.1):
+    - FlutterMacOS
+  - FlutterMacOS (1.0.0)
+  - ktv2 (1.0.0):
+    - FlutterMacOS
+    - VLCKit
+  - VLCKit (3.7.3)
+
+DEPENDENCIES:
+  - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
+  - FlutterMacOS (from `Flutter/ephemeral`)
+  - ktv2 (from `Flutter/ephemeral/.symlinks/plugins/ktv2/macos`)
+
+SPEC REPOS:
+  trunk:
+    - VLCKit
+
+EXTERNAL SOURCES:
+  file_selector_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+  ktv2:
+    :path: Flutter/ephemeral/.symlinks/plugins/ktv2/macos
+
+SPEC CHECKSUMS:
+  file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
+  FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  ktv2: 4266ebac4e6abefc57fa8de9d4c2025e6ce50246
+  VLCKit: 4f2c462daaab6de88b93ab7609bdefbada557a4d
+
+PODFILE CHECKSUM: 45ef203332e4860c8d89b2ebd53a1537a910f0f8
+
+COCOAPODS: 1.16.2
