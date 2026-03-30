@@ -47,6 +47,9 @@ class _SongBookPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool showLetterKeyboard =
         MediaQuery.orientationOf(context) == Orientation.landscape;
+    final double sectionGap = showLetterKeyboard
+        ? (compact ? 20 : 12)
+        : (compact ? 20 : 10);
     final Widget rightColumn = _SongBookRightColumn(
       controller: controller,
       compact: compact,
@@ -76,14 +79,14 @@ class _SongBookPage extends StatelessWidget {
           onRemoveSearchCharacter: onRemoveSearchCharacter,
           onClearSearch: onClearSearch,
         ),
-        SizedBox(height: compact ? 20 : 0),
+        SizedBox(height: sectionGap),
         if (compact) rightColumn else Expanded(child: rightColumn),
       ],
     );
   }
 }
 
-class _SongBookLeftColumn extends StatelessWidget {
+class _SongBookLeftColumn extends StatefulWidget {
   const _SongBookLeftColumn({
     required this.controller,
     required this.searchController,
@@ -103,19 +106,41 @@ class _SongBookLeftColumn extends StatelessWidget {
   final bool compact;
 
   @override
+  State<_SongBookLeftColumn> createState() => _SongBookLeftColumnState();
+}
+
+class _SongBookLeftColumnState extends State<_SongBookLeftColumn> {
+  bool _showNumberKeyboard = false;
+
+  void _handleKeyboardKeyPressed(String key) {
+    if (key == _numberKeyboardToggleLabel) {
+      setState(() => _showNumberKeyboard = true);
+      return;
+    }
+    if (key == _letterKeyboardToggleLabel) {
+      setState(() => _showNumberKeyboard = false);
+      return;
+    }
+    widget.onAppendSearchToken(key.toLowerCase());
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _SongBookSearchField(
-          controller: searchController,
-          enableSystemKeyboard: !showLetterKeyboard,
-          onBackspacePressed: onRemoveSearchCharacter,
-          onClearPressed: onClearSearch,
+          controller: widget.searchController,
+          enableSystemKeyboard: !widget.showLetterKeyboard,
+          onBackspacePressed: widget.onRemoveSearchCharacter,
+          onClearPressed: widget.onClearSearch,
         ),
-        if (showLetterKeyboard) ...<Widget>[
-          SizedBox(height: compact ? 6 : 8),
-          _LetterKeyboard(onKeyPressed: onAppendSearchToken),
+        if (widget.showLetterKeyboard) ...<Widget>[
+          SizedBox(height: widget.compact ? 6 : 8),
+          _SearchKeyboard(
+            showNumberKeyboard: _showNumberKeyboard,
+            onKeyPressed: _handleKeyboardKeyPressed,
+          ),
         ],
       ],
     );
@@ -133,13 +158,6 @@ class _SongPreviewPlaceholder extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: <Color>[Color(0xFF1C0634), Color(0xFF120520)],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.queue_music_rounded,
-          size: 44,
-          color: Color(0x99FFFFFF),
         ),
       ),
     );
@@ -228,19 +246,26 @@ class _SongBookSearchField extends StatelessWidget {
   }
 }
 
-class _LetterKeyboard extends StatelessWidget {
-  const _LetterKeyboard({required this.onKeyPressed});
+class _SearchKeyboard extends StatelessWidget {
+  const _SearchKeyboard({
+    required this.showNumberKeyboard,
+    required this.onKeyPressed,
+  });
 
+  final bool showNumberKeyboard;
   final ValueChanged<String> onKeyPressed;
 
   @override
   Widget build(BuildContext context) {
+    final List<List<String>> keyboardRows = showNumberKeyboard
+        ? _numberKeyboardRows
+        : _letterKeyboardRows;
     return Column(
-      children: _letterKeyboardRows
+      children: keyboardRows
           .map((List<String> row) {
             return Padding(
               padding: EdgeInsets.only(
-                bottom: row == _letterKeyboardRows.last ? 0 : 6,
+                bottom: row == keyboardRows.last ? 0 : 6,
               ),
               child: Row(
                 children: row
@@ -252,7 +277,7 @@ class _LetterKeyboard extends StatelessWidget {
                           ),
                           child: _KeyboardKey(
                             label: key,
-                            onPressed: () => onKeyPressed(key.toLowerCase()),
+                            onPressed: () => onKeyPressed(key),
                           ),
                         ),
                       );
@@ -274,6 +299,9 @@ class _KeyboardKey extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (label == _keyboardSpacerLabel) {
+      return const SizedBox(height: 22);
+    }
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -289,8 +317,10 @@ class _KeyboardKey extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: label == '123' ? 10 : 12,
-                fontWeight: label == '123' ? FontWeight.w700 : FontWeight.w600,
+                fontSize: label.length > 1 ? 10 : 12,
+                fontWeight: label.length > 1
+                    ? FontWeight.w700
+                    : FontWeight.w600,
                 color: const Color(0xD9FFF6FF),
               ),
             ),
@@ -341,9 +371,9 @@ class _SongBookRightColumn extends StatefulWidget {
 }
 
 class _SongBookRightColumnState extends State<_SongBookRightColumn> {
-  static const double _mainAxisSpacing = 6;
-  static const double _crossAxisSpacing = 12;
-  static const double _tileHeight = 36;
+  static const double _gridSpacing = 8;
+  static const double _tileHeight = 44;
+  static const double _paginationSectionHeight = 42;
 
   int _currentPage = 0;
 
@@ -365,6 +395,23 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
     return 4;
   }
 
+  int _resolveRowsPerPageForAvailableHeight({
+    required double availableHeight,
+    required bool isLandscape,
+    required int fallbackRowsPerPage,
+  }) {
+    if (isLandscape) {
+      return fallbackRowsPerPage;
+    }
+    final double listHeight = math.max(
+      0,
+      availableHeight - _paginationSectionHeight,
+    );
+    final int fittedRows =
+        ((listHeight + _gridSpacing) / (_tileHeight + _gridSpacing)).floor();
+    return math.max(1, fittedRows);
+  }
+
   int _computeMaxPage(int totalSongs, int songsPerPage) {
     if (totalSongs <= 0) {
       return 0;
@@ -377,31 +424,39 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
     final MediaQueryData media = MediaQuery.of(context);
     final bool isLandscape = media.orientation == Orientation.landscape;
     final int crossAxisCount = _resolveCrossAxisCount(media);
-    final int rowsPerPage = _resolveRowsPerPage(
+    final int fallbackRowsPerPage = _resolveRowsPerPage(
       media,
       isLandscape: isLandscape,
     );
-    final int songsPerPage = crossAxisCount * rowsPerPage;
+    ({int currentPage, int totalPages, List<DemoSong> visibleSongs})
+    resolvePageData({required int rowsPerPage}) {
+      final int songsPerPage = crossAxisCount * rowsPerPage;
+      final int maxPage = _computeMaxPage(widget.songs.length, songsPerPage);
+      if (_currentPage > maxPage) {
+        _currentPage = maxPage;
+      } else if (_currentPage < 0) {
+        _currentPage = 0;
+      }
 
-    final int maxPage = _computeMaxPage(widget.songs.length, songsPerPage);
-    if (_currentPage > maxPage) {
-      _currentPage = maxPage;
-    } else if (_currentPage < 0) {
-      _currentPage = 0;
+      final int totalPages = widget.songs.isEmpty
+          ? 1
+          : (widget.songs.length / songsPerPage).ceil();
+      final int currentPage = _currentPage.clamp(0, totalPages - 1);
+      final int startIndex = currentPage * songsPerPage;
+      final int endIndex = widget.songs.isEmpty
+          ? 0
+          : (startIndex + songsPerPage).clamp(0, widget.songs.length);
+      final List<DemoSong> visibleSongs = widget.songs.isEmpty
+          ? const <DemoSong>[]
+          : widget.songs.sublist(startIndex, endIndex);
+      return (
+        currentPage: currentPage,
+        totalPages: totalPages,
+        visibleSongs: visibleSongs,
+      );
     }
 
-    final int totalPages = widget.songs.isEmpty
-        ? 1
-        : (widget.songs.length / songsPerPage).ceil();
-    final int currentPage = _currentPage.clamp(0, totalPages - 1);
-    final int startIndex = currentPage * songsPerPage;
-    final int endIndex = widget.songs.isEmpty
-        ? 0
-        : (startIndex + songsPerPage).clamp(0, widget.songs.length);
-    final List<DemoSong> visibleSongs = widget.songs.isEmpty
-        ? const <DemoSong>[]
-        : widget.songs.sublist(startIndex, endIndex);
-    Widget buildLibraryContent({double? availableHeight}) {
+    Widget buildLibraryContent(List<DemoSong> visibleSongs, int rowsPerPage) {
       if (!widget.hasConfiguredDirectory) {
         return const _EmptyContentCard(message: '请先在设置里选择扫描目录，扫描完成后这里会展示歌曲列表。');
       }
@@ -421,34 +476,21 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
           ((visibleSongs.length + crossAxisCount - 1) / crossAxisCount)
               .clamp(1, rowsPerPage)
               .toInt();
-      final double baseGridHeight =
+      final double gridHeight =
           (_tileHeight * visibleRowCount) +
-          (_mainAxisSpacing * (visibleRowCount - 1));
-
-      final bool useAvailableHeight =
-          !widget.compact && availableHeight != null;
-      final double dynamicGridHeight = useAvailableHeight
-          ? availableHeight
-          : baseGridHeight;
-      final double rawTileHeight =
-          (dynamicGridHeight - (_mainAxisSpacing * (visibleRowCount - 1))) /
-          visibleRowCount;
-      final double tileHeight = rawTileHeight < 28 ? 28 : rawTileHeight;
-      final double resolvedGridHeight =
-          useAvailableHeight && rawTileHeight >= 28
-          ? dynamicGridHeight
-          : (tileHeight * visibleRowCount) +
-                (_mainAxisSpacing * (visibleRowCount - 1));
+          (_gridSpacing * (visibleRowCount - 1));
 
       return SizedBox(
-        height: resolvedGridHeight,
+        width: double.infinity,
+        height: gridHeight,
         child: GridView.builder(
+          padding: EdgeInsets.zero,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            mainAxisSpacing: _mainAxisSpacing,
-            crossAxisSpacing: _crossAxisSpacing,
-            mainAxisExtent: tileHeight,
+            mainAxisSpacing: _gridSpacing,
+            crossAxisSpacing: _gridSpacing,
+            mainAxisExtent: _tileHeight,
           ),
           itemCount: visibleSongs.length,
           itemBuilder: (BuildContext context, int index) {
@@ -545,44 +587,81 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
         ),
         const SizedBox(height: 12),
         if (widget.compact) ...<Widget>[
-          buildLibraryContent(),
+          Builder(
+            builder: (BuildContext context) {
+              final ({
+                int currentPage,
+                int totalPages,
+                List<DemoSong> visibleSongs,
+              })
+              pageData = resolvePageData(rowsPerPage: fallbackRowsPerPage);
+              return buildLibraryContent(
+                pageData.visibleSongs,
+                fallbackRowsPerPage,
+              );
+            },
+          ),
           const SizedBox(height: 12),
-          _PaginationBar(
-            currentPage: currentPage + 1,
-            totalPages: totalPages,
-            onPrevious: currentPage > 0
-                ? () => setState(() => _currentPage -= 1)
-                : null,
-            onNext: currentPage < totalPages - 1
-                ? () => setState(() => _currentPage += 1)
-                : null,
+          Builder(
+            builder: (BuildContext context) {
+              final ({
+                int currentPage,
+                int totalPages,
+                List<DemoSong> visibleSongs,
+              })
+              pageData = resolvePageData(rowsPerPage: fallbackRowsPerPage);
+              return _PaginationBar(
+                currentPage: pageData.currentPage + 1,
+                totalPages: pageData.totalPages,
+                onPrevious: pageData.currentPage > 0
+                    ? () => setState(() => _currentPage -= 1)
+                    : null,
+                onNext: pageData.currentPage < pageData.totalPages - 1
+                    ? () => setState(() => _currentPage += 1)
+                    : null,
+              );
+            },
           ),
         ] else
           Expanded(
-            child: Column(
-              children: <Widget>[
-                Expanded(
-                  child: LayoutBuilder(
-                    builder:
-                        (BuildContext context, BoxConstraints constraints) {
-                          return buildLibraryContent(
-                            availableHeight: constraints.maxHeight,
-                          );
-                        },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _PaginationBar(
-                  currentPage: currentPage + 1,
-                  totalPages: totalPages,
-                  onPrevious: currentPage > 0
-                      ? () => setState(() => _currentPage -= 1)
-                      : null,
-                  onNext: currentPage < totalPages - 1
-                      ? () => setState(() => _currentPage += 1)
-                      : null,
-                ),
-              ],
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final int rowsPerPage = _resolveRowsPerPageForAvailableHeight(
+                  availableHeight: constraints.maxHeight,
+                  isLandscape: isLandscape,
+                  fallbackRowsPerPage: fallbackRowsPerPage,
+                );
+                final ({
+                  int currentPage,
+                  int totalPages,
+                  List<DemoSong> visibleSongs,
+                })
+                pageData = resolvePageData(rowsPerPage: rowsPerPage);
+                return Column(
+                  children: <Widget>[
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: buildLibraryContent(
+                          pageData.visibleSongs,
+                          rowsPerPage,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _PaginationBar(
+                      currentPage: pageData.currentPage + 1,
+                      totalPages: pageData.totalPages,
+                      onPrevious: pageData.currentPage > 0
+                          ? () => setState(() => _currentPage -= 1)
+                          : null,
+                      onNext: pageData.currentPage < pageData.totalPages - 1
+                          ? () => setState(() => _currentPage += 1)
+                          : null,
+                    ),
+                  ],
+                );
+              },
             ),
           ),
       ],

@@ -192,15 +192,11 @@ class _HomePreviewCard extends StatelessWidget {
   const _HomePreviewCard({
     required this.controller,
     required this.previewSurface,
-    required this.title,
-    required this.subtitle,
     this.compact = false,
   });
 
   final PlayerController controller;
   final Widget previewSurface;
-  final String title;
-  final String subtitle;
   final bool compact;
 
   @override
@@ -208,100 +204,43 @@ class _HomePreviewCard extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller,
       builder: (BuildContext context, Widget? child) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                DecoratedBox(
-                  decoration: const BoxDecoration(
-                    border: Border.fromBorderSide(
-                      BorderSide(color: Color(0x1FFFFFFF)),
-                    ),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: Color(0x87090012),
-                        blurRadius: 24,
-                        offset: Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: previewSurface,
-                ),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: <Color>[
-                        Color(0x0D000000),
-                        Color(0x24000000),
-                        Color(0x47000000),
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: compact ? 12 : 16,
-                  top: compact ? 12 : 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: const BoxDecoration(
-                      color: Color(0x1FFFFFFF),
-                      borderRadius: BorderRadius.all(Radius.circular(999)),
-                    ),
-                    child: const Text(
-                      '等待点唱',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFFFF7FF),
-                      ),
+        final BorderRadius borderRadius = BorderRadius.all(
+          Radius.circular(compact ? 12 : 14),
+        );
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            border: const Border.fromBorderSide(
+              BorderSide(color: Color(0x1FFFFFFF)),
+            ),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x87090012),
+                blurRadius: 24,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: borderRadius,
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  previewSurface,
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _PlayerProgressTrack(
+                      controller: controller,
+                      thickness: 6,
+                      barHeight: 6,
                     ),
                   ),
-                ),
-                Positioned(
-                  left: compact ? 12 : 16,
-                  right: compact ? 12 : 16,
-                  bottom: compact ? 12 : 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xCCF3DAFF),
-                          height: 1.45,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _PlayerProgressTrack(
-                        controller: controller,
-                        thickness: 6,
-                        barHeight: compact ? 30 : 34,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -315,8 +254,8 @@ class _HomePreviewPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
+    return const DecoratedBox(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -324,21 +263,6 @@ class _HomePreviewPlaceholder extends StatelessWidget {
             Color(0xFF18052C),
             Color(0xFF320B58),
             Color(0xFF0D0D2C),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const <Widget>[
-            Icon(Icons.music_video_rounded, size: 54, color: Color(0xB3FFFFFF)),
-            SizedBox(height: 12),
-            Text(
-              '首页预览区',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            SizedBox(height: 6),
-            Text('常驻播放器会复用同一套控制器。', style: TextStyle(color: Color(0xCCF3DAFF))),
           ],
         ),
       ),

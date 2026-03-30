@@ -24,11 +24,22 @@ const List<String> _languageTabs = <String>[
   '其它',
 ];
 
+const String _numberKeyboardToggleLabel = '123';
+const String _letterKeyboardToggleLabel = 'ABC';
+const String _keyboardSpacerLabel = '_spacer_';
+
 const List<List<String>> _letterKeyboardRows = <List<String>>[
   <String>['A', 'B', 'C', 'D', 'E', 'F', 'G'],
   <String>['H', 'I', 'J', 'K', 'L', 'M', 'N'],
   <String>['O', 'P', 'Q', 'R', 'S', 'T', 'U'],
-  <String>['V', 'W', 'X', 'Y', 'Z', '123'],
+  <String>['V', 'W', 'X', 'Y', 'Z', _numberKeyboardToggleLabel],
+];
+
+const List<List<String>> _numberKeyboardRows = <List<String>>[
+  <String>['1', '2', '3'],
+  <String>['4', '5', '6'],
+  <String>['7', '8', '9'],
+  <String>[_keyboardSpacerLabel, '0', _letterKeyboardToggleLabel],
 ];
 
 const List<_HomeShortcut> _homeShortcuts = <_HomeShortcut>[
@@ -230,8 +241,6 @@ class _KtvDemoShellState extends State<KtvDemoShell>
           child: _HomePreviewCard(
             controller: _demoController.playerController,
             previewSurface: _buildPreviewSurface(),
-            title: _demoController.currentTitle,
-            subtitle: _demoController.currentSubtitle,
           ),
         ),
         SizedBox(width: columnGap),
@@ -265,8 +274,6 @@ class _KtvDemoShellState extends State<KtvDemoShell>
               _HomePreviewCard(
                 controller: _demoController.playerController,
                 previewSurface: _buildPreviewSurface(),
-                title: _demoController.currentTitle,
-                subtitle: _demoController.currentSubtitle,
               ),
               const SizedBox(height: 6),
               _SongBookLeftColumn(
@@ -311,8 +318,6 @@ class _KtvDemoShellState extends State<KtvDemoShell>
         _HomePreviewCard(
           controller: _demoController.playerController,
           previewSurface: _buildPreviewSurface(),
-          title: _demoController.currentTitle,
-          subtitle: _demoController.currentSubtitle,
           compact: true,
         ),
         const SizedBox(height: 16),

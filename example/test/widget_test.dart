@@ -1,5 +1,4 @@
-import 'dart:ui';
-
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ktv2_example/main.dart';
 
@@ -12,7 +11,8 @@ void main() {
     expect(find.text('金调KTV'), findsOneWidget);
     expect(find.text('歌名'), findsOneWidget);
     expect(find.text('设置'), findsAtLeastNWidgets(1));
-    expect(find.text('首页预览区'), findsOneWidget);
+    expect(find.text('首页预览区'), findsNothing);
+    expect(find.byType(Slider), findsOneWidget);
   });
 
   testWidgets('opens scan directory settings dialog from top actions', (
