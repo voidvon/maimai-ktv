@@ -40,9 +40,7 @@ class KtvDemoState {
           if (normalizedQuery.isEmpty) {
             return true;
           }
-          final String haystack =
-              '${song.title} ${song.artist} ${song.searchIndex}'.toLowerCase();
-          return haystack.contains(normalizedQuery);
+          return song.searchIndex.contains(normalizedQuery);
         })
         .toList(growable: false);
   }

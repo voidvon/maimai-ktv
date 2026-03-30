@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:lpinyin/lpinyin.dart';
 
 import 'android_storage_data_source.dart';
 
@@ -155,7 +156,25 @@ class DemoLibrarySong {
 
   String get language => '其它';
 
-  String get searchIndex => '$title $artist $fileName $extension'.toLowerCase();
+  String get searchIndex {
+    final String raw = '$title $artist $fileName $extension'.toLowerCase();
+    final String titleInitials = _buildPinyinInitials(title);
+    final String artistInitials = _buildPinyinInitials(artist);
+    return '$raw $titleInitials $artistInitials'.trim();
+  }
+}
+
+String _buildPinyinInitials(String source) {
+  final String normalizedSource = source.trim();
+  if (normalizedSource.isEmpty) {
+    return '';
+  }
+
+  // Intentionally use only initials, not full pinyin.
+  final String initials = PinyinHelper.getShortPinyin(
+    normalizedSource,
+  ).toLowerCase();
+  return initials.replaceAll(RegExp(r'[^a-z0-9]'), '');
 }
 
 class _ParsedName {
