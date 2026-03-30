@@ -151,6 +151,29 @@ class KtvDemoController extends ChangeNotifier {
     unawaited(playerController.seekToProgress(0));
   }
 
+  Future<void> skipCurrentSong() async {
+    if (!playerController.hasMedia && _state.queuedSongs.isEmpty) {
+      return;
+    }
+
+    final List<DemoSong> remainingQueue = List<DemoSong>.of(_state.queuedSongs);
+    if (remainingQueue.isNotEmpty) {
+      remainingQueue.removeAt(0);
+    }
+
+    if (remainingQueue.isEmpty) {
+      await playerController.stopPlayback();
+      _setState(_state.copyWith(queuedSongs: const <DemoSong>[]));
+      return;
+    }
+
+    final DemoSong nextSong = remainingQueue.first;
+    await playerController.openMedia(
+      MediaSource(path: nextSong.mediaPath, displayName: nextSong.title),
+    );
+    _setState(_state.copyWith(queuedSongs: remainingQueue));
+  }
+
   Future<void> stopPlayback() {
     return playerController.stopPlayback();
   }

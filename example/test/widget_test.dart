@@ -45,4 +45,30 @@ void main() {
 
     expect(find.text('请先在设置里选择扫描目录，扫描完成后这里会展示歌曲列表。'), findsOneWidget);
   });
+
+  testWidgets('opens fullscreen preview and toggles overlay controls on tap', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const KtvDemoApp());
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey<String>('preview-tap-target')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回点歌'), findsNothing);
+
+    final Finder fullscreenScaffold = find.byType(Scaffold).last;
+    await tester.tapAt(tester.getCenter(fullscreenScaffold));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回点歌'), findsOneWidget);
+    expect(find.text('播放'), findsAtLeastNWidgets(1));
+    expect(find.text('重唱'), findsAtLeastNWidgets(1));
+    expect(find.text('切歌'), findsAtLeastNWidgets(1));
+
+    await tester.tapAt(tester.getCenter(fullscreenScaffold));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回点歌'), findsNothing);
+  });
 }

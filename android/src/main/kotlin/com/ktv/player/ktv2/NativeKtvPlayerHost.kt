@@ -371,7 +371,7 @@ class NativeKtvPlayerHost(
                 attachPlayerViews(
                     layout,
                     reason = "layout:${oldWidth}x${oldHeight}->${width}x${height}",
-                    forceReattach = lastAttachedLayoutWidth != width || lastAttachedLayoutHeight != height,
+                    forceReattach = false,
                 )
             }
         pendingLayoutChangeListener = listener
@@ -410,6 +410,7 @@ class NativeKtvPlayerHost(
                     player.attachViews(layout, null, false, true)
                 }
                 configureVideoSurfaceOverlay(layout)
+                applyDefaultVideoScale(player)
                 vout.setWindowSize(width, height)
                 player.updateVideoSurfaces()
                 lastAttachedLayoutWidth = width
@@ -444,6 +445,12 @@ class NativeKtvPlayerHost(
         val surfaceView = layout.findViewById<SurfaceView?>(org.videolan.R.id.surface_video) ?: return
         surfaceView.setZOrderOnTop(true)
         surfaceView.holder.setFormat(PixelFormat.TRANSLUCENT)
+    }
+
+    private fun applyDefaultVideoScale(player: MediaPlayer) {
+        // Keep libVLC in aspect-preserving mode during container resizes.
+        player.setAspectRatio(null)
+        player.setScale(0f)
     }
 
     private fun open(

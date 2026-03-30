@@ -3,10 +3,12 @@ package com.ktv.player.ktv2_example
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.view.Surface
 import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -21,6 +23,7 @@ class MainActivity : FlutterActivity() {
         const val directoryPickerRequestCode = 9022
         const val videoPickerChannel = "ktv2_example/video_picker"
         const val androidStorageChannel = "ktv2_example/android_storage"
+        const val orientationChannel = "ktv2_example/orientation"
         val supportedExtensions =
             setOf(
                 "mp4",
@@ -91,6 +94,32 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            orientationChannel,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "enterVideoFullscreen" -> {
+                    requestedOrientation = resolveLandscapeOrientation()
+                    result.success(null)
+                }
+                "exitVideoFullscreen" -> {
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun resolveLandscapeOrientation(): Int {
+        val rotation = display?.rotation ?: Surface.ROTATION_0
+        return if (rotation == Surface.ROTATION_270) {
+            ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
     }
 

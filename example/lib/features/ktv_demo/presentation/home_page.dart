@@ -192,11 +192,13 @@ class _HomePreviewCard extends StatelessWidget {
   const _HomePreviewCard({
     required this.controller,
     required this.previewSurface,
+    required this.previewAnchorKey,
     this.compact = false,
   });
 
   final PlayerController controller;
   final Widget previewSurface;
+  final GlobalKey previewAnchorKey;
   final bool compact;
 
   @override
@@ -228,15 +230,17 @@ class _HomePreviewCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
-                  previewSurface,
+                  Positioned.fill(key: previewAnchorKey, child: previewSurface),
                   Positioned(
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    child: _PlayerProgressTrack(
-                      controller: controller,
-                      thickness: 6,
-                      barHeight: 6,
+                    child: IgnorePointer(
+                      child: _PlayerProgressTrack(
+                        controller: controller,
+                        thickness: 6,
+                        barHeight: 6,
+                      ),
                     ),
                   ),
                 ],
