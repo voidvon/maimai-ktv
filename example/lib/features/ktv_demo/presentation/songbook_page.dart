@@ -1,7 +1,44 @@
-part of 'ktv_demo_shell.dart';
+import 'dart:math' as math;
 
-class _SongBookPage extends StatelessWidget {
-  const _SongBookPage({
+import 'package:flutter/material.dart';
+import 'package:ktv2/ktv2.dart';
+
+import '../../../core/models/demo_song.dart';
+import '../application/ktv_demo_controller.dart';
+import 'queue_page.dart';
+
+const List<String> _languageTabs = <String>[
+  '全部',
+  '国语',
+  '粤语',
+  '闽南语',
+  '英语',
+  '日语',
+  '韩语',
+  '其它',
+];
+
+const String _numberKeyboardToggleLabel = '123';
+const String _letterKeyboardToggleLabel = 'ABC';
+const String _keyboardSpacerLabel = '_spacer_';
+
+const List<List<String>> _letterKeyboardRows = <List<String>>[
+  <String>['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+  <String>['H', 'I', 'J', 'K', 'L', 'M', 'N'],
+  <String>['O', 'P', 'Q', 'R', 'S', 'T', 'U'],
+  <String>['V', 'W', 'X', 'Y', 'Z', _numberKeyboardToggleLabel],
+];
+
+const List<List<String>> _numberKeyboardRows = <List<String>>[
+  <String>['1', '2', '3'],
+  <String>['4', '5', '6'],
+  <String>['7', '8', '9'],
+  <String>[_keyboardSpacerLabel, '0', _letterKeyboardToggleLabel],
+];
+
+class SongBookPage extends StatelessWidget {
+  const SongBookPage({
+    super.key,
     required this.controller,
     required this.searchController,
     required this.route,
@@ -64,7 +101,7 @@ class _SongBookPage extends StatelessWidget {
     final double sectionGap = showLetterKeyboard
         ? (compact ? 20 : 12)
         : (compact ? 20 : 10);
-    final Widget rightColumn = _SongBookRightColumn(
+    final Widget rightColumn = SongBookRightColumn(
       controller: controller,
       compact: compact,
       route: route,
@@ -91,7 +128,7 @@ class _SongBookPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _SongBookLeftColumn(
+        SongBookLeftColumn(
           controller: controller,
           searchController: searchController,
           route: route,
@@ -108,8 +145,9 @@ class _SongBookPage extends StatelessWidget {
   }
 }
 
-class _SongBookLeftColumn extends StatefulWidget {
-  const _SongBookLeftColumn({
+class SongBookLeftColumn extends StatefulWidget {
+  const SongBookLeftColumn({
+    super.key,
     required this.controller,
     required this.searchController,
     required this.route,
@@ -130,10 +168,10 @@ class _SongBookLeftColumn extends StatefulWidget {
   final bool compact;
 
   @override
-  State<_SongBookLeftColumn> createState() => _SongBookLeftColumnState();
+  State<SongBookLeftColumn> createState() => _SongBookLeftColumnState();
 }
 
-class _SongBookLeftColumnState extends State<_SongBookLeftColumn> {
+class _SongBookLeftColumnState extends State<SongBookLeftColumn> {
   bool _showNumberKeyboard = false;
 
   void _handleKeyboardKeyPressed(String key) {
@@ -174,8 +212,8 @@ class _SongBookLeftColumnState extends State<_SongBookLeftColumn> {
   }
 }
 
-class _SongPreviewPlaceholder extends StatelessWidget {
-  const _SongPreviewPlaceholder();
+class SongPreviewPlaceholder extends StatelessWidget {
+  const SongPreviewPlaceholder({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -360,8 +398,9 @@ class _KeyboardKey extends StatelessWidget {
   }
 }
 
-class _SongBookRightColumn extends StatefulWidget {
-  const _SongBookRightColumn({
+class SongBookRightColumn extends StatefulWidget {
+  const SongBookRightColumn({
+    super.key,
     required this.controller,
     required this.route,
     required this.searchQuery,
@@ -410,10 +449,10 @@ class _SongBookRightColumn extends StatefulWidget {
   final bool compact;
 
   @override
-  State<_SongBookRightColumn> createState() => _SongBookRightColumnState();
+  State<SongBookRightColumn> createState() => _SongBookRightColumnState();
 }
 
-class _SongBookRightColumnState extends State<_SongBookRightColumn> {
+class _SongBookRightColumnState extends State<SongBookRightColumn> {
   static const double _gridSpacing = 8;
   static const double _songTileHeight = 44;
   static const double _queueTileHeight = 48;
@@ -654,9 +693,9 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
       isLandscape: isLandscape,
     );
     final double tileHeight = isQueueRoute ? _queueTileHeight : _songTileHeight;
-    final List<_QueuedSongEntry> filteredQueueEntries = isQueueRoute
+    final List<QueuedSongEntry> filteredQueueEntries = isQueueRoute
         ? _resolveFilteredQueueEntries()
-        : const <_QueuedSongEntry>[];
+        : const <QueuedSongEntry>[];
 
     Widget buildLibraryGrid(
       List<DemoSong> visibleSongs,
@@ -727,7 +766,7 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
     }
 
     Widget buildQueueGrid(
-      List<_QueuedSongEntry> visibleEntries,
+      List<QueuedSongEntry> visibleEntries,
       int rowsPerPage, {
       required double tileHeight,
     }) {
@@ -749,8 +788,8 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
           ),
           itemCount: visibleEntries.length,
           itemBuilder: (BuildContext context, int index) {
-            final _QueuedSongEntry entry = visibleEntries[index];
-            return _QueuedSongTile(
+            final QueuedSongEntry entry = visibleEntries[index];
+            return QueuedSongTile(
               entry: entry,
               onPinToTop: entry.canPinToTop
                   ? () => widget.onPrioritizeQueuedSong(entry.song)
@@ -771,17 +810,16 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
       if (filteredQueueEntries.isEmpty) {
         return const _EmptyContentCard(message: '当前关键字下没有匹配的已点歌曲，试试清空搜索关键字。');
       }
-      final List<List<_QueuedSongEntry>> pages =
-          _paginateItems<_QueuedSongEntry>(
-            filteredQueueEntries,
-            itemsPerPage: crossAxisCount * rowsPerPage,
-          );
+      final List<List<QueuedSongEntry>> pages = _paginateItems<QueuedSongEntry>(
+        filteredQueueEntries,
+        itemsPerPage: crossAxisCount * rowsPerPage,
+      );
       _normalizeCurrentPage(pages.length);
-      return _buildAnimatedPagedContent<_QueuedSongEntry>(
+      return _buildAnimatedPagedContent<QueuedSongEntry>(
         pages: pages,
         rowsPerPage: rowsPerPage,
         tileHeight: tileHeight,
-        pageBuilder: (List<_QueuedSongEntry> pageItems) =>
+        pageBuilder: (List<QueuedSongEntry> pageItems) =>
             buildQueueGrid(pageItems, rowsPerPage, tileHeight: tileHeight),
       );
     }
@@ -912,7 +950,7 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
           Builder(
             builder: (BuildContext context) {
               final pageData = isQueueRoute
-                  ? resolvePageData<_QueuedSongEntry>(
+                  ? resolvePageData<QueuedSongEntry>(
                       filteredQueueEntries,
                       rowsPerPage: fallbackRowsPerPage,
                     )
@@ -950,7 +988,7 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
                       fallbackTileHeight: tileHeight,
                     );
                 final pageData = isQueueRoute
-                    ? resolvePageData<_QueuedSongEntry>(
+                    ? resolvePageData<QueuedSongEntry>(
                         filteredQueueEntries,
                         rowsPerPage: rowsPerPage,
                       )
@@ -994,20 +1032,20 @@ class _SongBookRightColumnState extends State<_SongBookRightColumn> {
     );
   }
 
-  List<_QueuedSongEntry> _resolveFilteredQueueEntries() {
+  List<QueuedSongEntry> _resolveFilteredQueueEntries() {
     final String normalizedQuery = widget.searchQuery.trim().toLowerCase();
-    final Iterable<_QueuedSongEntry> allEntries = widget.queuedSongs
+    final Iterable<QueuedSongEntry> allEntries = widget.queuedSongs
         .asMap()
         .entries
         .map((MapEntry<int, DemoSong> entry) {
-          return _QueuedSongEntry(song: entry.value, queueIndex: entry.key);
+          return QueuedSongEntry(song: entry.value, queueIndex: entry.key);
         });
     if (normalizedQuery.isEmpty) {
       return allEntries.toList(growable: false);
     }
     return allEntries
         .where(
-          (_QueuedSongEntry entry) =>
+          (QueuedSongEntry entry) =>
               entry.song.searchIndex.contains(normalizedQuery),
         )
         .toList(growable: false);

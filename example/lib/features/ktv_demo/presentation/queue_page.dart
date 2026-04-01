@@ -1,7 +1,9 @@
-part of 'ktv_demo_shell.dart';
+import 'package:flutter/material.dart';
 
-class _QueuedSongEntry {
-  const _QueuedSongEntry({required this.song, required this.queueIndex});
+import '../../../core/models/demo_song.dart';
+
+class QueuedSongEntry {
+  const QueuedSongEntry({required this.song, required this.queueIndex});
 
   final DemoSong song;
   final int queueIndex;
@@ -17,14 +19,15 @@ class _QueuedSongEntry {
   }
 }
 
-class _QueuedSongTile extends StatelessWidget {
-  const _QueuedSongTile({
+class QueuedSongTile extends StatelessWidget {
+  const QueuedSongTile({
+    super.key,
     required this.entry,
     required this.onPinToTop,
     required this.onRemove,
   });
 
-  final _QueuedSongEntry entry;
+  final QueuedSongEntry entry;
   final VoidCallback? onPinToTop;
   final VoidCallback? onRemove;
 

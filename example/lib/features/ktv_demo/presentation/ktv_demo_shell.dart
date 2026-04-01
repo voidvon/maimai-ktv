@@ -4,88 +4,17 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:ktv2/ktv2.dart';
 
 import '../../../core/models/demo_song.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../application/ktv_demo_controller.dart';
+import 'home_page.dart';
+import 'shared_widgets.dart';
+import 'songbook_page.dart';
 
-part 'home_page.dart';
-part 'queue_page.dart';
-part 'songbook_page.dart';
-part 'shared_widgets.dart';
-
-const List<String> _languageTabs = <String>[
-  '全部',
-  '国语',
-  '粤语',
-  '闽南语',
-  '英语',
-  '日语',
-  '韩语',
-  '其它',
-];
-
-const String _numberKeyboardToggleLabel = '123';
-const String _letterKeyboardToggleLabel = 'ABC';
-const String _keyboardSpacerLabel = '_spacer_';
 const MethodChannel _orientationChannel = MethodChannel(
   'ktv2_example/orientation',
 );
-
-String _audioModeToggleLabel(PlayerController controller) {
-  return controller.audioOutputMode == AudioOutputMode.accompaniment
-      ? '原唱'
-      : '伴唱';
-}
-
-const List<List<String>> _letterKeyboardRows = <List<String>>[
-  <String>['A', 'B', 'C', 'D', 'E', 'F', 'G'],
-  <String>['H', 'I', 'J', 'K', 'L', 'M', 'N'],
-  <String>['O', 'P', 'Q', 'R', 'S', 'T', 'U'],
-  <String>['V', 'W', 'X', 'Y', 'Z', _numberKeyboardToggleLabel],
-];
-
-const List<List<String>> _numberKeyboardRows = <List<String>>[
-  <String>['1', '2', '3'],
-  <String>['4', '5', '6'],
-  <String>['7', '8', '9'],
-  <String>[_keyboardSpacerLabel, '0', _letterKeyboardToggleLabel],
-];
-
-const List<_HomeShortcut> _homeShortcuts = <_HomeShortcut>[
-  _HomeShortcut(
-    label: '排行榜',
-    icon: Icons.star_rounded,
-    colors: <Color>[Color(0xFFFF7C93), Color(0xFFFF5372), Color(0xFFFF9A7A)],
-  ),
-  _HomeShortcut(
-    label: '歌名',
-    icon: Icons.music_note_rounded,
-    colors: <Color>[Color(0xFFFFD36A), Color(0xFFFFB245), Color(0xFFFF9566)],
-    enabled: true,
-  ),
-  _HomeShortcut(
-    label: '歌星',
-    icon: Icons.person_rounded,
-    colors: <Color>[Color(0xFF9CC9FF), Color(0xFF89B2FF), Color(0xFF9571FF)],
-  ),
-  _HomeShortcut(
-    label: '本地',
-    icon: Icons.library_music_rounded,
-    colors: <Color>[Color(0xFF65D8FF), Color(0xFF2E9DFF)],
-  ),
-  _HomeShortcut(
-    label: '收藏',
-    icon: Icons.favorite_border_rounded,
-    colors: <Color>[Color(0xFFF2AAFF), Color(0xFFC46BFF)],
-  ),
-  _HomeShortcut(
-    label: '常唱',
-    icon: Icons.mic_external_on_rounded,
-    colors: <Color>[Color(0xFFFFB8A8), Color(0xFFFF8B78)],
-  ),
-];
 
 class KtvDemoShell extends StatefulWidget {
   const KtvDemoShell({super.key});
@@ -112,7 +41,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(_handleSearchChanged);
-    _sharedPreviewSurface = _PersistentPreviewSurface(
+    _sharedPreviewSurface = PersistentPreviewSurface(
       key: _previewSurfaceKey,
       controller: _demoController.playerController,
       routeResolver: () => _demoController.route,
@@ -391,8 +320,8 @@ class _KtvDemoShellState extends State<KtvDemoShell>
 
   Widget _buildPreviewPlaceholder() {
     return _demoController.route == DemoRoute.home
-        ? const _HomePreviewPlaceholder()
-        : const _SongPreviewPlaceholder();
+        ? const HomePreviewPlaceholder()
+        : const SongPreviewPlaceholder();
   }
 
   Widget _buildWideHomeLayout({
@@ -405,7 +334,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
       children: <Widget>[
         SizedBox(
           width: sidePanelWidth,
-          child: _HomePreviewCard(
+          child: HomePreviewCard(
             controller: _demoController.playerController,
             previewSurface: _buildPreviewPlaceholder(),
             previewAnchorKey: _previewAnchorKey,
@@ -413,7 +342,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
         ),
         SizedBox(width: columnGap),
         Expanded(
-          child: _HomePage(
+          child: HomePage(
             controller: _demoController.playerController,
             compact: compactHomePage,
             queueCount: _demoController.queuedSongs.length,
@@ -441,13 +370,13 @@ class _KtvDemoShellState extends State<KtvDemoShell>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              _HomePreviewCard(
+              HomePreviewCard(
                 controller: _demoController.playerController,
                 previewSurface: _buildPreviewPlaceholder(),
                 previewAnchorKey: _previewAnchorKey,
               ),
               const SizedBox(height: 6),
-              _SongBookLeftColumn(
+              SongBookLeftColumn(
                 controller: _demoController.playerController,
                 searchController: _searchController,
                 route: _demoController.route,
@@ -461,7 +390,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
         ),
         SizedBox(width: columnGap),
         Expanded(
-          child: _SongBookRightColumn(
+          child: SongBookRightColumn(
             controller: _demoController.playerController,
             selectedLanguage: _demoController.selectedLanguage,
             songs: _demoController.filteredSongs,
@@ -494,7 +423,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _HomePreviewCard(
+        HomePreviewCard(
           controller: _demoController.playerController,
           previewSurface: _buildPreviewPlaceholder(),
           compact: true,
@@ -502,7 +431,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
         ),
         const SizedBox(height: 16),
         if (isHome)
-          _HomePage(
+          HomePage(
             controller: _demoController.playerController,
             compact: true,
             queueCount: _demoController.queuedSongs.length,
@@ -515,7 +444,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
           )
         else
           Expanded(
-            child: _SongBookPage(
+            child: SongBookPage(
               controller: _demoController.playerController,
               compact: false,
               searchController: _searchController,
@@ -578,7 +507,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
                 key: _shellStackKey,
                 fit: StackFit.expand,
                 children: <Widget>[
-                  const _KtvAtmosphereBackground(),
+                  const KtvAtmosphereBackground(),
                   SafeArea(
                     minimum: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     child: LayoutBuilder(
@@ -617,7 +546,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
                             );
                             final Widget constrainedShell = ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 980),
-                              child: _GradientShell(
+                              child: GradientShell(
                                 padding: EdgeInsets.zero,
                                 child: useWideLayout
                                     ? _demoController.route == DemoRoute.home
@@ -681,7 +610,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
                       child: ColoredBox(color: Colors.black),
                     ),
                   if (_previewViewportRect != null)
-                    _PreviewViewportHost(
+                    PreviewViewportHost(
                       controller: _demoController.playerController,
                       previewSurface: _buildPreviewSurface(),
                       rect: _previewViewportRect!,

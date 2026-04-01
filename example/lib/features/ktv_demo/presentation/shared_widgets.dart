@@ -1,7 +1,13 @@
-part of 'ktv_demo_shell.dart';
+import 'package:flutter/material.dart';
+import 'package:ktv2/ktv2.dart';
 
-class _GradientShell extends StatelessWidget {
-  const _GradientShell({required this.child, required this.padding});
+import '../application/ktv_demo_controller.dart';
+import 'home_page.dart';
+import 'ktv_demo_presentation_helpers.dart';
+import 'songbook_page.dart';
+
+class GradientShell extends StatelessWidget {
+  const GradientShell({super.key, required this.child, required this.padding});
 
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -12,8 +18,9 @@ class _GradientShell extends StatelessWidget {
   }
 }
 
-class _PlayerProgressTrack extends StatelessWidget {
-  const _PlayerProgressTrack({
+class PlayerProgressTrack extends StatelessWidget {
+  const PlayerProgressTrack({
+    super.key,
     required this.controller,
     required this.thickness,
     required this.barHeight,
@@ -55,8 +62,8 @@ class _PlayerProgressTrack extends StatelessWidget {
   }
 }
 
-class _PersistentPreviewSurface extends StatelessWidget {
-  const _PersistentPreviewSurface({
+class PersistentPreviewSurface extends StatelessWidget {
+  const PersistentPreviewSurface({
     super.key,
     required this.controller,
     required this.routeResolver,
@@ -74,14 +81,15 @@ class _PersistentPreviewSurface extends StatelessWidget {
           ? const Color(0xFF0A0018)
           : const Color(0xFF090013),
       placeholder: isHome
-          ? const _HomePreviewPlaceholder()
-          : const _SongPreviewPlaceholder(),
+          ? const HomePreviewPlaceholder()
+          : const SongPreviewPlaceholder(),
     );
   }
 }
 
-class _PreviewViewportHost extends StatefulWidget {
-  const _PreviewViewportHost({
+class PreviewViewportHost extends StatefulWidget {
+  const PreviewViewportHost({
+    super.key,
     required this.controller,
     required this.previewSurface,
     required this.rect,
@@ -106,10 +114,10 @@ class _PreviewViewportHost extends StatefulWidget {
   final VoidCallback onSkipSong;
 
   @override
-  State<_PreviewViewportHost> createState() => _PreviewViewportHostState();
+  State<PreviewViewportHost> createState() => _PreviewViewportHostState();
 }
 
-class _PreviewViewportHostState extends State<_PreviewViewportHost> {
+class _PreviewViewportHostState extends State<PreviewViewportHost> {
   bool _showControls = false;
   bool _canToggleControls = false;
 
@@ -122,7 +130,7 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
   }
 
   @override
-  void didUpdateWidget(covariant _PreviewViewportHost oldWidget) {
+  void didUpdateWidget(covariant PreviewViewportHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!widget.isFullscreen && _showControls) {
       setState(() => _showControls = false);
@@ -138,20 +146,6 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
 
   void _handleBackToSongBook() {
     widget.onBackToSongBook();
-  }
-
-  String _formatDuration(Duration value) {
-    final int totalSeconds = value.inSeconds.clamp(0, 86399);
-    final int minutes = (totalSeconds ~/ 60) % 60;
-    final int seconds = totalSeconds % 60;
-    final int hours = totalSeconds ~/ 3600;
-    if (hours > 0) {
-      final String paddedMinutes = minutes.toString().padLeft(2, '0');
-      final String paddedSeconds = seconds.toString().padLeft(2, '0');
-      return '$hours:$paddedMinutes:$paddedSeconds';
-    }
-    final String paddedSeconds = seconds.toString().padLeft(2, '0');
-    return '$minutes:$paddedSeconds';
   }
 
   @override
@@ -205,7 +199,7 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: _PlayerProgressTrack(
+                child: PlayerProgressTrack(
                   controller: widget.controller,
                   thickness: 6,
                   barHeight: 6,
@@ -251,14 +245,14 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
                                         scrollDirection: Axis.horizontal,
                                         child: Row(
                                           children: <Widget>[
-                                            _FullscreenToolbarButton(
+                                            FullscreenToolbarButton(
                                               label: '返回点歌',
                                               icon: Icons.arrow_back_rounded,
                                               onPressed: _handleBackToSongBook,
                                             ),
                                             const SizedBox(width: 8),
-                                            _FullscreenToolbarButton(
-                                              label: _audioModeToggleLabel(
+                                            FullscreenToolbarButton(
+                                              label: audioModeToggleLabel(
                                                 widget.controller,
                                               ),
                                               icon: Icons.mic_rounded,
@@ -268,7 +262,7 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
                                                   : null,
                                             ),
                                             const SizedBox(width: 8),
-                                            _FullscreenToolbarButton(
+                                            FullscreenToolbarButton(
                                               label: widget.controller.isPlaying
                                                   ? '暂停'
                                                   : '播放',
@@ -280,7 +274,7 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
                                                   : null,
                                             ),
                                             const SizedBox(width: 8),
-                                            _FullscreenToolbarButton(
+                                            FullscreenToolbarButton(
                                               label: '重唱',
                                               icon: Icons.replay_rounded,
                                               onPressed: hasMedia
@@ -288,7 +282,7 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
                                                   : null,
                                             ),
                                             const SizedBox(width: 8),
-                                            _FullscreenToolbarButton(
+                                            FullscreenToolbarButton(
                                               label: '切歌',
                                               icon: Icons.skip_next_rounded,
                                               onPressed: hasMedia
@@ -324,7 +318,7 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: <Widget>[
-                                          _PlayerProgressTrack(
+                                          PlayerProgressTrack(
                                             controller: widget.controller,
                                             thickness: 4,
                                             barHeight: 18,
@@ -336,7 +330,7 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
                                             child: Row(
                                               children: <Widget>[
                                                 Text(
-                                                  _formatDuration(
+                                                  formatPlaybackDuration(
                                                     widget
                                                         .controller
                                                         .playbackPosition,
@@ -349,7 +343,7 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
                                                 ),
                                                 const Spacer(),
                                                 Text(
-                                                  _formatDuration(
+                                                  formatPlaybackDuration(
                                                     widget
                                                         .controller
                                                         .playbackDuration,
@@ -383,8 +377,9 @@ class _PreviewViewportHostState extends State<_PreviewViewportHost> {
   }
 }
 
-class _FullscreenToolbarButton extends StatelessWidget {
-  const _FullscreenToolbarButton({
+class FullscreenToolbarButton extends StatelessWidget {
+  const FullscreenToolbarButton({
+    super.key,
     required this.label,
     required this.icon,
     this.onPressed,
@@ -454,8 +449,8 @@ class _FullscreenToolbarButton extends StatelessWidget {
   }
 }
 
-class _KtvAtmosphereBackground extends StatelessWidget {
-  const _KtvAtmosphereBackground();
+class KtvAtmosphereBackground extends StatelessWidget {
+  const KtvAtmosphereBackground({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -1,7 +1,46 @@
-part of 'ktv_demo_shell.dart';
+import 'package:flutter/material.dart';
+import 'package:ktv2/ktv2.dart';
 
-class _HomePage extends StatelessWidget {
-  const _HomePage({
+import 'ktv_demo_presentation_helpers.dart';
+import 'shared_widgets.dart';
+
+const List<_HomeShortcut> _homeShortcuts = <_HomeShortcut>[
+  _HomeShortcut(
+    label: '排行榜',
+    icon: Icons.star_rounded,
+    colors: <Color>[Color(0xFFFF7C93), Color(0xFFFF5372), Color(0xFFFF9A7A)],
+  ),
+  _HomeShortcut(
+    label: '歌名',
+    icon: Icons.music_note_rounded,
+    colors: <Color>[Color(0xFFFFD36A), Color(0xFFFFB245), Color(0xFFFF9566)],
+    enabled: true,
+  ),
+  _HomeShortcut(
+    label: '歌星',
+    icon: Icons.person_rounded,
+    colors: <Color>[Color(0xFF9CC9FF), Color(0xFF89B2FF), Color(0xFF9571FF)],
+  ),
+  _HomeShortcut(
+    label: '本地',
+    icon: Icons.library_music_rounded,
+    colors: <Color>[Color(0xFF65D8FF), Color(0xFF2E9DFF)],
+  ),
+  _HomeShortcut(
+    label: '收藏',
+    icon: Icons.favorite_border_rounded,
+    colors: <Color>[Color(0xFFF2AAFF), Color(0xFFC46BFF)],
+  ),
+  _HomeShortcut(
+    label: '常唱',
+    icon: Icons.mic_external_on_rounded,
+    colors: <Color>[Color(0xFFFFB8A8), Color(0xFFFF8B78)],
+  ),
+];
+
+class HomePage extends StatelessWidget {
+  const HomePage({
+    super.key,
     required this.controller,
     required this.queueCount,
     required this.onEnterSongBook,
@@ -86,7 +125,7 @@ class _HomeToolbar extends StatelessWidget {
           const _ToolbarPill(label: '搜索', enabled: false),
           _ToolbarPill(label: '已点$queueCount', onPressed: onQueuePressed),
           _ToolbarPill(
-            label: _audioModeToggleLabel(controller),
+            label: audioModeToggleLabel(controller),
             onPressed: controller.hasMedia ? onToggleAudioMode : null,
           ),
           _ToolbarPill(
@@ -198,8 +237,9 @@ class _ToolbarPill extends StatelessWidget {
   }
 }
 
-class _HomePreviewCard extends StatelessWidget {
-  const _HomePreviewCard({
+class HomePreviewCard extends StatelessWidget {
+  const HomePreviewCard({
+    super.key,
     required this.controller,
     required this.previewSurface,
     required this.previewAnchorKey,
@@ -246,7 +286,7 @@ class _HomePreviewCard extends StatelessWidget {
                     right: 0,
                     bottom: 0,
                     child: IgnorePointer(
-                      child: _PlayerProgressTrack(
+                      child: PlayerProgressTrack(
                         controller: controller,
                         thickness: 6,
                         barHeight: 6,
@@ -263,8 +303,8 @@ class _HomePreviewCard extends StatelessWidget {
   }
 }
 
-class _HomePreviewPlaceholder extends StatelessWidget {
-  const _HomePreviewPlaceholder();
+class HomePreviewPlaceholder extends StatelessWidget {
+  const HomePreviewPlaceholder({super.key});
 
   @override
   Widget build(BuildContext context) {
