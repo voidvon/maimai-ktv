@@ -45,8 +45,13 @@ class SongBookPage extends StatelessWidget {
     required this.searchQuery,
     required this.selectedLanguage,
     required this.songs,
+    required this.libraryTotalCount,
+    required this.libraryPageIndex,
+    required this.libraryTotalPages,
+    required this.libraryPageSize,
     required this.hasConfiguredDirectory,
     required this.isScanningLibrary,
+    required this.isLoadingLibraryPage,
     required this.libraryScanErrorMessage,
     required this.queuedSongs,
     required this.onBackPressed,
@@ -56,6 +61,7 @@ class SongBookPage extends StatelessWidget {
     required this.onAppendSearchToken,
     required this.onRemoveSearchCharacter,
     required this.onClearSearch,
+    required this.onRequestLibraryPage,
     required this.onRequestSong,
     required this.onPrioritizeQueuedSong,
     required this.onRemoveQueuedSong,
@@ -73,8 +79,13 @@ class SongBookPage extends StatelessWidget {
   final String searchQuery;
   final String selectedLanguage;
   final List<DemoSong> songs;
+  final int libraryTotalCount;
+  final int libraryPageIndex;
+  final int libraryTotalPages;
+  final int libraryPageSize;
   final bool hasConfiguredDirectory;
   final bool isScanningLibrary;
+  final bool isLoadingLibraryPage;
   final String? libraryScanErrorMessage;
   final List<DemoSong> queuedSongs;
   final VoidCallback onBackPressed;
@@ -84,6 +95,7 @@ class SongBookPage extends StatelessWidget {
   final ValueChanged<String> onAppendSearchToken;
   final VoidCallback onRemoveSearchCharacter;
   final VoidCallback onClearSearch;
+  final void Function(int pageIndex, int pageSize) onRequestLibraryPage;
   final ValueChanged<DemoSong> onRequestSong;
   final ValueChanged<DemoSong> onPrioritizeQueuedSong;
   final ValueChanged<DemoSong> onRemoveQueuedSong;
@@ -108,14 +120,20 @@ class SongBookPage extends StatelessWidget {
       searchQuery: searchQuery,
       selectedLanguage: selectedLanguage,
       songs: songs,
+      libraryTotalCount: libraryTotalCount,
+      libraryPageIndex: libraryPageIndex,
+      libraryTotalPages: libraryTotalPages,
+      libraryPageSize: libraryPageSize,
       hasConfiguredDirectory: hasConfiguredDirectory,
       isScanningLibrary: isScanningLibrary,
+      isLoadingLibraryPage: isLoadingLibraryPage,
       libraryScanErrorMessage: libraryScanErrorMessage,
       queuedSongs: queuedSongs,
       onBackPressed: onBackPressed,
       onQueuePressed: onQueuePressed,
       onEnterSongBook: onEnterSongBook,
       onLanguageSelected: onLanguageSelected,
+      onRequestLibraryPage: onRequestLibraryPage,
       onRequestSong: onRequestSong,
       onPrioritizeQueuedSong: onPrioritizeQueuedSong,
       onRemoveQueuedSong: onRemoveQueuedSong,
@@ -406,14 +424,20 @@ class SongBookRightColumn extends StatefulWidget {
     required this.searchQuery,
     required this.selectedLanguage,
     required this.songs,
+    required this.libraryTotalCount,
+    required this.libraryPageIndex,
+    required this.libraryTotalPages,
+    required this.libraryPageSize,
     required this.hasConfiguredDirectory,
     required this.isScanningLibrary,
+    required this.isLoadingLibraryPage,
     required this.libraryScanErrorMessage,
     required this.queuedSongs,
     required this.onBackPressed,
     required this.onQueuePressed,
     required this.onEnterSongBook,
     required this.onLanguageSelected,
+    required this.onRequestLibraryPage,
     required this.onRequestSong,
     required this.onPrioritizeQueuedSong,
     required this.onRemoveQueuedSong,
@@ -430,14 +454,20 @@ class SongBookRightColumn extends StatefulWidget {
   final String searchQuery;
   final String selectedLanguage;
   final List<DemoSong> songs;
+  final int libraryTotalCount;
+  final int libraryPageIndex;
+  final int libraryTotalPages;
+  final int libraryPageSize;
   final bool hasConfiguredDirectory;
   final bool isScanningLibrary;
+  final bool isLoadingLibraryPage;
   final String? libraryScanErrorMessage;
   final List<DemoSong> queuedSongs;
   final VoidCallback onBackPressed;
   final VoidCallback onQueuePressed;
   final VoidCallback onEnterSongBook;
   final ValueChanged<String> onLanguageSelected;
+  final void Function(int pageIndex, int pageSize) onRequestLibraryPage;
   final ValueChanged<DemoSong> onRequestSong;
   final ValueChanged<DemoSong> onPrioritizeQueuedSong;
   final ValueChanged<DemoSong> onRemoveQueuedSong;
@@ -465,6 +495,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
   int _currentPage = 0;
   late final PageController _pageController;
   int? _pendingPageJump;
+  int? _pendingLibraryPageSizeSync;
 
   @override
   void initState() {
@@ -614,6 +645,22 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
     });
   }
 
+  void _scheduleLibraryPageSizeSync(int pageSize) {
+    if (widget.route == DemoRoute.queueList ||
+        widget.libraryPageSize == pageSize ||
+        _pendingLibraryPageSizeSync == pageSize) {
+      return;
+    }
+    _pendingLibraryPageSizeSync = pageSize;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _pendingLibraryPageSizeSync != pageSize) {
+        return;
+      }
+      _pendingLibraryPageSizeSync = null;
+      widget.onRequestLibraryPage(widget.libraryPageIndex, pageSize);
+    });
+  }
+
   Future<void> _animateToPage(int page) async {
     if (page == _currentPage) {
       return;
@@ -737,11 +784,20 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
     }
 
     Widget buildLibraryContent(int rowsPerPage, {required double tileHeight}) {
+      final int itemsPerPage = crossAxisCount * rowsPerPage;
       if (!widget.hasConfiguredDirectory) {
         return const _EmptyContentCard(message: '请先在设置里选择扫描目录，扫描完成后这里会展示歌曲列表。');
       }
-      if (widget.isScanningLibrary) {
+      _scheduleLibraryPageSizeSync(itemsPerPage);
+      if (widget.isScanningLibrary &&
+          widget.libraryTotalCount == 0 &&
+          widget.songs.isEmpty) {
         return const _EmptyContentCard(message: '正在扫描目录中的歌曲，请稍候。');
+      }
+      if (widget.isLoadingLibraryPage &&
+          widget.libraryTotalCount == 0 &&
+          widget.songs.isEmpty) {
+        return const _EmptyContentCard(message: '正在加载歌曲列表，请稍候。');
       }
       if (widget.libraryScanErrorMessage != null) {
         return _EmptyContentCard(message: widget.libraryScanErrorMessage!);
@@ -751,17 +807,10 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
           message: '当前目录下没有扫描到可播放视频文件，请确认目录中包含常见视频格式媒体文件。',
         );
       }
-      final List<List<DemoSong>> pages = _paginateItems<DemoSong>(
+      return buildLibraryGrid(
         widget.songs,
-        itemsPerPage: crossAxisCount * rowsPerPage,
-      );
-      _normalizeCurrentPage(pages.length);
-      return _buildAnimatedPagedContent<DemoSong>(
-        pages: pages,
-        rowsPerPage: rowsPerPage,
+        rowsPerPage,
         tileHeight: tileHeight,
-        pageBuilder: (List<DemoSong> pageItems) =>
-            buildLibraryGrid(pageItems, rowsPerPage, tileHeight: tileHeight),
       );
     }
 
@@ -949,23 +998,39 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
           const SizedBox(height: _paginationSectionGap),
           Builder(
             builder: (BuildContext context) {
+              final int libraryItemsPerPage =
+                  crossAxisCount * fallbackRowsPerPage;
+              final int normalizedLibraryPage = widget.libraryPageIndex.clamp(
+                0,
+                math.max(0, widget.libraryTotalPages - 1),
+              );
               final pageData = isQueueRoute
                   ? resolvePageData<QueuedSongEntry>(
                       filteredQueueEntries,
                       rowsPerPage: fallbackRowsPerPage,
                     )
-                  : resolvePageData<DemoSong>(
-                      widget.songs,
-                      rowsPerPage: fallbackRowsPerPage,
+                  : (
+                      currentPage: normalizedLibraryPage,
+                      totalPages: math.max(1, widget.libraryTotalPages),
                     );
               return _PaginationBar(
                 currentPage: pageData.currentPage + 1,
                 totalPages: pageData.totalPages,
                 onPrevious: pageData.currentPage > 0
-                    ? () => _animateToPage(pageData.currentPage - 1)
+                    ? () => isQueueRoute
+                          ? _animateToPage(pageData.currentPage - 1)
+                          : widget.onRequestLibraryPage(
+                              pageData.currentPage - 1,
+                              libraryItemsPerPage,
+                            )
                     : null,
                 onNext: pageData.currentPage < pageData.totalPages - 1
-                    ? () => _animateToPage(pageData.currentPage + 1)
+                    ? () => isQueueRoute
+                          ? _animateToPage(pageData.currentPage + 1)
+                          : widget.onRequestLibraryPage(
+                              pageData.currentPage + 1,
+                              libraryItemsPerPage,
+                            )
                     : null,
               );
             },
@@ -987,14 +1052,19 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                       rowsPerPage: rowsPerPage,
                       fallbackTileHeight: tileHeight,
                     );
+                final int libraryItemsPerPage = crossAxisCount * rowsPerPage;
+                final int normalizedLibraryPage = widget.libraryPageIndex.clamp(
+                  0,
+                  math.max(0, widget.libraryTotalPages - 1),
+                );
                 final pageData = isQueueRoute
                     ? resolvePageData<QueuedSongEntry>(
                         filteredQueueEntries,
                         rowsPerPage: rowsPerPage,
                       )
-                    : resolvePageData<DemoSong>(
-                        widget.songs,
-                        rowsPerPage: rowsPerPage,
+                    : (
+                        currentPage: normalizedLibraryPage,
+                        totalPages: math.max(1, widget.libraryTotalPages),
                       );
                 return Column(
                   children: <Widget>[
@@ -1017,10 +1087,20 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                       currentPage: pageData.currentPage + 1,
                       totalPages: pageData.totalPages,
                       onPrevious: pageData.currentPage > 0
-                          ? () => _animateToPage(pageData.currentPage - 1)
+                          ? () => isQueueRoute
+                                ? _animateToPage(pageData.currentPage - 1)
+                                : widget.onRequestLibraryPage(
+                                    pageData.currentPage - 1,
+                                    libraryItemsPerPage,
+                                  )
                           : null,
                       onNext: pageData.currentPage < pageData.totalPages - 1
-                          ? () => _animateToPage(pageData.currentPage + 1)
+                          ? () => isQueueRoute
+                                ? _animateToPage(pageData.currentPage + 1)
+                                : widget.onRequestLibraryPage(
+                                    pageData.currentPage + 1,
+                                    libraryItemsPerPage,
+                                  )
                           : null,
                     ),
                   ],

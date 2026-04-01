@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/models/demo_song.dart';
+import '../../../core/models/demo_song_page.dart';
+
 class DemoAndroidStorageDataSource {
   static const MethodChannel _channel = MethodChannel(
     'ktv2_example/android_storage',
@@ -99,6 +102,59 @@ class DemoAndroidStorageDataSource {
       );
     }
     return songs;
+  }
+
+  Future<int> scanLibraryIntoIndex(String rootUri) async {
+    final int? indexedCount = await _channel.invokeMethod<int>(
+      'scanLibraryIntoIndex',
+      <String, Object?>{'rootUri': rootUri},
+    );
+    return indexedCount ?? 0;
+  }
+
+  Future<DemoSongPage> queryIndexedSongs({
+    required String rootUri,
+    required int pageIndex,
+    required int pageSize,
+    String language = '',
+    String searchQuery = '',
+  }) async {
+    final Map<dynamic, dynamic>? result =
+        await _channel.invokeMethod<Map<dynamic, dynamic>>(
+          'queryIndexedSongs',
+          <String, Object?>{
+            'rootUri': rootUri,
+            'pageIndex': pageIndex,
+            'pageSize': pageSize,
+            'language': language,
+            'searchQuery': searchQuery,
+          },
+        );
+
+    final Map<Object?, Object?> pageMap = Map<Object?, Object?>.from(
+      result ?? const <Object?, Object?>{},
+    );
+    final List<dynamic> items =
+        (pageMap['songs'] as List<dynamic>?) ?? const <dynamic>[];
+    final List<DemoSong> songs = items
+        .whereType<Map>()
+        .map((Map item) {
+          final Map<Object?, Object?> map = Map<Object?, Object?>.from(item);
+          return DemoSong(
+            title: (map['title'] as String?) ?? '未知歌曲',
+            artist: (map['artist'] as String?) ?? '未识别歌手',
+            language: (map['language'] as String?) ?? '其它',
+            searchIndex: (map['searchIndex'] as String?) ?? '',
+            mediaPath: (map['mediaPath'] as String?) ?? '',
+          );
+        })
+        .toList(growable: false);
+    return DemoSongPage(
+      songs: songs,
+      totalCount: (pageMap['totalCount'] as num?)?.toInt() ?? 0,
+      pageIndex: (pageMap['pageIndex'] as num?)?.toInt() ?? pageIndex,
+      pageSize: (pageMap['pageSize'] as num?)?.toInt() ?? pageSize,
+    );
   }
 }
 

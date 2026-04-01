@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ktv2/ktv2.dart';
 import 'package:ktv2_example/core/models/demo_song.dart';
+import 'package:ktv2_example/core/models/demo_song_page.dart';
 import 'package:ktv2_example/features/ktv_demo/application/ktv_demo_controller.dart';
 import 'package:ktv2_example/features/media_library/data/demo_media_library_repository.dart';
 
@@ -57,9 +58,11 @@ void main() {
       expect(controller.state.searchQuery, isEmpty);
 
       controller.selectLanguage('国语');
+      await _settleLibraryQuery();
       expect(controller.filteredSongs.single.title, '青花瓷');
 
       controller.setSearchQuery('zhou');
+      await _settleSearchRefresh();
       expect(controller.filteredSongs, isEmpty);
     },
   );
@@ -210,12 +213,47 @@ class FakeDemoMediaLibraryRepository extends DemoMediaLibraryRepository {
   }
 
   @override
-  Future<List<DemoSong>> scanLibrary(String directory) async {
+  Future<int> scanLibrary(String directory) async {
     final List<DemoSong>? result = _scanResults[directory];
     if (result == null) {
       throw StateError('missing scan result for $directory');
     }
-    return result;
+    return result.length;
+  }
+
+  @override
+  Future<DemoSongPage> querySongs({
+    required String directory,
+    required int pageIndex,
+    required int pageSize,
+    String? language,
+    String searchQuery = '',
+  }) async {
+    final List<DemoSong>? result = _scanResults[directory];
+    if (result == null) {
+      throw StateError('missing scan result for $directory');
+    }
+    final String normalizedQuery = searchQuery.trim().toLowerCase();
+    final String normalizedLanguage = (language ?? '').trim();
+    final List<DemoSong> filteredSongs = result.where((DemoSong song) {
+      if (normalizedLanguage.isNotEmpty && song.language != normalizedLanguage) {
+        return false;
+      }
+      if (normalizedQuery.isEmpty) {
+        return true;
+      }
+      return song.searchIndex.contains(normalizedQuery);
+    }).toList(growable: false);
+    final int start = pageIndex * pageSize;
+    final int end = (start + pageSize).clamp(0, filteredSongs.length);
+    return DemoSongPage(
+      songs: start >= filteredSongs.length
+          ? const <DemoSong>[]
+          : filteredSongs.sublist(start, end),
+      totalCount: filteredSongs.length,
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+    );
   }
 }
 
@@ -280,4 +318,14 @@ class FakePlayerController extends PlayerController {
     );
     notifyListeners();
   }
+}
+
+Future<void> _settleLibraryQuery() async {
+  await Future<void>.delayed(Duration.zero);
+  await Future<void>.delayed(Duration.zero);
+}
+
+Future<void> _settleSearchRefresh() async {
+  await Future<void>.delayed(const Duration(milliseconds: 250));
+  await _settleLibraryQuery();
 }

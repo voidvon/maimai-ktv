@@ -10,8 +10,12 @@ class KtvDemoState {
     this.scanDirectoryPath,
     this.searchQuery = '',
     this.isScanningLibrary = false,
+    this.isLoadingLibraryPage = false,
     this.queuedSongs = const <DemoSong>[],
-    this.librarySongs = const <DemoSong>[],
+    this.libraryPageSongs = const <DemoSong>[],
+    this.libraryTotalCount = 0,
+    this.libraryPageIndex = 0,
+    this.libraryPageSize = 8,
   });
 
   static const Object _unset = Object();
@@ -22,28 +26,22 @@ class KtvDemoState {
   final String? scanDirectoryPath;
   final String searchQuery;
   final bool isScanningLibrary;
+  final bool isLoadingLibraryPage;
   final List<DemoSong> queuedSongs;
-  final List<DemoSong> librarySongs;
+  final List<DemoSong> libraryPageSongs;
+  final int libraryTotalCount;
+  final int libraryPageIndex;
+  final int libraryPageSize;
 
   bool get hasConfiguredDirectory => scanDirectoryPath != null;
 
   String get normalizedSearchQuery => searchQuery.trim().toLowerCase();
 
-  List<DemoSong> filteredSongs(String allLanguagesLabel) {
-    return librarySongs
-        .where((DemoSong song) {
-          final bool languageMatches =
-              selectedLanguage == allLanguagesLabel ||
-              song.language == selectedLanguage;
-          if (!languageMatches) {
-            return false;
-          }
-          if (normalizedSearchQuery.isEmpty) {
-            return true;
-          }
-          return song.searchIndex.contains(normalizedSearchQuery);
-        })
-        .toList(growable: false);
+  int get libraryTotalPages {
+    if (libraryPageSize <= 0 || libraryTotalCount <= 0) {
+      return 1;
+    }
+    return ((libraryTotalCount + libraryPageSize - 1) / libraryPageSize).ceil();
   }
 
   List<DemoSong> filteredQueuedSongs() {
@@ -66,10 +64,10 @@ class KtvDemoState {
 
   String get currentSubtitle {
     if (queuedSongs.isNotEmpty) {
-      return '${queuedSongs.first.artist} · 已从目录中加载 ${librarySongs.length} 首';
+      return '${queuedSongs.first.artist} · 已从目录中加载 $libraryTotalCount 首';
     }
-    if (scanDirectoryPath != null && librarySongs.isNotEmpty) {
-      return '已从扫描目录加载 ${librarySongs.length} 首歌曲。';
+    if (scanDirectoryPath != null && libraryTotalCount > 0) {
+      return '已从扫描目录加载 $libraryTotalCount 首歌曲。';
     }
     return '请先在设置中选择扫描目录。';
   }
@@ -81,8 +79,12 @@ class KtvDemoState {
     Object? scanDirectoryPath = _unset,
     String? searchQuery,
     bool? isScanningLibrary,
+    bool? isLoadingLibraryPage,
     List<DemoSong>? queuedSongs,
-    List<DemoSong>? librarySongs,
+    List<DemoSong>? libraryPageSongs,
+    int? libraryTotalCount,
+    int? libraryPageIndex,
+    int? libraryPageSize,
   }) {
     return KtvDemoState(
       route: route ?? this.route,
@@ -95,8 +97,13 @@ class KtvDemoState {
           : scanDirectoryPath as String?,
       searchQuery: searchQuery ?? this.searchQuery,
       isScanningLibrary: isScanningLibrary ?? this.isScanningLibrary,
+      isLoadingLibraryPage:
+          isLoadingLibraryPage ?? this.isLoadingLibraryPage,
       queuedSongs: queuedSongs ?? this.queuedSongs,
-      librarySongs: librarySongs ?? this.librarySongs,
+      libraryPageSongs: libraryPageSongs ?? this.libraryPageSongs,
+      libraryTotalCount: libraryTotalCount ?? this.libraryTotalCount,
+      libraryPageIndex: libraryPageIndex ?? this.libraryPageIndex,
+      libraryPageSize: libraryPageSize ?? this.libraryPageSize,
     );
   }
 }

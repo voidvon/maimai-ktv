@@ -310,6 +310,13 @@ class _KtvDemoShellState extends State<KtvDemoShell>
     _searchController.clear();
   }
 
+  Future<void> _requestLibraryPage(int pageIndex, int pageSize) {
+    return _demoController.requestLibraryPage(
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+    );
+  }
+
   Future<void> _requestSong(DemoSong song) async {
     await _demoController.requestSong(song);
   }
@@ -394,8 +401,13 @@ class _KtvDemoShellState extends State<KtvDemoShell>
             controller: _demoController.playerController,
             selectedLanguage: _demoController.selectedLanguage,
             songs: _demoController.filteredSongs,
+            libraryTotalCount: _demoController.libraryTotalCount,
+            libraryPageIndex: _demoController.libraryPageIndex,
+            libraryTotalPages: _demoController.libraryTotalPages,
+            libraryPageSize: _demoController.libraryPageSize,
             hasConfiguredDirectory: _demoController.hasConfiguredDirectory,
             isScanningLibrary: _demoController.isScanningLibrary,
+            isLoadingLibraryPage: _demoController.isLoadingLibraryPage,
             libraryScanErrorMessage: _demoController.libraryScanErrorMessage,
             route: _demoController.route,
             searchQuery: _demoController.searchQuery,
@@ -404,6 +416,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
             onQueuePressed: _enterQueueList,
             onEnterSongBook: _enterSongBook,
             onLanguageSelected: _selectLanguage,
+            onRequestLibraryPage: _requestLibraryPage,
             onRequestSong: _requestSong,
             onPrioritizeQueuedSong: _demoController.prioritizeQueuedSong,
             onRemoveQueuedSong: _demoController.removeQueuedSong,
@@ -450,8 +463,13 @@ class _KtvDemoShellState extends State<KtvDemoShell>
               searchController: _searchController,
               selectedLanguage: _demoController.selectedLanguage,
               songs: _demoController.filteredSongs,
+              libraryTotalCount: _demoController.libraryTotalCount,
+              libraryPageIndex: _demoController.libraryPageIndex,
+              libraryTotalPages: _demoController.libraryTotalPages,
+              libraryPageSize: _demoController.libraryPageSize,
               hasConfiguredDirectory: _demoController.hasConfiguredDirectory,
               isScanningLibrary: _demoController.isScanningLibrary,
+              isLoadingLibraryPage: _demoController.isLoadingLibraryPage,
               libraryScanErrorMessage: _demoController.libraryScanErrorMessage,
               route: _demoController.route,
               searchQuery: _demoController.searchQuery,
@@ -463,6 +481,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
               onAppendSearchToken: _appendSearchToken,
               onRemoveSearchCharacter: _removeSearchCharacter,
               onClearSearch: _clearSearch,
+              onRequestLibraryPage: _requestLibraryPage,
               onRequestSong: _requestSong,
               onPrioritizeQueuedSong: _demoController.prioritizeQueuedSong,
               onRemoveQueuedSong: _demoController.removeQueuedSong,
