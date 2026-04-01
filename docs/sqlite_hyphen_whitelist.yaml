@@ -1,0 +1,14 @@
+version: 1
+
+# 仅用于处理歌手名或歌名中合法存在的半角连字符 `-`
+# 匹配方式建议使用“归一化后精确匹配”
+# 解析时建议采用“最长命中优先”
+
+artist_names:
+  - A-Lin
+  - G-DRAGON
+  - T-ara
+
+title_names:
+  - Love-Love-Love
+  - La-La-La Love Song
