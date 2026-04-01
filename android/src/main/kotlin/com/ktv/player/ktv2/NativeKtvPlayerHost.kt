@@ -105,6 +105,7 @@ class NativeKtvPlayerHost(
     private var pendingInitialAudioRoutingReapplyRunnable: Runnable? = null
     private var lastAttachedLayoutWidth = 0
     private var lastAttachedLayoutHeight = 0
+    private var keepScreenOnRequested = false
     private var singleTrackNativeChannelRoutingAvailable: Boolean? =
         if (libVlcBridgeLoaded) {
             null
@@ -171,11 +172,13 @@ class NativeKtvPlayerHost(
                     flushPendingPlaybackRequestIfPossible()
                     if (pendingPlaybackRequest == null) {
                         player.play()
+                        setKeepScreenOnRequested(true)
                     }
                     result.success(snapshot())
                 }
                 "pause" -> {
                     player.pause()
+                    setKeepScreenOnRequested(false)
                     result.success(snapshot())
                 }
                 "seekToProgress" -> {
@@ -231,16 +234,20 @@ class NativeKtvPlayerHost(
                     videoLayout?.let { attachPlayerViews(it, reason = "event:Playing") }
                 }
                 MediaPlayer.Event.Paused -> {
+                    keepScreenOnRequested = false
                     updateSelectedAudioTrackInfo()
                 }
                 MediaPlayer.Event.Stopped -> {
+                    keepScreenOnRequested = false
                     playbackCompleted = isNearMediaEnd
                 }
                 MediaPlayer.Event.EndReached -> {
+                    keepScreenOnRequested = false
                     playbackCompleted = true
                     lastKnownPositionMs = currentDurationMs
                 }
                 MediaPlayer.Event.EncounteredError -> {
+                    keepScreenOnRequested = false
                     playbackError = "Android libVLC 无法识别当前文件。"
                 }
                 MediaPlayer.Event.TimeChanged -> {
@@ -277,6 +284,7 @@ class NativeKtvPlayerHost(
                     "event type=${eventName(eventType)} time=$timeChanged length=$lengthChanged vout=$voutCount error=$playbackError playbackPath=$currentPlaybackPath",
                 )
             }
+            syncKeepScreenOnState()
             pushSnapshot()
         }
     }
@@ -289,6 +297,8 @@ class NativeKtvPlayerHost(
         methodChannel.setMethodCallHandler(null)
         clearPendingAttachStateListener()
         clearPendingLayoutChangeListener()
+        keepScreenOnRequested = false
+        videoLayout?.let { applyKeepScreenOnState(it, false) }
         val player = playerOrNull
         if (player?.getVLCVout()?.areViewsAttached() == true) {
             player.detachViews()
@@ -313,6 +323,7 @@ class NativeKtvPlayerHost(
         }
         clearPendingAttachStateListener()
         clearPendingLayoutChangeListener()
+        applyKeepScreenOnState(layout, false)
         val player = playerOrNull
         if (player?.getVLCVout()?.areViewsAttached() == true) {
             player.detachViews()
@@ -333,6 +344,7 @@ class NativeKtvPlayerHost(
         lastAttachedLayoutWidth = 0
         lastAttachedLayoutHeight = 0
         videoLayout = layout
+        syncKeepScreenOnState()
         installLayoutChangeListener(layout)
         if (layout.isAttachedToWindow) {
             attachPlayerViews(layout, reason = "layout:attached")
@@ -441,10 +453,29 @@ class NativeKtvPlayerHost(
         }
     }
 
+    private fun setKeepScreenOnRequested(keepScreenOn: Boolean) {
+        keepScreenOnRequested = keepScreenOn
+        syncKeepScreenOnState()
+    }
+
+    private fun syncKeepScreenOnState() {
+        videoLayout?.let { applyKeepScreenOnState(it, keepScreenOnRequested) }
+    }
+
+    private fun applyKeepScreenOnState(
+        layout: VLCVideoLayout,
+        keepScreenOn: Boolean = keepScreenOnRequested,
+    ) {
+        layout.keepScreenOn = keepScreenOn
+        layout.findViewById<SurfaceView?>(org.videolan.R.id.surface_video)?.keepScreenOn =
+            keepScreenOn
+    }
+
     private fun configureVideoSurfaceOverlay(layout: VLCVideoLayout) {
         val surfaceView = layout.findViewById<SurfaceView?>(org.videolan.R.id.surface_video) ?: return
         surfaceView.setZOrderOnTop(true)
         surfaceView.holder.setFormat(PixelFormat.TRANSLUCENT)
+        applyKeepScreenOnState(layout)
     }
 
     private fun applyDefaultVideoScale(player: MediaPlayer) {
@@ -523,6 +554,7 @@ class NativeKtvPlayerHost(
         }
 
         currentPlaybackPath = path
+        keepScreenOnRequested = shouldResume
         player.play()
         scheduleInitialAudioRoutingReapply(path)
         if (preservePositionMs > 0L) {
@@ -531,6 +563,7 @@ class NativeKtvPlayerHost(
         if (!shouldResume) {
             player.pause()
         }
+        syncKeepScreenOnState()
         videoLayout?.let { attachPlayerViews(it, reason = "openPlaybackMedia") }
         updateSelectedAudioTrackInfo()
         Log.i(
