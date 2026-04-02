@@ -31,6 +31,9 @@ class KtvDemoController extends ChangeNotifier {
   bool _didInitialize = false;
   Timer? _pendingSearchRefresh;
   int _libraryQueryGeneration = 0;
+  final List<_DemoNavigationEntry> _navigationStack = <_DemoNavigationEntry>[
+    const _DemoNavigationEntry.home(),
+  ];
 
   DemoMediaLibraryRepository get mediaLibraryRepository =>
       _mediaLibraryRepository;
@@ -46,6 +49,7 @@ class KtvDemoController extends ChangeNotifier {
   bool get isScanningLibrary => _state.isScanningLibrary;
   bool get isLoadingLibraryPage => _state.isLoadingLibraryPage;
   bool get hasConfiguredDirectory => _state.hasConfiguredDirectory;
+  bool get canNavigateBack => _navigationStack.length > 1;
   List<DemoSong> get queuedSongs =>
       List<DemoSong>.unmodifiable(_state.queuedSongs);
   List<DemoSong> get librarySongs =>
@@ -62,6 +66,9 @@ class KtvDemoController extends ChangeNotifier {
   String get currentTitle => _state.currentTitle;
 
   String get currentSubtitle => _state.currentSubtitle;
+
+  String get breadcrumbLabel =>
+      '‹ ${_navigationStack.map((entry) => entry.breadcrumbSegment).join(' / ')}';
 
   Future<void> initialize() async {
     if (_didInitialize) {
@@ -80,38 +87,43 @@ class KtvDemoController extends ChangeNotifier {
   }
 
   void enterSongBook({DemoSongBookMode mode = DemoSongBookMode.songs}) {
-    if (_state.route == DemoRoute.songBook &&
-        _state.songBookMode == mode &&
-        (mode == DemoSongBookMode.artists || _state.selectedArtist == null)) {
+    final _DemoNavigationEntry target = _DemoNavigationEntry.songBook(
+      mode: mode,
+    );
+    if (_navigationStack.last == target) {
       return;
     }
-    final bool shouldClearSelectedArtist = mode == DemoSongBookMode.artists;
+    _pushNavigation(target);
+  }
+
+  void enterQueueList() {
+    final _DemoNavigationEntry target = _DemoNavigationEntry.queueList(
+      songBookMode: _state.songBookMode,
+      selectedArtist: _state.selectedArtist,
+    );
+    if (_navigationStack.last == target) {
+      return;
+    }
+    _pushNavigation(target, reloadLibraryPage: false);
+  }
+
+  void returnHome() {
+    if (_navigationStack.length == 1 &&
+        _navigationStack.first == const _DemoNavigationEntry.home()) {
+      return;
+    }
+    _navigationStack
+      ..clear()
+      ..add(const _DemoNavigationEntry.home());
     _setState(
       _state.copyWith(
-        route: DemoRoute.songBook,
-        songBookMode: mode,
-        selectedArtist: shouldClearSelectedArtist
-            ? null
-            : _state.selectedArtist,
+        route: DemoRoute.home,
+        songBookMode: DemoSongBookMode.songs,
+        selectedArtist: null,
         searchQuery: '',
         libraryPageIndex: 0,
       ),
     );
-    unawaited(_reloadLibraryPage(pageIndex: 0));
-  }
-
-  void enterQueueList() {
-    if (_state.route == DemoRoute.queueList) {
-      return;
-    }
-    _setState(_state.copyWith(route: DemoRoute.queueList));
-  }
-
-  void returnHome() {
-    if (_state.route == DemoRoute.home) {
-      return;
-    }
-    _setState(_state.copyWith(route: DemoRoute.home));
   }
 
   Future<void> selectArtist(String artist) async {
@@ -119,11 +131,19 @@ class KtvDemoController extends ChangeNotifier {
     if (normalizedArtist.isEmpty) {
       return;
     }
+    final _DemoNavigationEntry target = _DemoNavigationEntry.songBook(
+      mode: DemoSongBookMode.songs,
+      selectedArtist: normalizedArtist,
+    );
+    if (_navigationStack.last == target) {
+      return;
+    }
+    _navigationStack.add(target);
     _setState(
       _state.copyWith(
-        route: DemoRoute.songBook,
-        songBookMode: DemoSongBookMode.songs,
-        selectedArtist: normalizedArtist,
+        route: target.route,
+        songBookMode: target.songBookMode,
+        selectedArtist: target.selectedArtist,
         searchQuery: '',
         libraryPageIndex: 0,
       ),
@@ -132,17 +152,30 @@ class KtvDemoController extends ChangeNotifier {
   }
 
   Future<bool> returnFromSelectedArtist() async {
-    if (_state.selectedArtist == null) {
+    if (!canNavigateBack) {
       return false;
     }
+    return navigateBack();
+  }
+
+  Future<bool> navigateBack() async {
+    if (!canNavigateBack) {
+      return false;
+    }
+    _navigationStack.removeLast();
+    final _DemoNavigationEntry target = _navigationStack.last;
     _setState(
       _state.copyWith(
-        songBookMode: DemoSongBookMode.artists,
-        selectedArtist: null,
+        route: target.route,
+        songBookMode: target.songBookMode,
+        selectedArtist: target.selectedArtist,
         searchQuery: '',
         libraryPageIndex: 0,
       ),
     );
+    if (target.route == DemoRoute.home) {
+      return true;
+    }
     await _reloadLibraryPage(pageIndex: 0);
     return true;
   }
@@ -169,9 +202,6 @@ class KtvDemoController extends ChangeNotifier {
         isScanningLibrary: true,
         libraryScanErrorMessage: null,
         selectedLanguage: allLanguagesLabel,
-        songBookMode: DemoSongBookMode.songs,
-        selectedArtist: null,
-        route: DemoRoute.songBook,
         searchQuery: '',
         libraryPageIndex: 0,
       ),
@@ -320,14 +350,7 @@ class KtvDemoController extends ChangeNotifier {
       return;
     }
 
-    _setState(
-      _state.copyWith(
-        scanDirectoryPath: savedDirectory,
-        route: DemoRoute.songBook,
-        songBookMode: DemoSongBookMode.songs,
-        selectedArtist: null,
-      ),
-    );
+    _setState(_state.copyWith(scanDirectoryPath: savedDirectory));
     await _reloadLibraryPage(pageIndex: 0, clearErrorMessage: true);
     if (_state.libraryTotalCount == 0) {
       await scanLibrary(savedDirectory);
@@ -511,10 +534,76 @@ class KtvDemoController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _pushNavigation(
+    _DemoNavigationEntry target, {
+    bool reloadLibraryPage = true,
+  }) {
+    _navigationStack.add(target);
+    _setState(
+      _state.copyWith(
+        route: target.route,
+        songBookMode: target.songBookMode,
+        selectedArtist: target.selectedArtist,
+        searchQuery: '',
+        libraryPageIndex: 0,
+      ),
+    );
+    if (reloadLibraryPage && target.route != DemoRoute.queueList) {
+      unawaited(_reloadLibraryPage(pageIndex: 0));
+    }
+  }
+
   @override
   void dispose() {
     _pendingSearchRefresh?.cancel();
     playerController.dispose();
     super.dispose();
   }
+}
+
+class _DemoNavigationEntry {
+  const _DemoNavigationEntry.home()
+    : route = DemoRoute.home,
+      songBookMode = DemoSongBookMode.songs,
+      selectedArtist = null;
+
+  const _DemoNavigationEntry.songBook({
+    required DemoSongBookMode mode,
+    this.selectedArtist,
+  }) : route = DemoRoute.songBook,
+       songBookMode = mode;
+
+  const _DemoNavigationEntry.queueList({
+    required this.songBookMode,
+    required this.selectedArtist,
+  }) : route = DemoRoute.queueList;
+
+  final DemoRoute route;
+  final DemoSongBookMode songBookMode;
+  final String? selectedArtist;
+
+  String get breadcrumbSegment {
+    switch (route) {
+      case DemoRoute.home:
+        return '主页';
+      case DemoRoute.songBook:
+        if (selectedArtist != null) {
+          return selectedArtist!;
+        }
+        return songBookMode == DemoSongBookMode.artists ? '歌星' : '歌名';
+      case DemoRoute.queueList:
+        return '已点';
+    }
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is _DemoNavigationEntry &&
+        other.route == route &&
+        other.songBookMode == songBookMode &&
+        other.selectedArtist == selectedArtist;
+  }
+
+  @override
+  int get hashCode => Object.hash(route, songBookMode, selectedArtist);
 }

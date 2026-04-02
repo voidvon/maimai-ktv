@@ -279,15 +279,14 @@ class _KtvDemoShellState extends State<KtvDemoShell>
   }
 
   void _returnHome() {
-    unawaited(_handleReturnHome());
+    unawaited(_handleNavigateBack());
   }
 
-  Future<void> _handleReturnHome() async {
-    if (await _demoController.returnFromSelectedArtist()) {
+  Future<void> _handleNavigateBack() async {
+    final bool didNavigate = await _demoController.navigateBack();
+    if (didNavigate) {
       _searchController.clear();
-      return;
     }
-    _demoController.returnHome();
   }
 
   void _selectLanguage(String language) {
@@ -431,6 +430,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
             route: _demoController.route,
             searchQuery: _demoController.searchQuery,
             queuedSongs: _demoController.queuedSongs,
+            breadcrumbLabel: _demoController.breadcrumbLabel,
             onBackPressed: _returnHome,
             onQueuePressed: _enterQueueList,
             onEnterSongBook: _enterSongBook,
@@ -498,6 +498,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
               route: _demoController.route,
               searchQuery: _demoController.searchQuery,
               queuedSongs: _demoController.queuedSongs,
+              breadcrumbLabel: _demoController.breadcrumbLabel,
               onBackPressed: _returnHome,
               onQueuePressed: _enterQueueList,
               onEnterSongBook: _enterSongBook,
@@ -528,11 +529,16 @@ class _KtvDemoShellState extends State<KtvDemoShell>
       builder: (BuildContext context, Widget? child) {
         _schedulePreviewViewportSync();
         return PopScope<void>(
-          canPop: !_isPreviewFullscreen,
+          canPop: !_isPreviewFullscreen && !_demoController.canNavigateBack,
           onPopInvokedWithResult: (bool didPop, void result) {
-            if (!didPop && _isPreviewFullscreen) {
-              _exitPreviewFullscreen();
+            if (didPop) {
+              return;
             }
+            if (_isPreviewFullscreen) {
+              _exitPreviewFullscreen();
+              return;
+            }
+            unawaited(_handleNavigateBack());
           },
           child: Scaffold(
             body: DecoratedBox(

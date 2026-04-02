@@ -34,7 +34,8 @@ void main() {
     await controller.initialize();
 
     expect(controller.scanDirectoryPath, 'content://demo/tree');
-    expect(controller.route, DemoRoute.songBook);
+    expect(controller.route, DemoRoute.home);
+    expect(controller.breadcrumbLabel, '‹ 主页');
     expect(controller.librarySongs, hasLength(1));
     await _settleLibraryQuery();
     expect(repository.scanLibraryCallCount, 1);
@@ -167,6 +168,8 @@ void main() {
     );
 
     await controller.scanLibrary('/media');
+    controller.enterSongBook(mode: DemoSongBookMode.artists);
+    await _settleLibraryQuery();
     await controller.selectArtist('周杰伦');
 
     final bool handled = await controller.returnFromSelectedArtist();

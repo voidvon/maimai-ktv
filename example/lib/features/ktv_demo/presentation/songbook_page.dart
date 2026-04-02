@@ -58,6 +58,7 @@ class SongBookPage extends StatelessWidget {
     required this.isLoadingLibraryPage,
     required this.libraryScanErrorMessage,
     required this.queuedSongs,
+    required this.breadcrumbLabel,
     required this.onBackPressed,
     required this.onQueuePressed,
     required this.onEnterSongBook,
@@ -96,6 +97,7 @@ class SongBookPage extends StatelessWidget {
   final bool isLoadingLibraryPage;
   final String? libraryScanErrorMessage;
   final List<DemoSong> queuedSongs;
+  final String breadcrumbLabel;
   final VoidCallback onBackPressed;
   final VoidCallback onQueuePressed;
   final VoidCallback onEnterSongBook;
@@ -141,6 +143,7 @@ class SongBookPage extends StatelessWidget {
       isLoadingLibraryPage: isLoadingLibraryPage,
       libraryScanErrorMessage: libraryScanErrorMessage,
       queuedSongs: queuedSongs,
+      breadcrumbLabel: breadcrumbLabel,
       onBackPressed: onBackPressed,
       onQueuePressed: onQueuePressed,
       onEnterSongBook: onEnterSongBook,
@@ -458,6 +461,7 @@ class SongBookRightColumn extends StatefulWidget {
     required this.isLoadingLibraryPage,
     required this.libraryScanErrorMessage,
     required this.queuedSongs,
+    required this.breadcrumbLabel,
     required this.onBackPressed,
     required this.onQueuePressed,
     required this.onEnterSongBook,
@@ -492,6 +496,7 @@ class SongBookRightColumn extends StatefulWidget {
   final bool isLoadingLibraryPage;
   final String? libraryScanErrorMessage;
   final List<DemoSong> queuedSongs;
+  final String breadcrumbLabel;
   final VoidCallback onBackPressed;
   final VoidCallback onQueuePressed;
   final VoidCallback onEnterSongBook;
@@ -997,23 +1002,6 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
       );
     }
 
-    String breadcrumbLabel() {
-      switch (widget.route) {
-        case DemoRoute.home:
-          return '‹ 主页';
-        case DemoRoute.songBook:
-          if (isArtistOverview) {
-            return '‹ 主页 / 歌星';
-          }
-          if (widget.selectedArtist != null) {
-            return '‹ 主页 / 歌星 / ${widget.selectedArtist!}';
-          }
-          return '‹ 主页 / 歌名';
-        case DemoRoute.queueList:
-          return '‹ 主页 / 已点';
-      }
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1033,7 +1021,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
           children: <Widget>[
             Expanded(
               child: Text(
-                breadcrumbLabel(),
+                widget.breadcrumbLabel,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
