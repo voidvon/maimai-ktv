@@ -363,23 +363,28 @@ class _KtvDemoShellState extends State<KtvDemoShell>
 
   SongBookCallbacks _buildSongBookCallbacks() {
     return SongBookCallbacks(
-      onBackPressed: _returnHome,
-      onQueuePressed: _enterQueueList,
-      onEnterSongBook: _enterSongBook,
-      onLanguageSelected: _selectLanguage,
-      onAppendSearchToken: _appendSearchToken,
-      onRemoveSearchCharacter: _removeSearchCharacter,
-      onClearSearch: _clearSearch,
-      onRequestLibraryPage: _requestLibraryPage,
-      onRequestSong: _requestSong,
-      onSelectArtist: _demoController.selectArtist,
-      onPrioritizeQueuedSong: _demoController.prioritizeQueuedSong,
-      onRemoveQueuedSong: _demoController.removeQueuedSong,
-      onSettingsPressed: _openSettingsPage,
-      onToggleAudioMode: _toggleAudioMode,
-      onTogglePlayback: _togglePlayback,
-      onRestartPlayback: _restartPlayback,
-      onSkipSong: _skipCurrentSong,
+      navigation: SongBookNavigationCallbacks(
+        onBackPressed: _returnHome,
+        onQueuePressed: _enterQueueList,
+        onSelectArtist: _demoController.selectArtist,
+        onSettingsPressed: _openSettingsPage,
+      ),
+      library: SongBookLibraryCallbacks(
+        onLanguageSelected: _selectLanguage,
+        onAppendSearchToken: _appendSearchToken,
+        onRemoveSearchCharacter: _removeSearchCharacter,
+        onClearSearch: _clearSearch,
+        onRequestLibraryPage: _requestLibraryPage,
+        onRequestSong: _requestSong,
+      ),
+      playback: SongBookPlaybackCallbacks(
+        onPrioritizeQueuedSong: _demoController.prioritizeQueuedSong,
+        onRemoveQueuedSong: _demoController.removeQueuedSong,
+        onToggleAudioMode: _toggleAudioMode,
+        onTogglePlayback: _togglePlayback,
+        onRestartPlayback: _restartPlayback,
+        onSkipSong: _skipCurrentSong,
+      ),
     );
   }
 

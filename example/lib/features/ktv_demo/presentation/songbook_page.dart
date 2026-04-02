@@ -101,38 +101,60 @@ class SongBookPlaybackViewModel {
 
 class SongBookCallbacks {
   const SongBookCallbacks({
+    required this.navigation,
+    required this.library,
+    required this.playback,
+  });
+
+  final SongBookNavigationCallbacks navigation;
+  final SongBookLibraryCallbacks library;
+  final SongBookPlaybackCallbacks playback;
+}
+
+class SongBookNavigationCallbacks {
+  const SongBookNavigationCallbacks({
     required this.onBackPressed,
     required this.onQueuePressed,
-    required this.onEnterSongBook,
+    required this.onSelectArtist,
+    required this.onSettingsPressed,
+  });
+
+  final VoidCallback onBackPressed;
+  final VoidCallback onQueuePressed;
+  final ValueChanged<String> onSelectArtist;
+  final VoidCallback onSettingsPressed;
+}
+
+class SongBookLibraryCallbacks {
+  const SongBookLibraryCallbacks({
     required this.onLanguageSelected,
     required this.onAppendSearchToken,
     required this.onRemoveSearchCharacter,
     required this.onClearSearch,
     required this.onRequestLibraryPage,
     required this.onRequestSong,
-    required this.onSelectArtist,
-    required this.onPrioritizeQueuedSong,
-    required this.onRemoveQueuedSong,
-    required this.onSettingsPressed,
-    required this.onToggleAudioMode,
-    required this.onTogglePlayback,
-    required this.onRestartPlayback,
-    required this.onSkipSong,
   });
 
-  final VoidCallback onBackPressed;
-  final VoidCallback onQueuePressed;
-  final VoidCallback onEnterSongBook;
   final ValueChanged<String> onLanguageSelected;
   final ValueChanged<String> onAppendSearchToken;
   final VoidCallback onRemoveSearchCharacter;
   final VoidCallback onClearSearch;
   final void Function(int pageIndex, int pageSize) onRequestLibraryPage;
   final ValueChanged<DemoSong> onRequestSong;
-  final ValueChanged<String> onSelectArtist;
+}
+
+class SongBookPlaybackCallbacks {
+  const SongBookPlaybackCallbacks({
+    required this.onPrioritizeQueuedSong,
+    required this.onRemoveQueuedSong,
+    required this.onToggleAudioMode,
+    required this.onTogglePlayback,
+    required this.onRestartPlayback,
+    required this.onSkipSong,
+  });
+
   final ValueChanged<DemoSong> onPrioritizeQueuedSong;
   final ValueChanged<DemoSong> onRemoveQueuedSong;
-  final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
   final VoidCallback onRestartPlayback;
@@ -179,9 +201,9 @@ class SongBookPage extends StatelessWidget {
           selectedArtist: viewModel.navigation.selectedArtist,
           compact: compact,
           showLetterKeyboard: showLetterKeyboard,
-          onAppendSearchToken: callbacks.onAppendSearchToken,
-          onRemoveSearchCharacter: callbacks.onRemoveSearchCharacter,
-          onClearSearch: callbacks.onClearSearch,
+          onAppendSearchToken: callbacks.library.onAppendSearchToken,
+          onRemoveSearchCharacter: callbacks.library.onRemoveSearchCharacter,
+          onClearSearch: callbacks.library.onClearSearch,
         ),
         SizedBox(height: sectionGap),
         if (compact) rightColumn else Expanded(child: rightColumn),
@@ -489,6 +511,9 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
   SongBookNavigationViewModel get _navigation => _viewModel.navigation;
   SongBookLibraryViewModel get _library => _viewModel.library;
   SongBookPlaybackViewModel get _playback => _viewModel.playback;
+  SongBookNavigationCallbacks get _navigationCallbacks => _callbacks.navigation;
+  SongBookLibraryCallbacks get _libraryCallbacks => _callbacks.library;
+  SongBookPlaybackCallbacks get _playbackCallbacks => _callbacks.playback;
 
   @override
   void initState() {
@@ -667,7 +692,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
         return;
       }
       _pendingLibraryPageSizeSync = null;
-      _callbacks.onRequestLibraryPage(_library.pageIndex, pageSize);
+      _libraryCallbacks.onRequestLibraryPage(_library.pageIndex, pageSize);
     });
   }
 
@@ -797,7 +822,9 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
               song: song,
               isCurrent: isCurrent,
               isQueued: isQueued,
-              onTap: isQueued ? null : () => _callbacks.onRequestSong(song),
+              onTap: isQueued
+                  ? null
+                  : () => _libraryCallbacks.onRequestSong(song),
             );
           },
         ),
@@ -830,7 +857,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
             final DemoArtist artist = visibleArtists[index];
             return _ArtistTile(
               artist: artist,
-              onTap: () => _callbacks.onSelectArtist(artist.name),
+              onTap: () => _navigationCallbacks.onSelectArtist(artist.name),
             );
           },
         ),
@@ -912,11 +939,11 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
             return QueuedSongTile(
               entry: entry,
               onPinToTop: entry.canPinToTop
-                  ? () => _callbacks.onPrioritizeQueuedSong(entry.song)
+                  ? () => _playbackCallbacks.onPrioritizeQueuedSong(entry.song)
                   : null,
               onRemove: entry.isCurrent
                   ? null
-                  : () => _callbacks.onRemoveQueuedSong(entry.song),
+                  : () => _playbackCallbacks.onRemoveQueuedSong(entry.song),
             );
           },
         ),
@@ -966,12 +993,14 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
           controller: widget.controller,
           queueCount: _playback.queuedSongs.length,
           compact: widget.compact,
-          onQueuePressed: isQueueRoute ? null : _callbacks.onQueuePressed,
-          onSettingsPressed: _callbacks.onSettingsPressed,
-          onToggleAudioMode: _callbacks.onToggleAudioMode,
-          onTogglePlayback: _callbacks.onTogglePlayback,
-          onRestartPlayback: _callbacks.onRestartPlayback,
-          onSkipSong: _callbacks.onSkipSong,
+          onQueuePressed: isQueueRoute
+              ? null
+              : _navigationCallbacks.onQueuePressed,
+          onSettingsPressed: _navigationCallbacks.onSettingsPressed,
+          onToggleAudioMode: _playbackCallbacks.onToggleAudioMode,
+          onTogglePlayback: _playbackCallbacks.onTogglePlayback,
+          onRestartPlayback: _playbackCallbacks.onRestartPlayback,
+          onSkipSong: _playbackCallbacks.onSkipSong,
         ),
         const SizedBox(height: 8),
         Row(
@@ -990,7 +1019,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
             _ActionPill(
               label: '返回',
               icon: Icons.chevron_right_rounded,
-              onPressed: _callbacks.onBackPressed,
+              onPressed: _navigationCallbacks.onBackPressed,
             ),
           ],
         ),
@@ -1013,7 +1042,8 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                         borderRadius: BorderRadius.circular(10),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(10),
-                          onTap: () => _callbacks.onLanguageSelected(language),
+                          onTap: () =>
+                              _libraryCallbacks.onLanguageSelected(language),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
@@ -1083,7 +1113,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                 onPrevious: pageData.currentPage > 0
                     ? () => isQueueRoute
                           ? _animateToPage(pageData.currentPage - 1)
-                          : _callbacks.onRequestLibraryPage(
+                          : _libraryCallbacks.onRequestLibraryPage(
                               pageData.currentPage - 1,
                               libraryItemsPerPage,
                             )
@@ -1091,7 +1121,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                 onNext: pageData.currentPage < pageData.totalPages - 1
                     ? () => isQueueRoute
                           ? _animateToPage(pageData.currentPage + 1)
-                          : _callbacks.onRequestLibraryPage(
+                          : _libraryCallbacks.onRequestLibraryPage(
                               pageData.currentPage + 1,
                               libraryItemsPerPage,
                             )
@@ -1157,7 +1187,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                       onPrevious: pageData.currentPage > 0
                           ? () => isQueueRoute
                                 ? _animateToPage(pageData.currentPage - 1)
-                                : _callbacks.onRequestLibraryPage(
+                                : _libraryCallbacks.onRequestLibraryPage(
                                     pageData.currentPage - 1,
                                     libraryItemsPerPage,
                                   )
@@ -1165,7 +1195,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                       onNext: pageData.currentPage < pageData.totalPages - 1
                           ? () => isQueueRoute
                                 ? _animateToPage(pageData.currentPage + 1)
-                                : _callbacks.onRequestLibraryPage(
+                                : _libraryCallbacks.onRequestLibraryPage(
                                     pageData.currentPage + 1,
                                     libraryItemsPerPage,
                                   )
