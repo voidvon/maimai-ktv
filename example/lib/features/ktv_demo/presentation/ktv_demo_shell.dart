@@ -1,21 +1,17 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../core/models/demo_song.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../application/ktv_demo_controller.dart';
 import 'home_page.dart';
+import 'ktv_demo_preview_coordinator.dart';
+import 'ktv_demo_search_coordinator.dart';
 import 'shared_widgets.dart';
 import 'songbook_contracts.dart';
 import 'songbook_page.dart';
-
-const MethodChannel _orientationChannel = MethodChannel(
-  'ktv2_example/orientation',
-);
 
 class KtvDemoShell extends StatefulWidget {
   const KtvDemoShell({super.key});
@@ -27,23 +23,17 @@ class KtvDemoShell extends StatefulWidget {
 class _KtvDemoShellState extends State<KtvDemoShell>
     with WidgetsBindingObserver {
   final KtvDemoController _demoController = KtvDemoController();
-  final TextEditingController _searchController = TextEditingController();
-  final GlobalKey _shellStackKey = GlobalKey();
-  final GlobalKey _previewSurfaceKey = GlobalKey();
-  final GlobalKey _previewAnchorKey = GlobalKey();
-  late final Widget _sharedPreviewSurface;
-  bool? _statusBarHiddenInLandscape;
-  bool _isPreviewFullscreen = false;
-  Rect? _previewViewportRect;
-  bool _didSchedulePreviewViewportSync = false;
+  late final KtvDemoSearchCoordinator _searchCoordinator;
+  late final KtvDemoPreviewCoordinator _previewCoordinator;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _searchController.addListener(_handleSearchChanged);
-    _sharedPreviewSurface = PersistentPreviewSurface(
-      key: _previewSurfaceKey,
+    _searchCoordinator = KtvDemoSearchCoordinator(
+      onQueryChanged: _demoController.setSearchQuery,
+    );
+    _previewCoordinator = KtvDemoPreviewCoordinator(
       controller: _demoController.playerController,
       routeResolver: () => _demoController.route,
     );
@@ -52,42 +42,17 @@ class _KtvDemoShellState extends State<KtvDemoShell>
 
   @override
   void dispose() {
-    if (_isPreviewFullscreen || _statusBarHiddenInLandscape == true) {
-      unawaited(SystemChrome.setPreferredOrientations(<DeviceOrientation>[]));
-      unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
-    }
+    unawaited(_previewCoordinator.disposeCoordinator());
     WidgetsBinding.instance.removeObserver(this);
-    _searchController
-      ..removeListener(_handleSearchChanged)
-      ..dispose();
+    _searchCoordinator.dispose();
+    _previewCoordinator.dispose();
     _demoController.dispose();
     super.dispose();
   }
 
-  void _syncSystemStatusBarForOrientation(Orientation orientation) {
-    if (_isPreviewFullscreen) {
-      return;
-    }
-    final bool shouldHideStatusBar = orientation == Orientation.landscape;
-    if (_statusBarHiddenInLandscape == shouldHideStatusBar) {
-      return;
-    }
-    _statusBarHiddenInLandscape = shouldHideStatusBar;
-    if (shouldHideStatusBar) {
-      unawaited(
-        SystemChrome.setEnabledSystemUIMode(
-          SystemUiMode.manual,
-          overlays: <SystemUiOverlay>[SystemUiOverlay.bottom],
-        ),
-      );
-      return;
-    }
-    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
-  }
-
   @override
   void didChangeMetrics() {
-    _schedulePreviewViewportSync();
+    _previewCoordinator.schedulePreviewViewportSync();
   }
 
   @override
@@ -97,10 +62,6 @@ class _KtvDemoShellState extends State<KtvDemoShell>
         state == AppLifecycleState.detached) {
       unawaited(_demoController.stopPlayback());
     }
-  }
-
-  void _handleSearchChanged() {
-    _demoController.setSearchQuery(_searchController.text);
   }
 
   Future<void> _openSettingsPage() async {
@@ -121,7 +82,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
     }
 
     await _demoController.handleSelectedDirectory(directory);
-    _searchController.clear();
+    _searchCoordinator.clear();
   }
 
   void _togglePlayback() {
@@ -136,119 +97,16 @@ class _KtvDemoShellState extends State<KtvDemoShell>
     _demoController.restartPlayback();
   }
 
-  void _schedulePreviewViewportSync() {
-    if (_didSchedulePreviewViewportSync) {
-      return;
-    }
-    _didSchedulePreviewViewportSync = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _didSchedulePreviewViewportSync = false;
-      _syncPreviewViewportRect();
-    });
-  }
-
-  void _syncPreviewViewportRect() {
-    final BuildContext? stackContext = _shellStackKey.currentContext;
-    if (!mounted || stackContext == null) {
-      return;
-    }
-    final RenderObject? stackRenderObject = stackContext.findRenderObject();
-    if (stackRenderObject is! RenderBox) {
-      return;
-    }
-
-    Rect? nextRect;
-    if (_isPreviewFullscreen) {
-      nextRect = _resolveFullscreenPreviewRect(stackRenderObject.size);
-    } else {
-      final BuildContext? anchorContext = _previewAnchorKey.currentContext;
-      final RenderObject? anchorRenderObject = anchorContext
-          ?.findRenderObject();
-      if (anchorRenderObject is! RenderBox) {
-        return;
-      }
-      final Offset topLeft = anchorRenderObject.localToGlobal(
-        Offset.zero,
-        ancestor: stackRenderObject,
-      );
-      nextRect = topLeft & anchorRenderObject.size;
-    }
-
-    if (_previewViewportRect == nextRect) {
-      return;
-    }
-    setState(() => _previewViewportRect = nextRect);
-  }
-
-  Rect _resolveFullscreenPreviewRect(Size containerSize) {
-    const double targetAspectRatio = 16 / 9;
-    final double containerAspectRatio =
-        containerSize.width / containerSize.height;
-
-    if (containerAspectRatio > targetAspectRatio) {
-      final double height = containerSize.height;
-      final double width = height * targetAspectRatio;
-      return Rect.fromLTWH((containerSize.width - width) / 2, 0, width, height);
-    }
-
-    final double width = containerSize.width;
-    final double height = width / targetAspectRatio;
-    return Rect.fromLTWH(0, (containerSize.height - height) / 2, width, height);
-  }
-
   void _enterPreviewFullscreen() {
-    unawaited(_setPreviewFullscreen(enabled: true));
+    unawaited(_previewCoordinator.enterPreviewFullscreen());
   }
 
   void _exitPreviewFullscreen() {
-    unawaited(_setPreviewFullscreen(enabled: false));
-  }
-
-  Future<void> _setPreviewFullscreen({required bool enabled}) async {
-    if (_isPreviewFullscreen == enabled) {
-      return;
-    }
-    setState(() {
-      _isPreviewFullscreen = enabled;
-      if (!enabled) {
-        _statusBarHiddenInLandscape = null;
-      }
-    });
-    _schedulePreviewViewportSync();
-
-    if (enabled) {
-      await _setPlatformFullscreenOrientation(enabled: true);
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      await SystemChrome.setPreferredOrientations(<DeviceOrientation>[
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-      return;
-    }
-
-    await _setPlatformFullscreenOrientation(enabled: false);
-    await SystemChrome.setPreferredOrientations(<DeviceOrientation>[]);
-    if (!mounted) {
-      return;
-    }
-    _syncSystemStatusBarForOrientation(MediaQuery.orientationOf(context));
-  }
-
-  Future<void> _setPlatformFullscreenOrientation({
-    required bool enabled,
-  }) async {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
-    try {
-      await _orientationChannel.invokeMethod<void>(
-        enabled ? 'enterVideoFullscreen' : 'exitVideoFullscreen',
-      );
-    } on MissingPluginException {
-      // Android-only channel; fall back to SystemChrome when unavailable.
-    } on PlatformException {
-      // Keep fullscreen flow alive even if the platform request fails.
-    }
+    unawaited(
+      _previewCoordinator.exitPreviewFullscreen(
+        restoredOrientation: mounted ? MediaQuery.orientationOf(context) : null,
+      ),
+    );
   }
 
   void _handleBackToSongBookFromFullscreen() {
@@ -265,17 +123,17 @@ class _KtvDemoShellState extends State<KtvDemoShell>
   }
 
   void _enterSongBook() {
-    _searchController.clear();
+    _searchCoordinator.clear();
     _demoController.enterSongBook(mode: DemoSongBookMode.songs);
   }
 
   void _enterArtistBook() {
-    _searchController.clear();
+    _searchCoordinator.clear();
     _demoController.enterSongBook(mode: DemoSongBookMode.artists);
   }
 
   void _enterQueueList() {
-    _searchController.clear();
+    _searchCoordinator.clear();
     _demoController.enterQueueList();
   }
 
@@ -286,7 +144,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
   Future<void> _handleNavigateBack() async {
     final bool didNavigate = await _demoController.navigateBack();
     if (didNavigate) {
-      _searchController.clear();
+      _searchCoordinator.clear();
     }
   }
 
@@ -295,32 +153,15 @@ class _KtvDemoShellState extends State<KtvDemoShell>
   }
 
   void _appendSearchToken(String token) {
-    final String nextText = '${_searchController.text}$token';
-    _searchController.value = TextEditingValue(
-      text: nextText,
-      selection: TextSelection.collapsed(offset: nextText.length),
-    );
+    _searchCoordinator.appendToken(token);
   }
 
   void _removeSearchCharacter() {
-    if (_searchController.text.isEmpty) {
-      return;
-    }
-    final String nextText = _searchController.text.substring(
-      0,
-      _searchController.text.length - 1,
-    );
-    _searchController.value = TextEditingValue(
-      text: nextText,
-      selection: TextSelection.collapsed(offset: nextText.length),
-    );
+    _searchCoordinator.removeLastCharacter();
   }
 
   void _clearSearch() {
-    if (_searchController.text.isEmpty) {
-      return;
-    }
-    _searchController.clear();
+    _searchCoordinator.clear();
   }
 
   Future<void> _requestLibraryPage(int pageIndex, int pageSize) {
@@ -390,7 +231,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
   }
 
   Widget _buildPreviewSurface() {
-    return _sharedPreviewSurface;
+    return _previewCoordinator.sharedPreviewSurface;
   }
 
   Widget _buildPreviewPlaceholder() {
@@ -407,7 +248,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
     return LandscapeHomePage(
       controller: _demoController.playerController,
       queueCount: _demoController.queuedSongs.length,
-      previewAnchorKey: _previewAnchorKey,
+      previewAnchorKey: _previewCoordinator.previewAnchorKey,
       onEnterSongBook: _enterSongBook,
       onEnterArtistBook: _enterArtistBook,
       onQueuePressed: _enterQueueList,
@@ -435,12 +276,12 @@ class _KtvDemoShellState extends State<KtvDemoShell>
               HomePreviewCard(
                 controller: _demoController.playerController,
                 previewSurface: _buildPreviewPlaceholder(),
-                previewAnchorKey: _previewAnchorKey,
+                previewAnchorKey: _previewCoordinator.previewAnchorKey,
               ),
               const SizedBox(height: 6),
               SongBookLeftColumn(
                 controller: _demoController.playerController,
-                searchController: _searchController,
+                searchController: _searchCoordinator.controller,
                 route: _demoController.route,
                 songBookMode: _demoController.songBookMode,
                 selectedArtist: _demoController.selectedArtist,
@@ -475,7 +316,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
           controller: _demoController.playerController,
           previewSurface: _buildPreviewPlaceholder(),
           compact: true,
-          previewAnchorKey: _previewAnchorKey,
+          previewAnchorKey: _previewCoordinator.previewAnchorKey,
         ),
         const SizedBox(height: 16),
         if (isHome)
@@ -496,7 +337,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
             child: SongBookPage(
               controller: _demoController.playerController,
               compact: false,
-              searchController: _searchController,
+              searchController: _searchCoordinator.controller,
               viewModel: viewModel,
               callbacks: callbacks,
             ),
@@ -508,18 +349,24 @@ class _KtvDemoShellState extends State<KtvDemoShell>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _demoController,
+      animation: Listenable.merge(<Listenable>[
+        _demoController,
+        _previewCoordinator,
+      ]),
       builder: (BuildContext context, Widget? child) {
+        _searchCoordinator.syncFromQuery(_demoController.searchQuery);
         final SongBookViewModel songBookViewModel = _buildSongBookViewModel();
         final SongBookCallbacks songBookCallbacks = _buildSongBookCallbacks();
-        _schedulePreviewViewportSync();
+        _previewCoordinator.schedulePreviewViewportSync();
         return PopScope<void>(
-          canPop: !_isPreviewFullscreen && !_demoController.canNavigateBack,
+          canPop:
+              !_previewCoordinator.isPreviewFullscreen &&
+              !_demoController.canNavigateBack,
           onPopInvokedWithResult: (bool didPop, void result) {
             if (didPop) {
               return;
             }
-            if (_isPreviewFullscreen) {
+            if (_previewCoordinator.isPreviewFullscreen) {
               _exitPreviewFullscreen();
               return;
             }
@@ -539,7 +386,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
                 ),
               ),
               child: Stack(
-                key: _shellStackKey,
+                key: _previewCoordinator.shellStackKey,
                 fit: StackFit.expand,
                 children: <Widget>[
                   const KtvAtmosphereBackground(),
@@ -550,7 +397,8 @@ class _KtvDemoShellState extends State<KtvDemoShell>
                           (BuildContext context, BoxConstraints constraints) {
                             final Orientation orientation =
                                 MediaQuery.orientationOf(context);
-                            _syncSystemStatusBarForOrientation(orientation);
+                            _previewCoordinator
+                                .syncSystemStatusBarForOrientation(orientation);
                             final bool useWideLayout =
                                 orientation == Orientation.landscape ||
                                 constraints.maxWidth >= 860;
@@ -642,16 +490,16 @@ class _KtvDemoShellState extends State<KtvDemoShell>
                           },
                     ),
                   ),
-                  if (_isPreviewFullscreen)
+                  if (_previewCoordinator.isPreviewFullscreen)
                     const Positioned.fill(
                       child: ColoredBox(color: Colors.black),
                     ),
-                  if (_previewViewportRect != null)
+                  if (_previewCoordinator.previewViewportRect != null)
                     PreviewViewportHost(
                       controller: _demoController.playerController,
                       previewSurface: _buildPreviewSurface(),
-                      rect: _previewViewportRect!,
-                      isFullscreen: _isPreviewFullscreen,
+                      rect: _previewCoordinator.previewViewportRect!,
+                      isFullscreen: _previewCoordinator.isPreviewFullscreen,
                       onEnterFullscreen: _enterPreviewFullscreen,
                       onBackToSongBook: _handleBackToSongBookFromFullscreen,
                       onToggleAudioMode: _toggleAudioMode,
