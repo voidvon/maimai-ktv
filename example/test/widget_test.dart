@@ -4,6 +4,7 @@ import 'package:ktv2/ktv2.dart';
 import 'package:ktv2_example/core/models/demo_artist.dart';
 import 'package:ktv2_example/core/models/demo_song.dart';
 import 'package:ktv2_example/features/ktv_demo/application/ktv_demo_controller.dart';
+import 'package:ktv2_example/features/ktv_demo/presentation/songbook_contracts.dart';
 import 'package:ktv2_example/features/ktv_demo/presentation/songbook_page.dart';
 import 'package:ktv2_example/features/ktv_demo/presentation/shared_widgets.dart';
 import 'package:ktv2_example/main.dart';

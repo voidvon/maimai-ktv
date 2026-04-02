@@ -10,6 +10,7 @@ import '../../settings/presentation/settings_page.dart';
 import '../application/ktv_demo_controller.dart';
 import 'home_page.dart';
 import 'shared_widgets.dart';
+import 'songbook_contracts.dart';
 import 'songbook_page.dart';
 
 const MethodChannel _orientationChannel = MethodChannel(
