@@ -695,7 +695,7 @@ class MainActivity : FlutterActivity() {
             return ""
         }
         val transliterated =
-            hanLatinTransliterator?.transform(normalizedSource) ?: normalizedSource
+            hanLatinTransliterator?.transliterate(normalizedSource) ?: normalizedSource
         return transliterated
             .lowercase()
             .replace(Regex("[^a-z0-9]+"), " ")
