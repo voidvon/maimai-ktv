@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ktv2/ktv2.dart';
+import 'package:ktv2_example/core/models/demo_artist.dart';
+import 'package:ktv2_example/core/models/demo_song.dart';
+import 'package:ktv2_example/features/ktv_demo/application/ktv_demo_controller.dart';
+import 'package:ktv2_example/features/ktv_demo/presentation/songbook_page.dart';
 import 'package:ktv2_example/features/ktv_demo/presentation/shared_widgets.dart';
 import 'package:ktv2_example/main.dart';
 
@@ -78,6 +82,81 @@ void main() {
 
     expect(find.text('‹ 主页 / 歌名'), findsOneWidget);
     expect(find.text('请先在设置里选择扫描目录，扫描完成后这里会展示歌曲列表。'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('renders landscape artist grid without layout exceptions', (
+    WidgetTester tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(932, 430);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final TextEditingController searchController = TextEditingController();
+    addTearDown(searchController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SongBookPage(
+            controller: _TestPlayerController(),
+            searchController: searchController,
+            route: DemoRoute.songBook,
+            songBookMode: DemoSongBookMode.artists,
+            searchQuery: '',
+            selectedLanguage: '全部',
+            selectedArtist: null,
+            songs: const <DemoSong>[],
+            artists: const <DemoArtist>[
+              DemoArtist(name: '周杰伦', songCount: 12, searchIndex: 'zhoujielun'),
+              DemoArtist(name: '刘若英', songCount: 8, searchIndex: 'liuruoying'),
+              DemoArtist(
+                name: '张学友',
+                songCount: 15,
+                searchIndex: 'zhangxueyou',
+              ),
+              DemoArtist(name: 'A-Lin', songCount: 6, searchIndex: 'a-lin'),
+              DemoArtist(name: '邓紫棋', songCount: 10, searchIndex: 'dengziqi'),
+              DemoArtist(name: 'Beyond', songCount: 9, searchIndex: 'beyond'),
+            ],
+            libraryTotalCount: 6,
+            libraryPageIndex: 0,
+            libraryTotalPages: 1,
+            libraryPageSize: 6,
+            hasConfiguredDirectory: true,
+            isScanningLibrary: false,
+            isLoadingLibraryPage: false,
+            libraryScanErrorMessage: null,
+            queuedSongs: const <DemoSong>[],
+            onBackPressed: () {},
+            onQueuePressed: () {},
+            onEnterSongBook: () {},
+            onLanguageSelected: (_) {},
+            onAppendSearchToken: (_) {},
+            onRemoveSearchCharacter: () {},
+            onClearSearch: () {},
+            onRequestLibraryPage: (_, _) {},
+            onRequestSong: (_) {},
+            onSelectArtist: (_) {},
+            onPrioritizeQueuedSong: (_) {},
+            onRemoveQueuedSong: (_) {},
+            onSettingsPressed: () {},
+            onToggleAudioMode: () {},
+            onTogglePlayback: () {},
+            onRestartPlayback: () {},
+            onSkipSong: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('‹ 主页 / 歌星'), findsOneWidget);
+    expect(find.text('周杰伦'), findsAtLeastNWidgets(1));
+    expect(find.text('刘若英'), findsAtLeastNWidgets(1));
     expect(tester.takeException(), isNull);
   });
 

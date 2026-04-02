@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ktv2/ktv2.dart';
+import 'package:ktv2_example/core/models/demo_artist.dart';
+import 'package:ktv2_example/core/models/demo_artist_page.dart';
 import 'package:ktv2_example/core/models/demo_song.dart';
 import 'package:ktv2_example/core/models/demo_song_page.dart';
 import 'package:ktv2_example/features/ktv_demo/application/ktv_demo_controller.dart';
@@ -66,6 +68,72 @@ void main() {
       expect(controller.filteredSongs, isEmpty);
     },
   );
+
+  test(
+    'enter artist book loads artist mode and selectArtist filters songs',
+    () async {
+      final FakeDemoMediaLibraryRepository repository =
+          FakeDemoMediaLibraryRepository(
+            scanResults: <String, List<DemoSong>>{
+              '/media': <DemoSong>[
+                _song(title: '青花瓷', artist: '周杰伦', language: '国语'),
+                _song(title: '夜曲', artist: '周杰伦', language: '国语'),
+                _song(title: '后来', artist: '刘若英', language: '国语'),
+              ],
+            },
+          );
+      final KtvDemoController controller = KtvDemoController(
+        mediaLibraryRepository: repository,
+        playerController: FakePlayerController(),
+      );
+
+      await controller.scanLibrary('/media');
+      controller.enterSongBook(mode: DemoSongBookMode.artists);
+      await _settleLibraryQuery();
+
+      expect(controller.songBookMode, DemoSongBookMode.artists);
+      expect(controller.selectedArtist, isNull);
+      expect(
+        controller.libraryArtists.map((DemoArtist artist) => artist.name),
+        containsAll(<String>['周杰伦', '刘若英']),
+      );
+
+      await controller.selectArtist('周杰伦');
+
+      expect(controller.songBookMode, DemoSongBookMode.songs);
+      expect(controller.selectedArtist, '周杰伦');
+      expect(
+        controller.librarySongs.map((DemoSong song) => song.title),
+        <String>['青花瓷', '夜曲'],
+      );
+    },
+  );
+
+  test('returnFromSelectedArtist goes back to artist overview', () async {
+    final FakeDemoMediaLibraryRepository repository =
+        FakeDemoMediaLibraryRepository(
+          scanResults: <String, List<DemoSong>>{
+            '/media': <DemoSong>[
+              _song(title: '青花瓷', artist: '周杰伦', language: '国语'),
+              _song(title: '后来', artist: '刘若英', language: '国语'),
+            ],
+          },
+        );
+    final KtvDemoController controller = KtvDemoController(
+      mediaLibraryRepository: repository,
+      playerController: FakePlayerController(),
+    );
+
+    await controller.scanLibrary('/media');
+    await controller.selectArtist('周杰伦');
+
+    final bool handled = await controller.returnFromSelectedArtist();
+
+    expect(handled, isTrue);
+    expect(controller.songBookMode, DemoSongBookMode.artists);
+    expect(controller.selectedArtist, isNull);
+    expect(controller.libraryArtists, isNotEmpty);
+  });
 
   test(
     'requestSong keeps current playback and appends new songs to queue',
@@ -227,6 +295,7 @@ class FakeDemoMediaLibraryRepository extends DemoMediaLibraryRepository {
     required int pageIndex,
     required int pageSize,
     String? language,
+    String? artist,
     String searchQuery = '',
   }) async {
     final List<DemoSong>? result = _scanResults[directory];
@@ -235,10 +304,14 @@ class FakeDemoMediaLibraryRepository extends DemoMediaLibraryRepository {
     }
     final String normalizedQuery = searchQuery.trim().toLowerCase();
     final String normalizedLanguage = (language ?? '').trim();
+    final String normalizedArtist = (artist ?? '').trim();
     final List<DemoSong> filteredSongs = result
         .where((DemoSong song) {
           if (normalizedLanguage.isNotEmpty &&
               song.language != normalizedLanguage) {
+            return false;
+          }
+          if (normalizedArtist.isNotEmpty && song.artist != normalizedArtist) {
             return false;
           }
           if (normalizedQuery.isEmpty) {
@@ -254,6 +327,59 @@ class FakeDemoMediaLibraryRepository extends DemoMediaLibraryRepository {
           ? const <DemoSong>[]
           : filteredSongs.sublist(start, end),
       totalCount: filteredSongs.length,
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+    );
+  }
+
+  @override
+  Future<DemoArtistPage> queryArtists({
+    required String directory,
+    required int pageIndex,
+    required int pageSize,
+    String? language,
+    String searchQuery = '',
+  }) async {
+    final List<DemoSong>? result = _scanResults[directory];
+    if (result == null) {
+      throw StateError('missing scan result for $directory');
+    }
+    final String normalizedQuery = searchQuery.trim().toLowerCase();
+    final String normalizedLanguage = (language ?? '').trim();
+    final Map<String, int> songCountByArtist = <String, int>{};
+    for (final DemoSong song in result) {
+      if (normalizedLanguage.isNotEmpty &&
+          song.language != normalizedLanguage) {
+        continue;
+      }
+      songCountByArtist.update(
+        song.artist,
+        (int count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    final List<DemoArtist> filteredArtists = songCountByArtist.entries
+        .map(
+          (MapEntry<String, int> entry) => DemoArtist(
+            name: entry.key,
+            songCount: entry.value,
+            searchIndex: entry.key.toLowerCase(),
+          ),
+        )
+        .where((DemoArtist artist) {
+          if (normalizedQuery.isEmpty) {
+            return true;
+          }
+          return artist.searchIndex.contains(normalizedQuery);
+        })
+        .toList(growable: false);
+    final int start = pageIndex * pageSize;
+    final int end = (start + pageSize).clamp(0, filteredArtists.length);
+    return DemoArtistPage(
+      artists: start >= filteredArtists.length
+          ? const <DemoArtist>[]
+          : filteredArtists.sublist(start, end),
+      totalCount: filteredArtists.length,
       pageIndex: pageIndex,
       pageSize: pageSize,
     );

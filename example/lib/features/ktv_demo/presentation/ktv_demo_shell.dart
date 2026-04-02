@@ -251,7 +251,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
   }
 
   void _handleBackToSongBookFromFullscreen() {
-    _demoController.enterSongBook();
+    _demoController.enterSongBook(mode: _demoController.songBookMode);
     _exitPreviewFullscreen();
   }
 
@@ -265,7 +265,12 @@ class _KtvDemoShellState extends State<KtvDemoShell>
 
   void _enterSongBook() {
     _searchController.clear();
-    _demoController.enterSongBook();
+    _demoController.enterSongBook(mode: DemoSongBookMode.songs);
+  }
+
+  void _enterArtistBook() {
+    _searchController.clear();
+    _demoController.enterSongBook(mode: DemoSongBookMode.artists);
   }
 
   void _enterQueueList() {
@@ -274,6 +279,14 @@ class _KtvDemoShellState extends State<KtvDemoShell>
   }
 
   void _returnHome() {
+    unawaited(_handleReturnHome());
+  }
+
+  Future<void> _handleReturnHome() async {
+    if (await _demoController.returnFromSelectedArtist()) {
+      _searchController.clear();
+      return;
+    }
     _demoController.returnHome();
   }
 
@@ -354,6 +367,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
             compact: compactHomePage,
             queueCount: _demoController.queuedSongs.length,
             onEnterSongBook: _enterSongBook,
+            onEnterArtistBook: _enterArtistBook,
             onQueuePressed: _enterQueueList,
             onSettingsPressed: _openSettingsPage,
             onToggleAudioMode: _toggleAudioMode,
@@ -387,6 +401,8 @@ class _KtvDemoShellState extends State<KtvDemoShell>
                 controller: _demoController.playerController,
                 searchController: _searchController,
                 route: _demoController.route,
+                songBookMode: _demoController.songBookMode,
+                selectedArtist: _demoController.selectedArtist,
                 showLetterKeyboard: true,
                 onAppendSearchToken: _appendSearchToken,
                 onRemoveSearchCharacter: _removeSearchCharacter,
@@ -400,7 +416,10 @@ class _KtvDemoShellState extends State<KtvDemoShell>
           child: SongBookRightColumn(
             controller: _demoController.playerController,
             selectedLanguage: _demoController.selectedLanguage,
+            songBookMode: _demoController.songBookMode,
+            selectedArtist: _demoController.selectedArtist,
             songs: _demoController.filteredSongs,
+            artists: _demoController.libraryArtists,
             libraryTotalCount: _demoController.libraryTotalCount,
             libraryPageIndex: _demoController.libraryPageIndex,
             libraryTotalPages: _demoController.libraryTotalPages,
@@ -418,6 +437,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
             onLanguageSelected: _selectLanguage,
             onRequestLibraryPage: _requestLibraryPage,
             onRequestSong: _requestSong,
+            onSelectArtist: _demoController.selectArtist,
             onPrioritizeQueuedSong: _demoController.prioritizeQueuedSong,
             onRemoveQueuedSong: _demoController.removeQueuedSong,
             onSettingsPressed: _openSettingsPage,
@@ -449,6 +469,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
             compact: true,
             queueCount: _demoController.queuedSongs.length,
             onEnterSongBook: _enterSongBook,
+            onEnterArtistBook: _enterArtistBook,
             onQueuePressed: _enterQueueList,
             onSettingsPressed: _openSettingsPage,
             onToggleAudioMode: _toggleAudioMode,
@@ -461,8 +482,11 @@ class _KtvDemoShellState extends State<KtvDemoShell>
               controller: _demoController.playerController,
               compact: false,
               searchController: _searchController,
+              songBookMode: _demoController.songBookMode,
               selectedLanguage: _demoController.selectedLanguage,
+              selectedArtist: _demoController.selectedArtist,
               songs: _demoController.filteredSongs,
+              artists: _demoController.libraryArtists,
               libraryTotalCount: _demoController.libraryTotalCount,
               libraryPageIndex: _demoController.libraryPageIndex,
               libraryTotalPages: _demoController.libraryTotalPages,
@@ -483,6 +507,7 @@ class _KtvDemoShellState extends State<KtvDemoShell>
               onClearSearch: _clearSearch,
               onRequestLibraryPage: _requestLibraryPage,
               onRequestSong: _requestSong,
+              onSelectArtist: _demoController.selectArtist,
               onPrioritizeQueuedSong: _demoController.prioritizeQueuedSong,
               onRemoveQueuedSong: _demoController.removeQueuedSong,
               onSettingsPressed: _openSettingsPage,

@@ -234,6 +234,7 @@ class MainActivity : FlutterActivity() {
                                 queryIndexedSongs(
                                     rootUri = rootUri,
                                     language = call.argument<String>("language").orEmpty(),
+                                    artist = call.argument<String>("artist").orEmpty(),
                                     searchQuery = call.argument<String>("searchQuery").orEmpty(),
                                     pageIndex = call.argument<Int>("pageIndex") ?: 0,
                                     pageSize = call.argument<Int>("pageSize") ?: 8,
@@ -243,6 +244,30 @@ class MainActivity : FlutterActivity() {
                             result.error(
                                 "query_failed",
                                 error.message ?: "Failed to query indexed songs",
+                                null,
+                            )
+                        }
+                    }
+                }
+                "queryIndexedArtists" -> {
+                    val rootUri = call.argument<String>("rootUri")
+                    if (rootUri.isNullOrBlank()) {
+                        result.error("invalid_args", "Missing rootUri", null)
+                    } else {
+                        try {
+                            result.success(
+                                queryIndexedArtists(
+                                    rootUri = rootUri,
+                                    language = call.argument<String>("language").orEmpty(),
+                                    searchQuery = call.argument<String>("searchQuery").orEmpty(),
+                                    pageIndex = call.argument<Int>("pageIndex") ?: 0,
+                                    pageSize = call.argument<Int>("pageSize") ?: 8,
+                                ),
+                            )
+                        } catch (error: Exception) {
+                            result.error(
+                                "query_failed",
+                                error.message ?: "Failed to query indexed artists",
                                 null,
                             )
                         }
@@ -536,6 +561,7 @@ class MainActivity : FlutterActivity() {
     private fun queryIndexedSongs(
         rootUri: String,
         language: String,
+        artist: String,
         searchQuery: String,
         pageIndex: Int,
         pageSize: Int,
@@ -543,6 +569,7 @@ class MainActivity : FlutterActivity() {
         val normalizedPageIndex = pageIndex.coerceAtLeast(0)
         val normalizedPageSize = pageSize.coerceAtLeast(1)
         val normalizedLanguage = language.trim()
+        val normalizedArtist = artist.trim()
         val normalizedSearchQuery = normalizeSearchText(searchQuery)
         val selection = StringBuilder("s.${SongIndexDatabaseHelper.columnDirectoryUri} = ?")
         val selectionArgs = mutableListOf(rootUri)
@@ -558,6 +585,19 @@ class MainActivity : FlutterActivity() {
                 """.trimIndent(),
             )
             selectionArgs += normalizedLanguage
+        }
+        if (normalizedArtist.isNotEmpty()) {
+            selection.append(
+                """
+                AND EXISTS (
+                    SELECT 1
+                    FROM ${SongIndexDatabaseHelper.songArtistsTable} sa_filter
+                    WHERE sa_filter.${SongIndexDatabaseHelper.columnSongId} = s.${SongIndexDatabaseHelper.columnId}
+                      AND sa_filter.${SongIndexDatabaseHelper.columnArtistName} = ?
+                )
+                """.trimIndent(),
+            )
+            selectionArgs += normalizedArtist
         }
         if (normalizedSearchQuery.isNotEmpty()) {
             selection.append(
@@ -704,6 +744,111 @@ class MainActivity : FlutterActivity() {
 
         return mapOf(
             "songs" to normalizedSongs,
+            "totalCount" to totalCount,
+            "pageIndex" to normalizedPageIndex,
+            "pageSize" to normalizedPageSize,
+        )
+    }
+
+    private fun queryIndexedArtists(
+        rootUri: String,
+        language: String,
+        searchQuery: String,
+        pageIndex: Int,
+        pageSize: Int,
+    ): Map<String, Any?> {
+        val normalizedPageIndex = pageIndex.coerceAtLeast(0)
+        val normalizedPageSize = pageSize.coerceAtLeast(1)
+        val normalizedLanguage = language.trim()
+        val normalizedSearchQuery = normalizeSearchText(searchQuery)
+        val selection = StringBuilder("s.${SongIndexDatabaseHelper.columnDirectoryUri} = ?")
+        val selectionArgs = mutableListOf(rootUri)
+        if (normalizedLanguage.isNotEmpty()) {
+            selection.append(
+                """
+                AND EXISTS (
+                    SELECT 1
+                    FROM ${SongIndexDatabaseHelper.songLanguagesTable} sl_filter
+                    WHERE sl_filter.${SongIndexDatabaseHelper.columnSongId} = s.${SongIndexDatabaseHelper.columnId}
+                      AND sl_filter.${SongIndexDatabaseHelper.columnLanguage} = ?
+                )
+                """.trimIndent(),
+            )
+            selectionArgs += normalizedLanguage
+        }
+        if (normalizedSearchQuery.isNotEmpty()) {
+            selection.append(
+                """
+                AND (
+                    LOWER(sa.${SongIndexDatabaseHelper.columnArtistName}) LIKE ?
+                    OR EXISTS (
+                        SELECT 1
+                        FROM ${SongIndexDatabaseHelper.songArtistsTable} sa_match
+                        INNER JOIN ${SongIndexDatabaseHelper.songsTable} s_match
+                            ON s_match.${SongIndexDatabaseHelper.columnId} = sa_match.${SongIndexDatabaseHelper.columnSongId}
+                        WHERE sa_match.${SongIndexDatabaseHelper.columnArtistName} = sa.${SongIndexDatabaseHelper.columnArtistName}
+                          AND s_match.${SongIndexDatabaseHelper.columnDirectoryUri} = s.${SongIndexDatabaseHelper.columnDirectoryUri}
+                          AND s_match.${SongIndexDatabaseHelper.columnArtistInitials} LIKE ?
+                    )
+                )
+                """.trimIndent(),
+            )
+            val containsQuery = "%$normalizedSearchQuery%"
+            val prefixQuery = "$normalizedSearchQuery%"
+            selectionArgs += containsQuery
+            selectionArgs += prefixQuery
+        }
+
+        val database = songIndexDatabase.readableDatabase
+        val totalCount =
+            DatabaseUtils.longForQuery(
+                database,
+                """
+                SELECT COUNT(1)
+                FROM (
+                    SELECT sa.${SongIndexDatabaseHelper.columnArtistName}
+                    FROM ${SongIndexDatabaseHelper.songArtistsTable} sa
+                    INNER JOIN ${SongIndexDatabaseHelper.songsTable} s
+                        ON s.${SongIndexDatabaseHelper.columnId} = sa.${SongIndexDatabaseHelper.columnSongId}
+                    WHERE $selection
+                    GROUP BY sa.${SongIndexDatabaseHelper.columnArtistName}
+                )
+                """.trimIndent(),
+                selectionArgs.toTypedArray(),
+            ).toInt()
+        val offset = normalizedPageIndex * normalizedPageSize
+        val artists = mutableListOf<Map<String, Any?>>()
+        database.rawQuery(
+            """
+            SELECT
+                sa.${SongIndexDatabaseHelper.columnArtistName},
+                COUNT(DISTINCT s.${SongIndexDatabaseHelper.columnId}) AS song_count
+            FROM ${SongIndexDatabaseHelper.songArtistsTable} sa
+            INNER JOIN ${SongIndexDatabaseHelper.songsTable} s
+                ON s.${SongIndexDatabaseHelper.columnId} = sa.${SongIndexDatabaseHelper.columnSongId}
+            WHERE $selection
+            GROUP BY sa.${SongIndexDatabaseHelper.columnArtistName}
+            ORDER BY sa.${SongIndexDatabaseHelper.columnArtistName} ASC
+            LIMIT ? OFFSET ?
+            """.trimIndent(),
+            (selectionArgs + normalizedPageSize.toString() + offset.toString()).toTypedArray(),
+        ).use { cursor ->
+            val nameIndex =
+                cursor.getColumnIndexOrThrow(SongIndexDatabaseHelper.columnArtistName)
+            val songCountIndex = cursor.getColumnIndexOrThrow("song_count")
+            while (cursor.moveToNext()) {
+                val artistName = cursor.getString(nameIndex)
+                artists +=
+                    mapOf(
+                        "name" to artistName,
+                        "songCount" to cursor.getInt(songCountIndex),
+                        "searchIndex" to normalizeSearchText(artistName),
+                    )
+            }
+        }
+
+        return mapOf(
+            "artists" to artists,
             "totalCount" to totalCount,
             "pageIndex" to normalizedPageIndex,
             "pageSize" to normalizedPageSize,

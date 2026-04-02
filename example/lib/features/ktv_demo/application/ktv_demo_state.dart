@@ -1,11 +1,16 @@
 import '../../../core/models/demo_song.dart';
+import '../../../core/models/demo_artist.dart';
 
 enum DemoRoute { home, songBook, queueList }
+
+enum DemoSongBookMode { songs, artists }
 
 class KtvDemoState {
   const KtvDemoState({
     this.route = DemoRoute.home,
+    this.songBookMode = DemoSongBookMode.songs,
     this.selectedLanguage = '全部',
+    this.selectedArtist,
     this.libraryScanErrorMessage,
     this.scanDirectoryPath,
     this.searchQuery = '',
@@ -13,6 +18,7 @@ class KtvDemoState {
     this.isLoadingLibraryPage = false,
     this.queuedSongs = const <DemoSong>[],
     this.libraryPageSongs = const <DemoSong>[],
+    this.libraryPageArtists = const <DemoArtist>[],
     this.libraryTotalCount = 0,
     this.libraryPageIndex = 0,
     this.libraryPageSize = 8,
@@ -21,7 +27,9 @@ class KtvDemoState {
   static const Object _unset = Object();
 
   final DemoRoute route;
+  final DemoSongBookMode songBookMode;
   final String selectedLanguage;
+  final String? selectedArtist;
   final String? libraryScanErrorMessage;
   final String? scanDirectoryPath;
   final String searchQuery;
@@ -29,11 +37,13 @@ class KtvDemoState {
   final bool isLoadingLibraryPage;
   final List<DemoSong> queuedSongs;
   final List<DemoSong> libraryPageSongs;
+  final List<DemoArtist> libraryPageArtists;
   final int libraryTotalCount;
   final int libraryPageIndex;
   final int libraryPageSize;
 
   bool get hasConfiguredDirectory => scanDirectoryPath != null;
+  bool get isArtistMode => songBookMode == DemoSongBookMode.artists;
 
   String get normalizedSearchQuery => searchQuery.trim().toLowerCase();
 
@@ -74,7 +84,9 @@ class KtvDemoState {
 
   KtvDemoState copyWith({
     DemoRoute? route,
+    DemoSongBookMode? songBookMode,
     String? selectedLanguage,
+    Object? selectedArtist = _unset,
     Object? libraryScanErrorMessage = _unset,
     Object? scanDirectoryPath = _unset,
     String? searchQuery,
@@ -82,13 +94,18 @@ class KtvDemoState {
     bool? isLoadingLibraryPage,
     List<DemoSong>? queuedSongs,
     List<DemoSong>? libraryPageSongs,
+    List<DemoArtist>? libraryPageArtists,
     int? libraryTotalCount,
     int? libraryPageIndex,
     int? libraryPageSize,
   }) {
     return KtvDemoState(
       route: route ?? this.route,
+      songBookMode: songBookMode ?? this.songBookMode,
       selectedLanguage: selectedLanguage ?? this.selectedLanguage,
+      selectedArtist: identical(selectedArtist, _unset)
+          ? this.selectedArtist
+          : selectedArtist as String?,
       libraryScanErrorMessage: identical(libraryScanErrorMessage, _unset)
           ? this.libraryScanErrorMessage
           : libraryScanErrorMessage as String?,
@@ -97,10 +114,10 @@ class KtvDemoState {
           : scanDirectoryPath as String?,
       searchQuery: searchQuery ?? this.searchQuery,
       isScanningLibrary: isScanningLibrary ?? this.isScanningLibrary,
-      isLoadingLibraryPage:
-          isLoadingLibraryPage ?? this.isLoadingLibraryPage,
+      isLoadingLibraryPage: isLoadingLibraryPage ?? this.isLoadingLibraryPage,
       queuedSongs: queuedSongs ?? this.queuedSongs,
       libraryPageSongs: libraryPageSongs ?? this.libraryPageSongs,
+      libraryPageArtists: libraryPageArtists ?? this.libraryPageArtists,
       libraryTotalCount: libraryTotalCount ?? this.libraryTotalCount,
       libraryPageIndex: libraryPageIndex ?? this.libraryPageIndex,
       libraryPageSize: libraryPageSize ?? this.libraryPageSize,

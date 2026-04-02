@@ -15,11 +15,14 @@ const List<_HomeShortcut> _homeShortcuts = <_HomeShortcut>[
     icon: Icons.music_note_rounded,
     colors: <Color>[Color(0xFFFFD36A), Color(0xFFFFB245), Color(0xFFFF9566)],
     enabled: true,
+    action: _HomeShortcutAction.songs,
   ),
   _HomeShortcut(
     label: '歌星',
     icon: Icons.person_rounded,
     colors: <Color>[Color(0xFF9CC9FF), Color(0xFF89B2FF), Color(0xFF9571FF)],
+    enabled: true,
+    action: _HomeShortcutAction.artists,
   ),
   _HomeShortcut(
     label: '本地',
@@ -44,6 +47,7 @@ class HomePage extends StatelessWidget {
     required this.controller,
     required this.queueCount,
     required this.onEnterSongBook,
+    required this.onEnterArtistBook,
     required this.onQueuePressed,
     required this.onSettingsPressed,
     required this.onToggleAudioMode,
@@ -55,6 +59,7 @@ class HomePage extends StatelessWidget {
   final PlayerController controller;
   final int queueCount;
   final VoidCallback onEnterSongBook;
+  final VoidCallback onEnterArtistBook;
   final VoidCallback onQueuePressed;
   final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
@@ -79,14 +84,21 @@ class HomePage extends StatelessWidget {
         ),
         SizedBox(height: compact ? 16 : 18),
         if (compact)
-          _HomeShortcutGrid(onEnterSongBook: onEnterSongBook, compact: true)
+          _HomeShortcutGrid(
+            onEnterSongBook: onEnterSongBook,
+            onEnterArtistBook: onEnterArtistBook,
+            compact: true,
+          )
         else
           Expanded(
             child: Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 324),
-                child: _HomeShortcutGrid(onEnterSongBook: onEnterSongBook),
+                child: _HomeShortcutGrid(
+                  onEnterSongBook: onEnterSongBook,
+                  onEnterArtistBook: onEnterArtistBook,
+                ),
               ),
             ),
           ),
@@ -322,10 +334,12 @@ class HomePreviewPlaceholder extends StatelessWidget {
 class _HomeShortcutGrid extends StatelessWidget {
   const _HomeShortcutGrid({
     required this.onEnterSongBook,
+    required this.onEnterArtistBook,
     this.compact = false,
   });
 
   final VoidCallback onEnterSongBook;
+  final VoidCallback onEnterArtistBook;
   final bool compact;
 
   @override
@@ -344,7 +358,13 @@ class _HomeShortcutGrid extends StatelessWidget {
         final _HomeShortcut shortcut = _homeShortcuts[index];
         return _ShortcutCard(
           shortcut: shortcut,
-          onTap: shortcut.enabled ? onEnterSongBook : null,
+          onTap: shortcut.enabled
+              ? switch (shortcut.action) {
+                  _HomeShortcutAction.songs => onEnterSongBook,
+                  _HomeShortcutAction.artists => onEnterArtistBook,
+                  null => onEnterSongBook,
+                }
+              : null,
         );
       },
     );
@@ -421,10 +441,14 @@ class _HomeShortcut {
     required this.icon,
     required this.colors,
     this.enabled = false,
+    this.action,
   });
 
   final String label;
   final IconData icon;
   final List<Color> colors;
   final bool enabled;
+  final _HomeShortcutAction? action;
 }
+
+enum _HomeShortcutAction { songs, artists }

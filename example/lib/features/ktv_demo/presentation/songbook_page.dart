@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
+import '../../../core/models/demo_artist.dart';
 import '../../../core/models/demo_song.dart';
 import '../application/ktv_demo_controller.dart';
 import 'queue_page.dart';
@@ -42,9 +43,12 @@ class SongBookPage extends StatelessWidget {
     required this.controller,
     required this.searchController,
     required this.route,
+    required this.songBookMode,
     required this.searchQuery,
     required this.selectedLanguage,
+    required this.selectedArtist,
     required this.songs,
+    required this.artists,
     required this.libraryTotalCount,
     required this.libraryPageIndex,
     required this.libraryTotalPages,
@@ -63,6 +67,7 @@ class SongBookPage extends StatelessWidget {
     required this.onClearSearch,
     required this.onRequestLibraryPage,
     required this.onRequestSong,
+    required this.onSelectArtist,
     required this.onPrioritizeQueuedSong,
     required this.onRemoveQueuedSong,
     required this.onSettingsPressed,
@@ -76,9 +81,12 @@ class SongBookPage extends StatelessWidget {
   final PlayerController controller;
   final TextEditingController searchController;
   final DemoRoute route;
+  final DemoSongBookMode songBookMode;
   final String searchQuery;
   final String selectedLanguage;
+  final String? selectedArtist;
   final List<DemoSong> songs;
+  final List<DemoArtist> artists;
   final int libraryTotalCount;
   final int libraryPageIndex;
   final int libraryTotalPages;
@@ -97,6 +105,7 @@ class SongBookPage extends StatelessWidget {
   final VoidCallback onClearSearch;
   final void Function(int pageIndex, int pageSize) onRequestLibraryPage;
   final ValueChanged<DemoSong> onRequestSong;
+  final ValueChanged<String> onSelectArtist;
   final ValueChanged<DemoSong> onPrioritizeQueuedSong;
   final ValueChanged<DemoSong> onRemoveQueuedSong;
   final VoidCallback onSettingsPressed;
@@ -117,9 +126,12 @@ class SongBookPage extends StatelessWidget {
       controller: controller,
       compact: compact,
       route: route,
+      songBookMode: songBookMode,
       searchQuery: searchQuery,
       selectedLanguage: selectedLanguage,
+      selectedArtist: selectedArtist,
       songs: songs,
+      artists: artists,
       libraryTotalCount: libraryTotalCount,
       libraryPageIndex: libraryPageIndex,
       libraryTotalPages: libraryTotalPages,
@@ -135,6 +147,7 @@ class SongBookPage extends StatelessWidget {
       onLanguageSelected: onLanguageSelected,
       onRequestLibraryPage: onRequestLibraryPage,
       onRequestSong: onRequestSong,
+      onSelectArtist: onSelectArtist,
       onPrioritizeQueuedSong: onPrioritizeQueuedSong,
       onRemoveQueuedSong: onRemoveQueuedSong,
       onSettingsPressed: onSettingsPressed,
@@ -150,6 +163,8 @@ class SongBookPage extends StatelessWidget {
           controller: controller,
           searchController: searchController,
           route: route,
+          songBookMode: songBookMode,
+          selectedArtist: selectedArtist,
           compact: compact,
           showLetterKeyboard: showLetterKeyboard,
           onAppendSearchToken: onAppendSearchToken,
@@ -169,6 +184,8 @@ class SongBookLeftColumn extends StatefulWidget {
     required this.controller,
     required this.searchController,
     required this.route,
+    required this.songBookMode,
+    required this.selectedArtist,
     required this.showLetterKeyboard,
     required this.onAppendSearchToken,
     required this.onRemoveSearchCharacter,
@@ -179,6 +196,8 @@ class SongBookLeftColumn extends StatefulWidget {
   final PlayerController controller;
   final TextEditingController searchController;
   final DemoRoute route;
+  final DemoSongBookMode songBookMode;
+  final String? selectedArtist;
   final bool showLetterKeyboard;
   final ValueChanged<String> onAppendSearchToken;
   final VoidCallback onRemoveSearchCharacter;
@@ -213,6 +232,9 @@ class _SongBookLeftColumnState extends State<SongBookLeftColumn> {
           controller: widget.searchController,
           placeholder: widget.route == DemoRoute.queueList
               ? '搜索已点歌曲 / 歌手'
+              : widget.songBookMode == DemoSongBookMode.artists &&
+                    widget.selectedArtist == null
+              ? '输入歌手名称'
               : '输入歌名 / 中文 / 拼音首字母',
           enableSystemKeyboard: !widget.showLetterKeyboard,
           onBackspacePressed: widget.onRemoveSearchCharacter,
@@ -421,9 +443,12 @@ class SongBookRightColumn extends StatefulWidget {
     super.key,
     required this.controller,
     required this.route,
+    required this.songBookMode,
     required this.searchQuery,
     required this.selectedLanguage,
+    required this.selectedArtist,
     required this.songs,
+    required this.artists,
     required this.libraryTotalCount,
     required this.libraryPageIndex,
     required this.libraryTotalPages,
@@ -439,6 +464,7 @@ class SongBookRightColumn extends StatefulWidget {
     required this.onLanguageSelected,
     required this.onRequestLibraryPage,
     required this.onRequestSong,
+    required this.onSelectArtist,
     required this.onPrioritizeQueuedSong,
     required this.onRemoveQueuedSong,
     required this.onSettingsPressed,
@@ -451,9 +477,12 @@ class SongBookRightColumn extends StatefulWidget {
 
   final PlayerController controller;
   final DemoRoute route;
+  final DemoSongBookMode songBookMode;
   final String searchQuery;
   final String selectedLanguage;
+  final String? selectedArtist;
   final List<DemoSong> songs;
+  final List<DemoArtist> artists;
   final int libraryTotalCount;
   final int libraryPageIndex;
   final int libraryTotalPages;
@@ -469,6 +498,7 @@ class SongBookRightColumn extends StatefulWidget {
   final ValueChanged<String> onLanguageSelected;
   final void Function(int pageIndex, int pageSize) onRequestLibraryPage;
   final ValueChanged<DemoSong> onRequestSong;
+  final ValueChanged<String> onSelectArtist;
   final ValueChanged<DemoSong> onPrioritizeQueuedSong;
   final ValueChanged<DemoSong> onRemoveQueuedSong;
   final VoidCallback onSettingsPressed;
@@ -485,6 +515,7 @@ class SongBookRightColumn extends StatefulWidget {
 class _SongBookRightColumnState extends State<SongBookRightColumn> {
   static const double _gridSpacing = 8;
   static const double _songTileHeight = 44;
+  static const double _artistTileHeight = 104;
   static const double _queueTileHeight = 48;
   static const double _paginationSectionHeight = 42;
   static const double _paginationSectionGap = 12;
@@ -513,8 +544,15 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
     return media.size.width < 340 ? 1 : 2;
   }
 
-  int _resolveRowsPerPage(MediaQueryData media, {required bool isLandscape}) {
+  int _resolveRowsPerPage(
+    MediaQueryData media, {
+    required bool isLandscape,
+    required bool isArtistOverview,
+  }) {
     if (isLandscape) {
+      if (isArtistOverview) {
+        return 2;
+      }
       return 4;
     }
     final double height = media.size.height;
@@ -734,12 +772,23 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
     final MediaQueryData media = MediaQuery.of(context);
     final bool isLandscape = media.orientation == Orientation.landscape;
     final bool isQueueRoute = widget.route == DemoRoute.queueList;
-    final int crossAxisCount = _resolveCrossAxisCount(media);
+    final bool isArtistOverview =
+        !isQueueRoute &&
+        widget.songBookMode == DemoSongBookMode.artists &&
+        widget.selectedArtist == null;
+    final int crossAxisCount = isArtistOverview
+        ? 3
+        : _resolveCrossAxisCount(media);
     final int fallbackRowsPerPage = _resolveRowsPerPage(
       media,
       isLandscape: isLandscape,
+      isArtistOverview: isArtistOverview,
     );
-    final double tileHeight = isQueueRoute ? _queueTileHeight : _songTileHeight;
+    final double tileHeight = isQueueRoute
+        ? _queueTileHeight
+        : isArtistOverview
+        ? _artistTileHeight
+        : _songTileHeight;
     final List<QueuedSongEntry> filteredQueueEntries = isQueueRoute
         ? _resolveFilteredQueueEntries()
         : const <QueuedSongEntry>[];
@@ -783,6 +832,39 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
       );
     }
 
+    Widget buildArtistGrid(
+      List<DemoArtist> visibleArtists,
+      int rowsPerPage, {
+      required double tileHeight,
+    }) {
+      final double gridHeight = _computeGridHeight(
+        rowsPerPage: rowsPerPage,
+        tileHeight: tileHeight,
+      );
+      return SizedBox(
+        width: double.infinity,
+        height: gridHeight,
+        child: GridView.builder(
+          padding: EdgeInsets.zero,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: _gridSpacing,
+            crossAxisSpacing: _gridSpacing,
+            mainAxisExtent: tileHeight,
+          ),
+          itemCount: visibleArtists.length,
+          itemBuilder: (BuildContext context, int index) {
+            final DemoArtist artist = visibleArtists[index];
+            return _ArtistTile(
+              artist: artist,
+              onTap: () => widget.onSelectArtist(artist.name),
+            );
+          },
+        ),
+      );
+    }
+
     Widget buildLibraryContent(int rowsPerPage, {required double tileHeight}) {
       final int itemsPerPage = crossAxisCount * rowsPerPage;
       if (!widget.hasConfiguredDirectory) {
@@ -796,15 +878,32 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
       }
       if (widget.isLoadingLibraryPage &&
           widget.libraryTotalCount == 0 &&
-          widget.songs.isEmpty) {
-        return const _EmptyContentCard(message: '正在加载歌曲列表，请稍候。');
+          widget.songs.isEmpty &&
+          widget.artists.isEmpty) {
+        return _EmptyContentCard(
+          message: isArtistOverview ? '正在加载歌手列表，请稍候。' : '正在加载歌曲列表，请稍候。',
+        );
       }
       if (widget.libraryScanErrorMessage != null) {
         return _EmptyContentCard(message: widget.libraryScanErrorMessage!);
       }
+      if (isArtistOverview) {
+        if (widget.artists.isEmpty) {
+          return const _EmptyContentCard(
+            message: '当前条件下没有可显示的歌手，试试切换语言或清空搜索关键字。',
+          );
+        }
+        return buildArtistGrid(
+          widget.artists,
+          rowsPerPage,
+          tileHeight: tileHeight,
+        );
+      }
       if (widget.songs.isEmpty) {
-        return const _EmptyContentCard(
-          message: '当前目录下没有扫描到可播放视频文件，请确认目录中包含常见视频格式媒体文件。',
+        return _EmptyContentCard(
+          message: widget.selectedArtist == null
+              ? '当前目录下没有扫描到可播放视频文件，请确认目录中包含常见视频格式媒体文件。'
+              : '当前歌手下没有匹配的歌曲，试试切换语言或清空搜索关键字。',
         );
       }
       return buildLibraryGrid(
@@ -893,6 +992,12 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
         case DemoRoute.home:
           return '‹ 主页';
         case DemoRoute.songBook:
+          if (isArtistOverview) {
+            return '‹ 主页 / 歌星';
+          }
+          if (widget.selectedArtist != null) {
+            return '‹ 主页 / 歌星 / ${widget.selectedArtist!}';
+          }
           return '‹ 主页 / 歌名';
         case DemoRoute.queueList:
           return '‹ 主页 / 已点';
@@ -1345,6 +1450,139 @@ class _SongTile extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArtistTile extends StatelessWidget {
+  const _ArtistTile({required this.artist, this.onTap});
+
+  final DemoArtist artist;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final String badgeLabel = artist.songCount.toString();
+    return Material(
+      color: const Color(0x1AFFFFFF),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final bool useCompactLayout = constraints.maxHeight < 72;
+            final double avatarSize = useCompactLayout ? 24 : 42;
+            final Widget avatar = Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                Container(
+                  width: avatarSize,
+                  height: avatarSize,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[Color(0xFF8BC4FF), Color(0xFF7562FF)],
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    artist.avatarLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: useCompactLayout ? 8 : 11,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: useCompactLayout ? -6 : -4,
+                  bottom: useCompactLayout ? -4 : -2,
+                  child: Container(
+                    constraints: BoxConstraints(
+                      minWidth: useCompactLayout ? 14 : 18,
+                    ),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: useCompactLayout ? 4 : 5,
+                      vertical: useCompactLayout ? 1.5 : 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF8A63),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: const Color(0xCCFFF7FF),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      badgeLabel,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: useCompactLayout ? 7 : 8,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+
+            return Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: useCompactLayout ? 10 : 12,
+                vertical: useCompactLayout ? 6 : 10,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x1AFFFFFF)),
+              ),
+              child: useCompactLayout
+                  ? Row(
+                      children: <Widget>[
+                        avatar,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            artist.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xEDFFF7FF),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        avatar,
+                        const SizedBox(height: 8),
+                        Text(
+                          artist.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xEDFFF7FF),
+                          ),
+                        ),
+                      ],
+                    ),
+            );
+          },
         ),
       ),
     );

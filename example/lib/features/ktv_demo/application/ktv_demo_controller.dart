@@ -4,12 +4,14 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:ktv2/ktv2.dart';
 
+import '../../../core/models/demo_artist.dart';
+import '../../../core/models/demo_artist_page.dart';
 import '../../../core/models/demo_song.dart';
 import '../../../core/models/demo_song_page.dart';
 import '../../media_library/data/demo_media_library_repository.dart';
 import 'ktv_demo_state.dart';
 
-export 'ktv_demo_state.dart' show DemoRoute, KtvDemoState;
+export 'ktv_demo_state.dart' show DemoRoute, DemoSongBookMode, KtvDemoState;
 
 class KtvDemoController extends ChangeNotifier {
   KtvDemoController({
@@ -35,7 +37,9 @@ class KtvDemoController extends ChangeNotifier {
   KtvDemoState get state => _state;
 
   DemoRoute get route => _state.route;
+  DemoSongBookMode get songBookMode => _state.songBookMode;
   String get selectedLanguage => _state.selectedLanguage;
+  String? get selectedArtist => _state.selectedArtist;
   String get searchQuery => _state.searchQuery;
   String? get libraryScanErrorMessage => _state.libraryScanErrorMessage;
   String? get scanDirectoryPath => _state.scanDirectoryPath;
@@ -46,6 +50,8 @@ class KtvDemoController extends ChangeNotifier {
       List<DemoSong>.unmodifiable(_state.queuedSongs);
   List<DemoSong> get librarySongs =>
       List<DemoSong>.unmodifiable(_state.libraryPageSongs);
+  List<DemoArtist> get libraryArtists =>
+      List<DemoArtist>.unmodifiable(_state.libraryPageArtists);
   List<DemoSong> get filteredSongs => librarySongs;
   int get libraryTotalCount => _state.libraryTotalCount;
   int get libraryPageIndex => _state.libraryPageIndex;
@@ -73,11 +79,25 @@ class KtvDemoController extends ChangeNotifier {
     _scheduleLibraryRefresh(resetPage: true);
   }
 
-  void enterSongBook() {
-    if (_state.route == DemoRoute.songBook) {
+  void enterSongBook({DemoSongBookMode mode = DemoSongBookMode.songs}) {
+    if (_state.route == DemoRoute.songBook &&
+        _state.songBookMode == mode &&
+        (mode == DemoSongBookMode.artists || _state.selectedArtist == null)) {
       return;
     }
-    _setState(_state.copyWith(route: DemoRoute.songBook));
+    final bool shouldClearSelectedArtist = mode == DemoSongBookMode.artists;
+    _setState(
+      _state.copyWith(
+        route: DemoRoute.songBook,
+        songBookMode: mode,
+        selectedArtist: shouldClearSelectedArtist
+            ? null
+            : _state.selectedArtist,
+        searchQuery: '',
+        libraryPageIndex: 0,
+      ),
+    );
+    unawaited(_reloadLibraryPage(pageIndex: 0));
   }
 
   void enterQueueList() {
@@ -92,6 +112,39 @@ class KtvDemoController extends ChangeNotifier {
       return;
     }
     _setState(_state.copyWith(route: DemoRoute.home));
+  }
+
+  Future<void> selectArtist(String artist) async {
+    final String normalizedArtist = artist.trim();
+    if (normalizedArtist.isEmpty) {
+      return;
+    }
+    _setState(
+      _state.copyWith(
+        route: DemoRoute.songBook,
+        songBookMode: DemoSongBookMode.songs,
+        selectedArtist: normalizedArtist,
+        searchQuery: '',
+        libraryPageIndex: 0,
+      ),
+    );
+    await _reloadLibraryPage(pageIndex: 0);
+  }
+
+  Future<bool> returnFromSelectedArtist() async {
+    if (_state.selectedArtist == null) {
+      return false;
+    }
+    _setState(
+      _state.copyWith(
+        songBookMode: DemoSongBookMode.artists,
+        selectedArtist: null,
+        searchQuery: '',
+        libraryPageIndex: 0,
+      ),
+    );
+    await _reloadLibraryPage(pageIndex: 0);
+    return true;
   }
 
   void selectLanguage(String language) {
@@ -116,6 +169,8 @@ class KtvDemoController extends ChangeNotifier {
         isScanningLibrary: true,
         libraryScanErrorMessage: null,
         selectedLanguage: allLanguagesLabel,
+        songBookMode: DemoSongBookMode.songs,
+        selectedArtist: null,
         route: DemoRoute.songBook,
         searchQuery: '',
         libraryPageIndex: 0,
@@ -130,6 +185,7 @@ class KtvDemoController extends ChangeNotifier {
       _setState(
         _state.copyWith(
           libraryPageSongs: const <DemoSong>[],
+          libraryPageArtists: const <DemoArtist>[],
           libraryTotalCount: 0,
           libraryPageIndex: 0,
           libraryScanErrorMessage: '扫描目录失败：$error',
@@ -268,6 +324,8 @@ class KtvDemoController extends ChangeNotifier {
       _state.copyWith(
         scanDirectoryPath: savedDirectory,
         route: DemoRoute.songBook,
+        songBookMode: DemoSongBookMode.songs,
+        selectedArtist: null,
       ),
     );
     await _reloadLibraryPage(pageIndex: 0, clearErrorMessage: true);
@@ -293,6 +351,7 @@ class KtvDemoController extends ChangeNotifier {
       _setState(
         _state.copyWith(
           libraryPageSongs: const <DemoSong>[],
+          libraryPageArtists: const <DemoArtist>[],
           libraryTotalCount: 0,
           libraryPageIndex: 0,
           isLoadingLibraryPage: false,
@@ -302,7 +361,10 @@ class KtvDemoController extends ChangeNotifier {
     }
 
     final int targetPageSize = math.max(1, pageSize ?? _state.libraryPageSize);
-    final int targetPageIndex = math.max(0, pageIndex ?? _state.libraryPageIndex);
+    final int targetPageIndex = math.max(
+      0,
+      pageIndex ?? _state.libraryPageIndex,
+    );
     final int generation = ++_libraryQueryGeneration;
 
     _setState(
@@ -317,11 +379,52 @@ class KtvDemoController extends ChangeNotifier {
     );
 
     try {
+      final String? language = _state.selectedLanguage == allLanguagesLabel
+          ? null
+          : _state.selectedLanguage;
+      if (_state.songBookMode == DemoSongBookMode.artists &&
+          _state.selectedArtist == null) {
+        final DemoArtistPage page = await _mediaLibraryRepository.queryArtists(
+          directory: directory,
+          language: language,
+          searchQuery: _state.searchQuery,
+          pageIndex: targetPageIndex,
+          pageSize: targetPageSize,
+        );
+        if (generation != _libraryQueryGeneration) {
+          return;
+        }
+
+        final int totalPages = page.totalPages;
+        if (page.totalCount > 0 && targetPageIndex >= totalPages) {
+          await _reloadLibraryPage(
+            pageIndex: totalPages - 1,
+            pageSize: targetPageSize,
+            clearErrorMessage: clearErrorMessage,
+          );
+          return;
+        }
+
+        _setState(
+          _state.copyWith(
+            libraryPageSongs: const <DemoSong>[],
+            libraryPageArtists: page.artists,
+            libraryTotalCount: page.totalCount,
+            libraryPageIndex: page.pageIndex,
+            libraryPageSize: page.pageSize,
+            isLoadingLibraryPage: false,
+            libraryScanErrorMessage: clearErrorMessage
+                ? null
+                : _state.libraryScanErrorMessage,
+          ),
+        );
+        return;
+      }
+
       final DemoSongPage page = await _mediaLibraryRepository.querySongs(
         directory: directory,
-        language: _state.selectedLanguage == allLanguagesLabel
-            ? null
-            : _state.selectedLanguage,
+        language: language,
+        artist: _state.selectedArtist,
         searchQuery: _state.searchQuery,
         pageIndex: targetPageIndex,
         pageSize: targetPageSize,
@@ -343,6 +446,7 @@ class KtvDemoController extends ChangeNotifier {
       _setState(
         _state.copyWith(
           libraryPageSongs: page.songs,
+          libraryPageArtists: const <DemoArtist>[],
           libraryTotalCount: page.totalCount,
           libraryPageIndex: page.pageIndex,
           libraryPageSize: page.pageSize,
@@ -359,6 +463,7 @@ class KtvDemoController extends ChangeNotifier {
       _setState(
         _state.copyWith(
           libraryPageSongs: const <DemoSong>[],
+          libraryPageArtists: const <DemoArtist>[],
           libraryTotalCount: 0,
           isLoadingLibraryPage: false,
           libraryScanErrorMessage: '加载歌曲列表失败：$error',
