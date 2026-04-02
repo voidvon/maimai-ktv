@@ -348,33 +348,17 @@ class _KtvDemoShellState extends State<KtvDemoShell>
     required double columnGap,
     required bool compactHomePage,
   }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        SizedBox(
-          width: sidePanelWidth,
-          child: HomePreviewCard(
-            controller: _demoController.playerController,
-            previewSurface: _buildPreviewPlaceholder(),
-            previewAnchorKey: _previewAnchorKey,
-          ),
-        ),
-        SizedBox(width: columnGap),
-        Expanded(
-          child: HomePage(
-            controller: _demoController.playerController,
-            compact: compactHomePage,
-            queueCount: _demoController.queuedSongs.length,
-            onEnterSongBook: _enterSongBook,
-            onEnterArtistBook: _enterArtistBook,
-            onQueuePressed: _enterQueueList,
-            onSettingsPressed: _openSettingsPage,
-            onToggleAudioMode: _toggleAudioMode,
-            onTogglePlayback: _togglePlayback,
-            onSkipSong: _skipCurrentSong,
-          ),
-        ),
-      ],
+    return LandscapeHomePage(
+      controller: _demoController.playerController,
+      queueCount: _demoController.queuedSongs.length,
+      previewAnchorKey: _previewAnchorKey,
+      onEnterSongBook: _enterSongBook,
+      onEnterArtistBook: _enterArtistBook,
+      onQueuePressed: _enterQueueList,
+      onSettingsPressed: _openSettingsPage,
+      onToggleAudioMode: _toggleAudioMode,
+      onTogglePlayback: _togglePlayback,
+      onSkipSong: _skipCurrentSong,
     );
   }
 

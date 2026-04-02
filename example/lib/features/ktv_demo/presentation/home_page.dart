@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
@@ -69,40 +71,323 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        _HomeToolbar(
-          controller: controller,
-          queueCount: queueCount,
-          compact: compact,
-          onQueuePressed: onQueuePressed,
-          onSettingsPressed: onSettingsPressed,
-          onToggleAudioMode: onToggleAudioMode,
-          onTogglePlayback: onTogglePlayback,
-          onSkipSong: onSkipSong,
-        ),
-        SizedBox(height: compact ? 16 : 18),
-        if (compact)
-          _HomeShortcutGrid(
-            onEnterSongBook: onEnterSongBook,
-            onEnterArtistBook: onEnterArtistBook,
-            compact: true,
-          )
-        else
-          Expanded(
-            child: Align(
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool shouldUseCompactLayout =
+            compact ||
+            constraints.maxWidth < 560 ||
+            constraints.maxHeight < 340;
+        final bool shouldScroll =
+            constraints.maxHeight < (shouldUseCompactLayout ? 360 : 300);
+        final Widget shortcutGrid = _HomeShortcutGrid(
+          onEnterSongBook: onEnterSongBook,
+          onEnterArtistBook: onEnterArtistBook,
+          compact: shouldUseCompactLayout,
+        );
+
+        final List<Widget> children = <Widget>[
+          _HomeToolbar(
+            controller: controller,
+            queueCount: queueCount,
+            compact: shouldUseCompactLayout,
+            onQueuePressed: onQueuePressed,
+            onSettingsPressed: onSettingsPressed,
+            onToggleAudioMode: onToggleAudioMode,
+            onTogglePlayback: onTogglePlayback,
+            onSkipSong: onSkipSong,
+          ),
+          SizedBox(height: shouldUseCompactLayout ? 16 : 18),
+          if (shouldUseCompactLayout || shouldScroll)
+            Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 324),
-                child: _HomeShortcutGrid(
-                  onEnterSongBook: onEnterSongBook,
-                  onEnterArtistBook: onEnterArtistBook,
+                child: shortcutGrid,
+              ),
+            )
+          else
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 324),
+                  child: shortcutGrid,
                 ),
               ),
             ),
+        ];
+
+        final Widget content = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        );
+
+        if (!shouldScroll) {
+          return content;
+        }
+
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: content,
           ),
-      ],
+        );
+      },
+    );
+  }
+}
+
+class LandscapeHomePage extends StatelessWidget {
+  const LandscapeHomePage({
+    super.key,
+    required this.controller,
+    required this.queueCount,
+    required this.previewAnchorKey,
+    required this.onEnterSongBook,
+    required this.onEnterArtistBook,
+    required this.onQueuePressed,
+    required this.onSettingsPressed,
+    required this.onToggleAudioMode,
+    required this.onTogglePlayback,
+    required this.onSkipSong,
+  });
+
+  final PlayerController controller;
+  final int queueCount;
+  final GlobalKey previewAnchorKey;
+  final VoidCallback onEnterSongBook;
+  final VoidCallback onEnterArtistBook;
+  final VoidCallback onQueuePressed;
+  final VoidCallback onSettingsPressed;
+  final VoidCallback onToggleAudioMode;
+  final VoidCallback onTogglePlayback;
+  final VoidCallback onSkipSong;
+
+  VoidCallback? _resolveShortcutAction(_HomeShortcut shortcut) {
+    if (!shortcut.enabled) {
+      return null;
+    }
+    return switch (shortcut.action) {
+      _HomeShortcutAction.songs => onEnterSongBook,
+      _HomeShortcutAction.artists => onEnterArtistBook,
+      null => onEnterSongBook,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const List<_HomeShortcut> previewRowShortcuts = <_HomeShortcut>[
+      _HomeShortcut(
+        label: '常唱',
+        icon: Icons.mic_external_on_rounded,
+        colors: <Color>[Color(0xFFFFB8A8), Color(0xFFFF8B78)],
+      ),
+      _HomeShortcut(
+        label: '收藏',
+        icon: Icons.favorite_border_rounded,
+        colors: <Color>[Color(0xFFF2AAFF), Color(0xFFC46BFF)],
+      ),
+      _HomeShortcut(
+        label: '分类',
+        icon: Icons.library_music_rounded,
+        colors: <Color>[Color(0xFFAF9DFF), Color(0xFF8B6DFF)],
+        enabled: true,
+        action: _HomeShortcutAction.songs,
+      ),
+    ];
+    const List<_HomeShortcut> sideColumnShortcuts = <_HomeShortcut>[
+      _HomeShortcut(
+        label: '排行榜',
+        icon: Icons.star_rounded,
+        colors: <Color>[
+          Color(0xFFFF7C93),
+          Color(0xFFFF5372),
+          Color(0xFFFF9A7A),
+        ],
+      ),
+      _HomeShortcut(
+        label: '歌名',
+        icon: Icons.music_note_rounded,
+        colors: <Color>[
+          Color(0xFFFFD36A),
+          Color(0xFFFFB245),
+          Color(0xFFFF9566),
+        ],
+        enabled: true,
+        action: _HomeShortcutAction.songs,
+      ),
+      _HomeShortcut(
+        label: '歌星',
+        icon: Icons.person_rounded,
+        colors: <Color>[
+          Color(0xFF9CC9FF),
+          Color(0xFF89B2FF),
+          Color(0xFF9571FF),
+        ],
+        enabled: true,
+        action: _HomeShortcutAction.artists,
+      ),
+      _HomeShortcut(
+        label: '本地',
+        icon: Icons.library_music_rounded,
+        colors: <Color>[Color(0xFF65D8FF), Color(0xFF2E9DFF)],
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double gap = constraints.maxWidth < 900 ? 14 : 18;
+        final double centerColumnWidth = (constraints.maxWidth * 0.21)
+            .clamp(188.0, 224.0)
+            .toDouble();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _HomeToolbar(
+              controller: controller,
+              queueCount: queueCount,
+              compact: false,
+              onQueuePressed: onQueuePressed,
+              onSettingsPressed: onSettingsPressed,
+              onToggleAudioMode: onToggleAudioMode,
+              onTogglePlayback: onTogglePlayback,
+              onSkipSong: onSkipSong,
+            ),
+            SizedBox(height: gap),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: (constraints.maxHeight * 0.14).clamp(40.0, 88.0),
+                ),
+                child: LayoutBuilder(
+                  builder:
+                      (
+                        BuildContext context,
+                        BoxConstraints contentConstraints,
+                      ) {
+                        final double reservedBottomSpace =
+                            (constraints.maxHeight * 0.14).clamp(40.0, 88.0);
+                        final double usableContentHeight = math.max(
+                          240,
+                          contentConstraints.maxHeight - reservedBottomSpace,
+                        );
+                        final double maxRowHeightByHeight = math.max(
+                          52,
+                          (usableContentHeight - gap * 3) / 4,
+                        );
+                        final double maxRowHeightByWidth = math.max(
+                          52,
+                          (((constraints.maxWidth - centerColumnWidth - gap) *
+                                      9 /
+                                      16) -
+                                  gap * 2) /
+                              3,
+                        );
+                        final double rowHeight = math.min(
+                          96,
+                          math.min(maxRowHeightByHeight, maxRowHeightByWidth),
+                        );
+                        final double previewColumnWidth =
+                            (rowHeight * 3 + gap * 2) * (16 / 9);
+                        final double contentHeight = rowHeight * 4 + gap * 3;
+
+                        return Center(
+                          child: SizedBox(
+                            height: contentHeight,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                SizedBox(
+                                  width: previewColumnWidth,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: <Widget>[
+                                      HomePreviewCard(
+                                        controller: controller,
+                                        previewSurface:
+                                            const HomePreviewPlaceholder(),
+                                        previewAnchorKey: previewAnchorKey,
+                                      ),
+                                      SizedBox(height: gap),
+                                      SizedBox(
+                                        height: rowHeight,
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: previewRowShortcuts
+                                              .map(
+                                                (
+                                                  _HomeShortcut shortcut,
+                                                ) => Expanded(
+                                                  child: Padding(
+                                                    padding: EdgeInsets.only(
+                                                      right:
+                                                          shortcut ==
+                                                              previewRowShortcuts
+                                                                  .last
+                                                          ? 0
+                                                          : gap,
+                                                    ),
+                                                    child: _ShortcutCard(
+                                                      shortcut: shortcut,
+                                                      onTap:
+                                                          _resolveShortcutAction(
+                                                            shortcut,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: gap),
+                                SizedBox(
+                                  width: centerColumnWidth,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: sideColumnShortcuts
+                                        .map(
+                                          (_HomeShortcut shortcut) => Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom:
+                                                  shortcut ==
+                                                      sideColumnShortcuts.last
+                                                  ? 0
+                                                  : gap,
+                                            ),
+                                            child: SizedBox(
+                                              height: rowHeight,
+                                              child: _ShortcutCard(
+                                                shortcut: shortcut,
+                                                onTap: _resolveShortcutAction(
+                                                  shortcut,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -201,8 +486,18 @@ class _HomeToolbar extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const Spacer(),
-                    Wrap(spacing: 6, children: actions),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          alignment: WrapAlignment.end,
+                          children: actions,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
         );
@@ -419,12 +714,6 @@ class _ShortcutCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (enabled)
-                    const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: Color(0xCCFFFFFF),
-                      size: 20,
-                    ),
                 ],
               ),
             ),
