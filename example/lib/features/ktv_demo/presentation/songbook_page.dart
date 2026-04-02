@@ -882,6 +882,12 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
         const SizedBox(height: 8),
         Row(
           children: <Widget>[
+            _ActionPill(
+              label: '返回',
+              onPressed: _navigationCallbacks.onBackPressed,
+              padding: const EdgeInsets.fromLTRB(8, 5, 14, 5),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 _navigation.breadcrumbLabel,
@@ -891,12 +897,6 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                   color: Color(0xEBFFF7FF),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            _ActionPill(
-              label: '返回',
-              icon: Icons.chevron_right_rounded,
-              onPressed: _navigationCallbacks.onBackPressed,
             ),
           ],
         ),
@@ -1195,11 +1195,17 @@ class _SongBookActionRow extends StatelessWidget {
 }
 
 class _ActionPill extends StatelessWidget {
-  const _ActionPill({required this.label, required this.icon, this.onPressed});
+  const _ActionPill({
+    required this.label,
+    this.icon,
+    this.onPressed,
+    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+  });
 
   final String label;
-  final IconData icon;
+  final IconData? icon;
   final VoidCallback? onPressed;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
@@ -1211,18 +1217,20 @@ class _ActionPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: isEnabled ? onPressed : null,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          padding: padding,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(
-                icon,
-                size: 12,
-                color: isEnabled
-                    ? const Color(0xCCFFF7FF)
-                    : const Color(0x7AFFF7FF),
-              ),
-              const SizedBox(width: 4),
+              if (icon != null) ...<Widget>[
+                Icon(
+                  icon,
+                  size: 12,
+                  color: isEnabled
+                      ? const Color(0xCCFFF7FF)
+                      : const Color(0x7AFFF7FF),
+                ),
+                const SizedBox(width: 4),
+              ],
               Text(
                 label,
                 style: TextStyle(

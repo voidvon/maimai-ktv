@@ -61,7 +61,7 @@ class QueuedSongTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${entry.song.artist} · ${entry.subtitle}',
+                  '${entry.song.artist} · ${entry.song.language} · ${entry.subtitle}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
