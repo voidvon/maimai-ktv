@@ -5,23 +5,91 @@ enum DemoRoute { home, songBook, queueList }
 
 enum DemoSongBookMode { songs, artists }
 
+class DemoLibraryState {
+  const DemoLibraryState({
+    this.scanDirectoryPath,
+    this.searchQuery = '',
+    this.isScanningLibrary = false,
+    this.isLoadingLibraryPage = false,
+    this.pageSongs = const <DemoSong>[],
+    this.pageArtists = const <DemoArtist>[],
+    this.totalCount = 0,
+    this.pageIndex = 0,
+    this.pageSize = 8,
+    this.scanErrorMessage,
+  });
+
+  static const Object _unset = Object();
+
+  final String? scanDirectoryPath;
+  final String searchQuery;
+  final bool isScanningLibrary;
+  final bool isLoadingLibraryPage;
+  final List<DemoSong> pageSongs;
+  final List<DemoArtist> pageArtists;
+  final int totalCount;
+  final int pageIndex;
+  final int pageSize;
+  final String? scanErrorMessage;
+
+  bool get hasConfiguredDirectory => scanDirectoryPath != null;
+
+  int get totalPages {
+    if (pageSize <= 0 || totalCount <= 0) {
+      return 1;
+    }
+    return ((totalCount + pageSize - 1) / pageSize).ceil();
+  }
+
+  DemoLibraryState copyWith({
+    Object? scanDirectoryPath = _unset,
+    String? searchQuery,
+    bool? isScanningLibrary,
+    bool? isLoadingLibraryPage,
+    List<DemoSong>? pageSongs,
+    List<DemoArtist>? pageArtists,
+    int? totalCount,
+    int? pageIndex,
+    int? pageSize,
+    Object? scanErrorMessage = _unset,
+  }) {
+    return DemoLibraryState(
+      scanDirectoryPath: identical(scanDirectoryPath, _unset)
+          ? this.scanDirectoryPath
+          : scanDirectoryPath as String?,
+      searchQuery: searchQuery ?? this.searchQuery,
+      isScanningLibrary: isScanningLibrary ?? this.isScanningLibrary,
+      isLoadingLibraryPage: isLoadingLibraryPage ?? this.isLoadingLibraryPage,
+      pageSongs: pageSongs ?? this.pageSongs,
+      pageArtists: pageArtists ?? this.pageArtists,
+      totalCount: totalCount ?? this.totalCount,
+      pageIndex: pageIndex ?? this.pageIndex,
+      pageSize: pageSize ?? this.pageSize,
+      scanErrorMessage: identical(scanErrorMessage, _unset)
+          ? this.scanErrorMessage
+          : scanErrorMessage as String?,
+    );
+  }
+}
+
+class DemoPlaybackState {
+  const DemoPlaybackState({this.queuedSongs = const <DemoSong>[]});
+
+  final List<DemoSong> queuedSongs;
+
+  DemoPlaybackState copyWith({List<DemoSong>? queuedSongs}) {
+    return DemoPlaybackState(queuedSongs: queuedSongs ?? this.queuedSongs);
+  }
+}
+
 class KtvDemoState {
   const KtvDemoState({
     this.route = DemoRoute.home,
     this.songBookMode = DemoSongBookMode.songs,
     this.selectedLanguage = '全部',
     this.selectedArtist,
-    this.libraryScanErrorMessage,
-    this.scanDirectoryPath,
-    this.searchQuery = '',
-    this.isScanningLibrary = false,
-    this.isLoadingLibraryPage = false,
-    this.queuedSongs = const <DemoSong>[],
-    this.libraryPageSongs = const <DemoSong>[],
-    this.libraryPageArtists = const <DemoArtist>[],
-    this.libraryTotalCount = 0,
-    this.libraryPageIndex = 0,
-    this.libraryPageSize = 8,
+    this.library = const DemoLibraryState(),
+    this.playback = const DemoPlaybackState(),
   });
 
   static const Object _unset = Object();
@@ -30,29 +98,27 @@ class KtvDemoState {
   final DemoSongBookMode songBookMode;
   final String selectedLanguage;
   final String? selectedArtist;
-  final String? libraryScanErrorMessage;
-  final String? scanDirectoryPath;
-  final String searchQuery;
-  final bool isScanningLibrary;
-  final bool isLoadingLibraryPage;
-  final List<DemoSong> queuedSongs;
-  final List<DemoSong> libraryPageSongs;
-  final List<DemoArtist> libraryPageArtists;
-  final int libraryTotalCount;
-  final int libraryPageIndex;
-  final int libraryPageSize;
+  final DemoLibraryState library;
+  final DemoPlaybackState playback;
 
-  bool get hasConfiguredDirectory => scanDirectoryPath != null;
+  String? get libraryScanErrorMessage => library.scanErrorMessage;
+  String? get scanDirectoryPath => library.scanDirectoryPath;
+  String get searchQuery => library.searchQuery;
+  bool get isScanningLibrary => library.isScanningLibrary;
+  bool get isLoadingLibraryPage => library.isLoadingLibraryPage;
+  List<DemoSong> get queuedSongs => playback.queuedSongs;
+  List<DemoSong> get libraryPageSongs => library.pageSongs;
+  List<DemoArtist> get libraryPageArtists => library.pageArtists;
+  int get libraryTotalCount => library.totalCount;
+  int get libraryPageIndex => library.pageIndex;
+  int get libraryPageSize => library.pageSize;
+
+  bool get hasConfiguredDirectory => library.hasConfiguredDirectory;
   bool get isArtistMode => songBookMode == DemoSongBookMode.artists;
 
-  String get normalizedSearchQuery => searchQuery.trim().toLowerCase();
+  String get normalizedSearchQuery => library.searchQuery.trim().toLowerCase();
 
-  int get libraryTotalPages {
-    if (libraryPageSize <= 0 || libraryTotalCount <= 0) {
-      return 1;
-    }
-    return ((libraryTotalCount + libraryPageSize - 1) / libraryPageSize).ceil();
-  }
+  int get libraryTotalPages => library.totalPages;
 
   List<DemoSong> filteredQueuedSongs() {
     if (normalizedSearchQuery.isEmpty) {
@@ -86,6 +152,8 @@ class KtvDemoState {
     DemoRoute? route,
     DemoSongBookMode? songBookMode,
     String? selectedLanguage,
+    DemoLibraryState? library,
+    DemoPlaybackState? playback,
     Object? selectedArtist = _unset,
     Object? libraryScanErrorMessage = _unset,
     Object? scanDirectoryPath = _unset,
@@ -99,28 +167,31 @@ class KtvDemoState {
     int? libraryPageIndex,
     int? libraryPageSize,
   }) {
+    final DemoLibraryState nextLibrary = (library ?? this.library).copyWith(
+      scanDirectoryPath: scanDirectoryPath,
+      searchQuery: searchQuery,
+      isScanningLibrary: isScanningLibrary,
+      isLoadingLibraryPage: isLoadingLibraryPage,
+      pageSongs: libraryPageSongs,
+      pageArtists: libraryPageArtists,
+      totalCount: libraryTotalCount,
+      pageIndex: libraryPageIndex,
+      pageSize: libraryPageSize,
+      scanErrorMessage: libraryScanErrorMessage,
+    );
+    final DemoPlaybackState nextPlayback = (playback ?? this.playback).copyWith(
+      queuedSongs: queuedSongs,
+    );
+
     return KtvDemoState(
       route: route ?? this.route,
       songBookMode: songBookMode ?? this.songBookMode,
       selectedLanguage: selectedLanguage ?? this.selectedLanguage,
+      library: nextLibrary,
+      playback: nextPlayback,
       selectedArtist: identical(selectedArtist, _unset)
           ? this.selectedArtist
           : selectedArtist as String?,
-      libraryScanErrorMessage: identical(libraryScanErrorMessage, _unset)
-          ? this.libraryScanErrorMessage
-          : libraryScanErrorMessage as String?,
-      scanDirectoryPath: identical(scanDirectoryPath, _unset)
-          ? this.scanDirectoryPath
-          : scanDirectoryPath as String?,
-      searchQuery: searchQuery ?? this.searchQuery,
-      isScanningLibrary: isScanningLibrary ?? this.isScanningLibrary,
-      isLoadingLibraryPage: isLoadingLibraryPage ?? this.isLoadingLibraryPage,
-      queuedSongs: queuedSongs ?? this.queuedSongs,
-      libraryPageSongs: libraryPageSongs ?? this.libraryPageSongs,
-      libraryPageArtists: libraryPageArtists ?? this.libraryPageArtists,
-      libraryTotalCount: libraryTotalCount ?? this.libraryTotalCount,
-      libraryPageIndex: libraryPageIndex ?? this.libraryPageIndex,
-      libraryPageSize: libraryPageSize ?? this.libraryPageSize,
     );
   }
 }

@@ -1,14 +1,13 @@
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/foundation.dart';
 import 'package:ktv2/ktv2.dart';
 
 import '../../../core/models/demo_artist.dart';
-import '../../../core/models/demo_artist_page.dart';
 import '../../../core/models/demo_song.dart';
-import '../../../core/models/demo_song_page.dart';
 import '../../media_library/data/demo_media_library_repository.dart';
+import 'demo_library_session.dart';
+import 'demo_navigation_history.dart';
+import 'demo_playback_queue_manager.dart';
 import 'ktv_demo_state.dart';
 
 export 'ktv_demo_state.dart' show DemoRoute, DemoSongBookMode, KtvDemoState;
@@ -26,14 +25,19 @@ class KtvDemoController extends ChangeNotifier {
 
   final DemoMediaLibraryRepository _mediaLibraryRepository;
   final PlayerController playerController;
+  late final DemoPlaybackQueueManager _playbackQueueManager =
+      DemoPlaybackQueueManager(playerController: playerController);
+  late final DemoLibrarySession _librarySession = DemoLibrarySession(
+    repository: _mediaLibraryRepository,
+    readState: () => _state,
+    writeState: _setState,
+    allLanguagesLabel: allLanguagesLabel,
+  );
+  final DemoNavigationHistory _navigationHistory = DemoNavigationHistory();
 
   KtvDemoState _state = const KtvDemoState();
   bool _didInitialize = false;
   Timer? _pendingSearchRefresh;
-  int _libraryQueryGeneration = 0;
-  final List<_DemoNavigationEntry> _navigationStack = <_DemoNavigationEntry>[
-    const _DemoNavigationEntry.home(),
-  ];
 
   DemoMediaLibraryRepository get mediaLibraryRepository =>
       _mediaLibraryRepository;
@@ -49,7 +53,7 @@ class KtvDemoController extends ChangeNotifier {
   bool get isScanningLibrary => _state.isScanningLibrary;
   bool get isLoadingLibraryPage => _state.isLoadingLibraryPage;
   bool get hasConfiguredDirectory => _state.hasConfiguredDirectory;
-  bool get canNavigateBack => _navigationStack.length > 1;
+  bool get canNavigateBack => _navigationHistory.canNavigateBack;
   List<DemoSong> get queuedSongs =>
       List<DemoSong>.unmodifiable(_state.queuedSongs);
   List<DemoSong> get librarySongs =>
@@ -67,15 +71,14 @@ class KtvDemoController extends ChangeNotifier {
 
   String get currentSubtitle => _state.currentSubtitle;
 
-  String get breadcrumbLabel =>
-      '‹ ${_navigationStack.map((entry) => entry.breadcrumbSegment).join(' / ')}';
+  String get breadcrumbLabel => _navigationHistory.breadcrumbLabel;
 
   Future<void> initialize() async {
     if (_didInitialize) {
       return;
     }
     _didInitialize = true;
-    await _restoreSavedDirectory();
+    await _librarySession.restoreSavedDirectory();
   }
 
   void setSearchQuery(String query) {
@@ -87,68 +90,36 @@ class KtvDemoController extends ChangeNotifier {
   }
 
   void enterSongBook({DemoSongBookMode mode = DemoSongBookMode.songs}) {
-    final _DemoNavigationEntry target = _DemoNavigationEntry.songBook(
-      mode: mode,
-    );
-    if (_navigationStack.last == target) {
+    if (!_navigationHistory.enterSongBook(mode: mode)) {
       return;
     }
-    _pushNavigation(target);
+    _applyNavigationState(_navigationHistory.current);
+    unawaited(_librarySession.reloadLibraryPage(pageIndex: 0));
   }
 
   void enterQueueList() {
-    final _DemoNavigationEntry target = _DemoNavigationEntry.queueList(
+    if (!_navigationHistory.enterQueueList(
       songBookMode: _state.songBookMode,
       selectedArtist: _state.selectedArtist,
-    );
-    if (_navigationStack.last == target) {
+    )) {
       return;
     }
-    _pushNavigation(target, reloadLibraryPage: false);
+    _applyNavigationState(_navigationHistory.current);
   }
 
   void returnHome() {
-    if (_navigationStack.length == 1 &&
-        _navigationStack.first == const _DemoNavigationEntry.home()) {
+    if (!_navigationHistory.returnHome()) {
       return;
     }
-    _navigationStack
-      ..clear()
-      ..add(const _DemoNavigationEntry.home());
-    _setState(
-      _state.copyWith(
-        route: DemoRoute.home,
-        songBookMode: DemoSongBookMode.songs,
-        selectedArtist: null,
-        searchQuery: '',
-        libraryPageIndex: 0,
-      ),
-    );
+    _applyNavigationState(_navigationHistory.current);
   }
 
   Future<void> selectArtist(String artist) async {
-    final String normalizedArtist = artist.trim();
-    if (normalizedArtist.isEmpty) {
+    if (!_navigationHistory.selectArtist(artist)) {
       return;
     }
-    final _DemoNavigationEntry target = _DemoNavigationEntry.songBook(
-      mode: DemoSongBookMode.songs,
-      selectedArtist: normalizedArtist,
-    );
-    if (_navigationStack.last == target) {
-      return;
-    }
-    _navigationStack.add(target);
-    _setState(
-      _state.copyWith(
-        route: target.route,
-        songBookMode: target.songBookMode,
-        selectedArtist: target.selectedArtist,
-        searchQuery: '',
-        libraryPageIndex: 0,
-      ),
-    );
-    await _reloadLibraryPage(pageIndex: 0);
+    _applyNavigationState(_navigationHistory.current);
+    await _librarySession.reloadLibraryPage(pageIndex: 0);
   }
 
   Future<bool> returnFromSelectedArtist() async {
@@ -159,24 +130,15 @@ class KtvDemoController extends ChangeNotifier {
   }
 
   Future<bool> navigateBack() async {
-    if (!canNavigateBack) {
+    final DemoNavigationDestination? target = _navigationHistory.navigateBack();
+    if (target == null) {
       return false;
     }
-    _navigationStack.removeLast();
-    final _DemoNavigationEntry target = _navigationStack.last;
-    _setState(
-      _state.copyWith(
-        route: target.route,
-        songBookMode: target.songBookMode,
-        selectedArtist: target.selectedArtist,
-        searchQuery: '',
-        libraryPageIndex: 0,
-      ),
-    );
+    _applyNavigationState(target);
     if (target.route == DemoRoute.home) {
       return true;
     }
-    await _reloadLibraryPage(pageIndex: 0);
+    await _librarySession.reloadLibraryPage(pageIndex: 0);
     return true;
   }
 
@@ -185,345 +147,87 @@ class KtvDemoController extends ChangeNotifier {
       return;
     }
     _setState(_state.copyWith(selectedLanguage: language));
-    unawaited(_reloadLibraryPage(pageIndex: 0));
+    unawaited(_librarySession.reloadLibraryPage(pageIndex: 0));
   }
 
   Future<void> handleSelectedDirectory(String directory) async {
-    _setState(_state.copyWith(scanDirectoryPath: directory));
-    await _mediaLibraryRepository.saveSelectedDirectory(directory);
-    await scanLibrary(directory);
+    await _librarySession.handleSelectedDirectory(directory);
   }
 
   Future<bool> scanLibrary(String directory) async {
     _pendingSearchRefresh?.cancel();
-    _setState(
-      _state.copyWith(
-        scanDirectoryPath: directory,
-        isScanningLibrary: true,
-        libraryScanErrorMessage: null,
-        selectedLanguage: allLanguagesLabel,
-        searchQuery: '',
-        libraryPageIndex: 0,
-      ),
-    );
-
-    try {
-      await _mediaLibraryRepository.scanLibrary(directory);
-      await _reloadLibraryPage(pageIndex: 0, clearErrorMessage: true);
-      return true;
-    } catch (error) {
-      _setState(
-        _state.copyWith(
-          libraryPageSongs: const <DemoSong>[],
-          libraryPageArtists: const <DemoArtist>[],
-          libraryTotalCount: 0,
-          libraryPageIndex: 0,
-          libraryScanErrorMessage: '扫描目录失败：$error',
-        ),
-      );
-      return false;
-    } finally {
-      _setState(_state.copyWith(isScanningLibrary: false));
-    }
+    return _librarySession.scanLibrary(directory);
   }
 
   Future<void> requestLibraryPage({
     required int pageIndex,
     required int pageSize,
   }) {
-    final int normalizedPageSize = math.max(1, pageSize);
-    final int previousOffset = _state.libraryPageIndex * _state.libraryPageSize;
-    final int nextPageIndex = normalizedPageSize == _state.libraryPageSize
-        ? pageIndex
-        : previousOffset ~/ normalizedPageSize;
-    return _reloadLibraryPage(
-      pageIndex: nextPageIndex,
-      pageSize: normalizedPageSize,
+    return _librarySession.requestLibraryPage(
+      pageIndex: pageIndex,
+      pageSize: pageSize,
     );
   }
 
   Future<void> requestSong(DemoSong song) async {
-    final List<DemoSong> queuedSongs = List<DemoSong>.of(_state.queuedSongs);
-    final bool hasCurrentSong =
-        queuedSongs.isNotEmpty && playerController.hasMedia;
-
-    if (hasCurrentSong) {
-      if (queuedSongs.contains(song)) {
-        return;
-      }
-      queuedSongs.add(song);
-      _setState(_state.copyWith(queuedSongs: queuedSongs));
-      return;
-    }
-
-    queuedSongs
-      ..remove(song)
-      ..insert(0, song);
-    await playerController.openMedia(
-      MediaSource(path: song.mediaPath, displayName: song.title),
+    final List<DemoSong> nextQueue = await _playbackQueueManager.requestSong(
+      _state.queuedSongs,
+      song,
     );
-    _setState(_state.copyWith(queuedSongs: queuedSongs));
+    _setState(_state.copyWith(queuedSongs: nextQueue));
   }
 
   void prioritizeQueuedSong(DemoSong song) {
-    final List<DemoSong> queuedSongs = List<DemoSong>.of(_state.queuedSongs);
-    final int currentIndex = queuedSongs.indexOf(song);
-    if (currentIndex <= 1) {
-      return;
-    }
-    queuedSongs
-      ..removeAt(currentIndex)
-      ..insert(1, song);
-    _setState(_state.copyWith(queuedSongs: queuedSongs));
+    _setState(
+      _state.copyWith(
+        queuedSongs: _playbackQueueManager.prioritizeQueuedSong(
+          _state.queuedSongs,
+          song,
+        ),
+      ),
+    );
   }
 
   void removeQueuedSong(DemoSong song) {
-    final List<DemoSong> queuedSongs = List<DemoSong>.of(_state.queuedSongs);
-    final int currentIndex = queuedSongs.indexOf(song);
-    if (currentIndex <= 0) {
-      return;
-    }
-    queuedSongs.removeAt(currentIndex);
-    _setState(_state.copyWith(queuedSongs: queuedSongs));
+    _setState(
+      _state.copyWith(
+        queuedSongs: _playbackQueueManager.removeQueuedSong(
+          _state.queuedSongs,
+          song,
+        ),
+      ),
+    );
   }
 
   void togglePlayback() {
-    if (!playerController.hasMedia) {
-      return;
-    }
-    unawaited(playerController.togglePlayback());
+    _playbackQueueManager.togglePlayback();
   }
 
   void toggleAudioMode() {
-    if (!playerController.hasMedia) {
-      return;
-    }
-    unawaited(playerController.toggleAudioOutputMode());
+    _playbackQueueManager.toggleAudioMode();
   }
 
   void restartPlayback() {
-    if (!playerController.hasMedia) {
-      return;
-    }
-    unawaited(playerController.seekToProgress(0));
+    _playbackQueueManager.restartPlayback();
   }
 
   Future<void> skipCurrentSong() async {
-    if (!playerController.hasMedia && _state.queuedSongs.isEmpty) {
-      return;
-    }
-
-    final List<DemoSong> remainingQueue = List<DemoSong>.of(_state.queuedSongs);
-    if (remainingQueue.isNotEmpty) {
-      remainingQueue.removeAt(0);
-    }
-
-    if (remainingQueue.isEmpty) {
-      await playerController.stopPlayback();
-      _setState(_state.copyWith(queuedSongs: const <DemoSong>[]));
-      return;
-    }
-
-    final DemoSong nextSong = remainingQueue.first;
-    await playerController.openMedia(
-      MediaSource(path: nextSong.mediaPath, displayName: nextSong.title),
-    );
-    _setState(_state.copyWith(queuedSongs: remainingQueue));
+    final List<DemoSong> nextQueue = await _playbackQueueManager
+        .skipCurrentSong(_state.queuedSongs);
+    _setState(_state.copyWith(queuedSongs: nextQueue));
   }
 
   Future<void> stopPlayback() {
-    return playerController.stopPlayback();
-  }
-
-  Future<void> _restoreSavedDirectory() async {
-    final String? savedDirectory = await _mediaLibraryRepository
-        .loadSelectedDirectory();
-    if (savedDirectory == null) {
-      return;
-    }
-
-    final bool hasAccess = await _mediaLibraryRepository.ensureDirectoryAccess(
-      savedDirectory,
-    );
-    if (!hasAccess) {
-      await _mediaLibraryRepository.clearDirectoryAccess(path: savedDirectory);
-      return;
-    }
-
-    _setState(_state.copyWith(scanDirectoryPath: savedDirectory));
-    await _reloadLibraryPage(pageIndex: 0, clearErrorMessage: true);
-    if (_state.libraryTotalCount == 0) {
-      await scanLibrary(savedDirectory);
-      return;
-    }
-    unawaited(_refreshLibraryIndexInBackground(savedDirectory));
-  }
-
-  Future<void> _refreshLibraryIndexInBackground(String directory) async {
-    if (_state.scanDirectoryPath != directory) {
-      return;
-    }
-    _setState(
-      _state.copyWith(isScanningLibrary: true, libraryScanErrorMessage: null),
-    );
-    try {
-      await _mediaLibraryRepository.scanLibrary(directory);
-      if (_state.scanDirectoryPath != directory) {
-        return;
-      }
-      await _reloadLibraryPage(
-        pageIndex: _state.libraryPageIndex,
-        pageSize: _state.libraryPageSize,
-        clearErrorMessage: true,
-      );
-    } catch (error) {
-      if (_state.scanDirectoryPath != directory) {
-        return;
-      }
-      _setState(_state.copyWith(libraryScanErrorMessage: '后台刷新目录失败：$error'));
-    } finally {
-      if (_state.scanDirectoryPath == directory) {
-        _setState(_state.copyWith(isScanningLibrary: false));
-      }
-    }
+    return _playbackQueueManager.stopPlayback();
   }
 
   void _scheduleLibraryRefresh({required bool resetPage}) {
     _pendingSearchRefresh?.cancel();
     _pendingSearchRefresh = Timer(_searchRefreshDebounce, () {
-      unawaited(_reloadLibraryPage(pageIndex: resetPage ? 0 : null));
+      unawaited(
+        _librarySession.reloadLibraryPage(pageIndex: resetPage ? 0 : null),
+      );
     });
-  }
-
-  Future<void> _reloadLibraryPage({
-    int? pageIndex,
-    int? pageSize,
-    bool clearErrorMessage = false,
-  }) async {
-    final String? directory = _state.scanDirectoryPath;
-    if (directory == null) {
-      _setState(
-        _state.copyWith(
-          libraryPageSongs: const <DemoSong>[],
-          libraryPageArtists: const <DemoArtist>[],
-          libraryTotalCount: 0,
-          libraryPageIndex: 0,
-          isLoadingLibraryPage: false,
-        ),
-      );
-      return;
-    }
-
-    final int targetPageSize = math.max(1, pageSize ?? _state.libraryPageSize);
-    final int targetPageIndex = math.max(
-      0,
-      pageIndex ?? _state.libraryPageIndex,
-    );
-    final int generation = ++_libraryQueryGeneration;
-
-    _setState(
-      _state.copyWith(
-        isLoadingLibraryPage: true,
-        libraryPageIndex: targetPageIndex,
-        libraryPageSize: targetPageSize,
-        libraryScanErrorMessage: clearErrorMessage
-            ? null
-            : _state.libraryScanErrorMessage,
-      ),
-    );
-
-    try {
-      final String? language = _state.selectedLanguage == allLanguagesLabel
-          ? null
-          : _state.selectedLanguage;
-      if (_state.songBookMode == DemoSongBookMode.artists &&
-          _state.selectedArtist == null) {
-        final DemoArtistPage page = await _mediaLibraryRepository.queryArtists(
-          directory: directory,
-          language: language,
-          searchQuery: _state.searchQuery,
-          pageIndex: targetPageIndex,
-          pageSize: targetPageSize,
-        );
-        if (generation != _libraryQueryGeneration) {
-          return;
-        }
-
-        final int totalPages = page.totalPages;
-        if (page.totalCount > 0 && targetPageIndex >= totalPages) {
-          await _reloadLibraryPage(
-            pageIndex: totalPages - 1,
-            pageSize: targetPageSize,
-            clearErrorMessage: clearErrorMessage,
-          );
-          return;
-        }
-
-        _setState(
-          _state.copyWith(
-            libraryPageSongs: const <DemoSong>[],
-            libraryPageArtists: page.artists,
-            libraryTotalCount: page.totalCount,
-            libraryPageIndex: page.pageIndex,
-            libraryPageSize: page.pageSize,
-            isLoadingLibraryPage: false,
-            libraryScanErrorMessage: clearErrorMessage
-                ? null
-                : _state.libraryScanErrorMessage,
-          ),
-        );
-        return;
-      }
-
-      final DemoSongPage page = await _mediaLibraryRepository.querySongs(
-        directory: directory,
-        language: language,
-        artist: _state.selectedArtist,
-        searchQuery: _state.searchQuery,
-        pageIndex: targetPageIndex,
-        pageSize: targetPageSize,
-      );
-      if (generation != _libraryQueryGeneration) {
-        return;
-      }
-
-      final int totalPages = page.totalPages;
-      if (page.totalCount > 0 && targetPageIndex >= totalPages) {
-        await _reloadLibraryPage(
-          pageIndex: totalPages - 1,
-          pageSize: targetPageSize,
-          clearErrorMessage: clearErrorMessage,
-        );
-        return;
-      }
-
-      _setState(
-        _state.copyWith(
-          libraryPageSongs: page.songs,
-          libraryPageArtists: const <DemoArtist>[],
-          libraryTotalCount: page.totalCount,
-          libraryPageIndex: page.pageIndex,
-          libraryPageSize: page.pageSize,
-          isLoadingLibraryPage: false,
-          libraryScanErrorMessage: clearErrorMessage
-              ? null
-              : _state.libraryScanErrorMessage,
-        ),
-      );
-    } catch (error) {
-      if (generation != _libraryQueryGeneration) {
-        return;
-      }
-      _setState(
-        _state.copyWith(
-          libraryPageSongs: const <DemoSong>[],
-          libraryPageArtists: const <DemoArtist>[],
-          libraryTotalCount: 0,
-          isLoadingLibraryPage: false,
-          libraryScanErrorMessage: '加载歌曲列表失败：$error',
-        ),
-      );
-    }
   }
 
   void _setState(KtvDemoState nextState) {
@@ -534,11 +238,7 @@ class KtvDemoController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _pushNavigation(
-    _DemoNavigationEntry target, {
-    bool reloadLibraryPage = true,
-  }) {
-    _navigationStack.add(target);
+  void _applyNavigationState(DemoNavigationDestination target) {
     _setState(
       _state.copyWith(
         route: target.route,
@@ -548,9 +248,6 @@ class KtvDemoController extends ChangeNotifier {
         libraryPageIndex: 0,
       ),
     );
-    if (reloadLibraryPage && target.route != DemoRoute.queueList) {
-      unawaited(_reloadLibraryPage(pageIndex: 0));
-    }
   }
 
   @override
@@ -559,51 +256,4 @@ class KtvDemoController extends ChangeNotifier {
     playerController.dispose();
     super.dispose();
   }
-}
-
-class _DemoNavigationEntry {
-  const _DemoNavigationEntry.home()
-    : route = DemoRoute.home,
-      songBookMode = DemoSongBookMode.songs,
-      selectedArtist = null;
-
-  const _DemoNavigationEntry.songBook({
-    required DemoSongBookMode mode,
-    this.selectedArtist,
-  }) : route = DemoRoute.songBook,
-       songBookMode = mode;
-
-  const _DemoNavigationEntry.queueList({
-    required this.songBookMode,
-    required this.selectedArtist,
-  }) : route = DemoRoute.queueList;
-
-  final DemoRoute route;
-  final DemoSongBookMode songBookMode;
-  final String? selectedArtist;
-
-  String get breadcrumbSegment {
-    switch (route) {
-      case DemoRoute.home:
-        return '主页';
-      case DemoRoute.songBook:
-        if (selectedArtist != null) {
-          return selectedArtist!;
-        }
-        return songBookMode == DemoSongBookMode.artists ? '歌星' : '歌名';
-      case DemoRoute.queueList:
-        return '已点';
-    }
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return other is _DemoNavigationEntry &&
-        other.route == route &&
-        other.songBookMode == songBookMode &&
-        other.selectedArtist == selectedArtist;
-  }
-
-  @override
-  int get hashCode => Object.hash(route, songBookMode, selectedArtist);
 }
