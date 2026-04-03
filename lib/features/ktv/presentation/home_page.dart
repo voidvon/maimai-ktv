@@ -259,7 +259,7 @@ class LandscapeHomePage extends StatelessWidget {
       builder: (BuildContext context, BoxConstraints constraints) {
         final double gap = constraints.maxWidth < 900 ? 14 : 18;
         final double centerColumnWidth = (constraints.maxWidth * 0.21)
-            .clamp(188.0, 224.0)
+            .clamp(156.0, 188.0)
             .toDouble();
         final double reservedBottomSpace = (constraints.maxHeight * 0.1)
             .clamp(20.0, 56.0)
@@ -313,8 +313,9 @@ class LandscapeHomePage extends StatelessWidget {
                                 .floorToDouble(),
                           ),
                         );
+                        final double previewHeight = rowHeight * 3 + gap * 2;
                         final double previewColumnWidth =
-                            (rowHeight * 3 + gap * 2) * (16 / 9);
+                            previewHeight * (16 / 9);
                         final double contentHeight = rowHeight * 4 + gap * 3;
 
                         return Center(
@@ -330,7 +331,8 @@ class LandscapeHomePage extends StatelessWidget {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: <Widget>[
-                                      Expanded(
+                                      SizedBox(
+                                        height: previewHeight,
                                         child: HomePreviewCard(
                                           controller: controller,
                                           previewSurface:
@@ -344,31 +346,28 @@ class LandscapeHomePage extends StatelessWidget {
                                         child: Row(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.stretch,
-                                          children: previewRowShortcuts
-                                              .map(
-                                                (
-                                                  _HomeShortcut shortcut,
-                                                ) => Expanded(
-                                                  child: Padding(
-                                                    padding: EdgeInsets.only(
-                                                      right:
-                                                          shortcut ==
-                                                              previewRowShortcuts
-                                                                  .last
-                                                          ? 0
-                                                          : gap,
-                                                    ),
-                                                    child: _ShortcutCard(
-                                                      shortcut: shortcut,
-                                                      onTap:
-                                                          _resolveShortcutAction(
-                                                            shortcut,
-                                                          ),
-                                                    ),
+                                          children: <Widget>[
+                                            for (
+                                              int index = 0;
+                                              index <
+                                                  previewRowShortcuts.length;
+                                              index++
+                                            ) ...<Widget>[
+                                              Expanded(
+                                                child: _ShortcutCard(
+                                                  shortcut:
+                                                      previewRowShortcuts[index],
+                                                  onTap: _resolveShortcutAction(
+                                                    previewRowShortcuts[index],
                                                   ),
                                                 ),
-                                              )
-                                              .toList(),
+                                              ),
+                                              if (index !=
+                                                  previewRowShortcuts.length -
+                                                      1)
+                                                SizedBox(width: gap),
+                                            ],
+                                          ],
                                         ),
                                       ),
                                     ],
