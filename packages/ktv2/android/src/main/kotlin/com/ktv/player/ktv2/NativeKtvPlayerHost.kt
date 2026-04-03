@@ -36,6 +36,8 @@ class NativeKtvPlayerHost(
         const val libVlcAudioChannelLeft = 3
         const val libVlcAudioChannelRight = 4
         const val lowLatencyCachingMs = 120
+        const val audioOutputSwitchApplyDelayMs = 30L
+        const val audioOutputSwitchMuteDurationMs = lowLatencyCachingMs.toLong()
         const val nativeSingleTrackRoutingEnabled = true
 
         val libVlcBridgeLoaded =
@@ -97,6 +99,10 @@ class NativeKtvPlayerHost(
     private var isApplyingAudioOutputMode = false
     private var hasPendingAudioOutputModeApply = false
     private var appliedSingleTrackAudioOutputMode: AudioOutputMode? = null
+    private var mutedForAudioOutputSwitch = false
+    private var volumeBeforeAudioOutputSwitchMute = 100
+    private var pendingAudioOutputModeApplyRunnable: Runnable? = null
+    private var pendingAudioOutputSwitchUnmuteRunnable: Runnable? = null
     private var pendingPlaybackRequest: PendingPlaybackRequest? = null
     private var pendingAttachStateListener: View.OnAttachStateChangeListener? = null
     private var pendingLayoutChangeListener: View.OnLayoutChangeListener? = null
@@ -182,7 +188,7 @@ class NativeKtvPlayerHost(
                     requestedAudioOutputMode = parseAudioOutputMode(call.argument("mode"))
                     playbackError = null
                     hasPendingAudioOutputModeApply = true
-                    applyRequestedAudioOutputModeIfPossible()
+                    requestAudioOutputModeApply()
                     result.success(snapshot())
                 }
                 "dispose" -> {
@@ -289,6 +295,9 @@ class NativeKtvPlayerHost(
 
     fun dispose() {
         mainHandler.removeCallbacks(positionUpdateRunnable)
+        cancelPendingAudioOutputModeApply()
+        cancelPendingAudioOutputSwitchUnmute()
+        restoreVolumeAfterAudioOutputSwitchMasking()
         eventChannel.setStreamHandler(null)
         methodChannel.setMethodCallHandler(null)
         clearPendingAttachStateListener()
@@ -531,6 +540,9 @@ class NativeKtvPlayerHost(
         shouldResume: Boolean,
     ) {
         ensurePlayablePath(path)
+        cancelPendingAudioOutputModeApply()
+        cancelPendingAudioOutputSwitchUnmute()
+        restoreVolumeAfterAudioOutputSwitchMasking()
         player.stop()
         lastKnownVoutCount = 0
         playbackCompleted = false
@@ -759,6 +771,7 @@ class NativeKtvPlayerHost(
                 selectedAudioTrackTitle = targetTrack.title
                 selectedAudioChannelCount = targetTrack.channelCount
                 hasPendingAudioOutputModeApply = false
+                scheduleVolumeRestoreAfterAudioOutputSwitchMasking()
                 return
             }
 
@@ -771,19 +784,24 @@ class NativeKtvPlayerHost(
                     playbackError = null
                     updateSelectedAudioTrackInfo()
                     hasPendingAudioOutputModeApply = false
+                    scheduleVolumeRestoreAfterAudioOutputSwitchMasking()
                     return
                 }
                 Log.w(tag, "single-track audio routing not applied for $mediaPath")
+                restoreVolumeAfterAudioOutputSwitchMasking()
                 return
             }
 
             if (player.instance == 0L || player.getMedia() == null) {
+                restoreVolumeAfterAudioOutputSwitchMasking()
                 return
             }
 
             Log.i(tag, "audio track metadata not ready for $mediaPath")
+            restoreVolumeAfterAudioOutputSwitchMasking()
         } catch (error: Exception) {
             playbackError = "${localizedModeName(requestedAudioOutputMode)}切换失败：${error.message ?: error}"
+            restoreVolumeAfterAudioOutputSwitchMasking()
             Log.e(tag, "applyRequestedAudioOutputMode failed", error)
         } finally {
             isApplyingAudioOutputMode = false
@@ -794,7 +812,26 @@ class NativeKtvPlayerHost(
         if (!hasPendingAudioOutputModeApply) {
             return
         }
+        if (pendingAudioOutputModeApplyRunnable != null) {
+            return
+        }
         applyRequestedAudioOutputModeIfPossible()
+    }
+
+    private fun requestAudioOutputModeApply() {
+        cancelPendingAudioOutputModeApply()
+        beginAudioOutputSwitchMasking()
+        if (!mutedForAudioOutputSwitch) {
+            applyRequestedAudioOutputModeIfPossible()
+            return
+        }
+        val runnable =
+            Runnable {
+                pendingAudioOutputModeApplyRunnable = null
+                applyRequestedAudioOutputModeIfPossible()
+            }
+        pendingAudioOutputModeApplyRunnable = runnable
+        mainHandler.postDelayed(runnable, audioOutputSwitchApplyDelayMs)
     }
 
     private fun applySingleTrackAudioChannelRouting(mode: AudioOutputMode): Boolean {
@@ -839,6 +876,65 @@ class NativeKtvPlayerHost(
         } finally {
             appliedSingleTrackAudioOutputMode = null
         }
+    }
+
+    private fun beginAudioOutputSwitchMasking() {
+        val player = playerOrNull ?: return
+        if (!player.isPlaying) {
+            return
+        }
+        cancelPendingAudioOutputSwitchUnmute()
+        val currentVolume = player.getVolume()
+        if (currentVolume <= 0) {
+            mutedForAudioOutputSwitch = false
+            return
+        }
+        volumeBeforeAudioOutputSwitchMute = currentVolume
+        if (player.setVolume(0) == 0) {
+            mutedForAudioOutputSwitch = true
+            Log.i(tag, "mute audio during output switch volume=$currentVolume")
+        }
+    }
+
+    private fun scheduleVolumeRestoreAfterAudioOutputSwitchMasking() {
+        if (!mutedForAudioOutputSwitch) {
+            return
+        }
+        cancelPendingAudioOutputSwitchUnmute()
+        val runnable =
+            Runnable {
+                pendingAudioOutputSwitchUnmuteRunnable = null
+                restoreVolumeAfterAudioOutputSwitchMasking()
+            }
+        pendingAudioOutputSwitchUnmuteRunnable = runnable
+        mainHandler.postDelayed(runnable, audioOutputSwitchMuteDurationMs)
+    }
+
+    private fun cancelPendingAudioOutputSwitchUnmute() {
+        pendingAudioOutputSwitchUnmuteRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            pendingAudioOutputSwitchUnmuteRunnable = null
+        }
+    }
+
+    private fun cancelPendingAudioOutputModeApply() {
+        pendingAudioOutputModeApplyRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            pendingAudioOutputModeApplyRunnable = null
+        }
+    }
+
+    private fun restoreVolumeAfterAudioOutputSwitchMasking() {
+        if (!mutedForAudioOutputSwitch) {
+            return
+        }
+        val player = playerOrNull
+        mutedForAudioOutputSwitch = false
+        if (player == null || player.instance == 0L) {
+            return
+        }
+        player.setVolume(volumeBeforeAudioOutputSwitchMute)
+        Log.i(tag, "restore audio after output switch volume=$volumeBeforeAudioOutputSwitchMute")
     }
 
     private val currentPositionMs: Long
