@@ -4,8 +4,10 @@ import 'package:ktv2/ktv2.dart';
 import 'package:ktv2_example/core/models/artist.dart';
 import 'package:ktv2_example/core/models/artist_page.dart';
 import 'package:ktv2_example/core/models/song.dart';
+import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/core/models/song_page.dart';
 import 'package:ktv2_example/features/ktv/application/ktv_controller.dart';
+import 'package:ktv2_example/features/media_library/data/aggregated_library_repository.dart';
 import 'package:ktv2_example/features/media_library/data/media_library_repository.dart';
 
 void main() {
@@ -59,7 +61,7 @@ void main() {
     expect(controller.librarySongs, hasLength(1));
     await _settleLibraryQuery();
     expect(repository.scanLibraryCallCount, 1);
-    expect(controller.currentSubtitle, contains('已从扫描目录加载 1 首歌曲'));
+    expect(controller.currentSubtitle, contains('已从本地目录加载 1 首歌曲'));
   });
 
   test(
@@ -162,10 +164,10 @@ void main() {
 
       expect(controller.songBookMode, SongBookMode.songs);
       expect(controller.selectedArtist, '周杰伦');
-      expect(controller.librarySongs.map((Song song) => song.title), <String>[
-        '青花瓷',
-        '夜曲',
-      ]);
+      expect(
+        controller.librarySongs.map((Song song) => song.title),
+        containsAll(<String>['青花瓷', '夜曲']),
+      );
     },
   );
 
@@ -241,6 +243,36 @@ void main() {
     expect(await controller.navigateBack(), isTrue);
     expect(controller.route, KtvRoute.home);
     expect(controller.breadcrumbLabel, '‹ 主页');
+  });
+
+  test('aggregated song book can load without local directory', () async {
+    final Song remoteSong = Song(
+      songId: buildAggregateSongId(title: '远程歌曲', artist: '云端歌手'),
+      sourceId: '115',
+      sourceSongId: '115-song-1',
+      title: '远程歌曲',
+      artist: '云端歌手',
+      languages: const <String>['国语'],
+      searchIndex: '远程歌曲 云端歌手',
+      mediaPath: '115://remote-song',
+    );
+    final KtvController controller = KtvController(
+      mediaLibraryRepository: FakeMediaLibraryRepository(),
+      aggregatedLibraryRepository: FakeAggregatedLibraryRepository(
+        songs: <Song>[remoteSong],
+      ),
+      playerController: FakePlayerController(),
+    );
+
+    controller.enterSongBook(mode: SongBookMode.songs);
+    await _settleLibraryQuery();
+
+    expect(controller.scanDirectoryPath, isNull);
+    expect(controller.songBookMode, SongBookMode.songs);
+    expect(controller.libraryScope, LibraryScope.aggregated);
+    expect(controller.librarySongs, <Song>[remoteSong]);
+    expect(controller.libraryTotalCount, 1);
+    expect(controller.currentSubtitle, contains('聚合曲库'));
   });
 
   test(
@@ -348,6 +380,13 @@ Song _song({
   String? mediaPath,
 }) {
   return Song(
+    songId: buildAggregateSongId(title: title, artist: artist),
+    sourceId: 'local',
+    sourceSongId: buildLocalSourceSongId(
+      fingerprint: buildLocalMetadataFingerprint(
+        locator: mediaPath ?? '/tmp/$title.mp4',
+      ),
+    ),
     title: title,
     artist: artist,
     languages: <String>[language],
@@ -499,6 +538,232 @@ class FakeMediaLibraryRepository extends MediaLibraryRepository {
       pageIndex: pageIndex,
       pageSize: pageSize,
     );
+  }
+
+  @override
+  Future<List<Song>> loadAllSongs({required String directory}) async {
+    return List<Song>.of(
+      _indexedResults[directory] ?? _scanResults[directory] ?? const <Song>[],
+    );
+  }
+
+  @override
+  Future<List<Song>> getSongsByIds({
+    required String directory,
+    required List<String> songIds,
+  }) async {
+    final Map<String, Song> songsById = <String, Song>{
+      for (final Song song in await loadAllSongs(directory: directory))
+        song.songId: song,
+    };
+    return songIds
+        .map((String songId) => songsById[songId])
+        .whereType<Song>()
+        .toList(growable: false);
+  }
+
+  @override
+  Future<Song?> getSongById({
+    required String directory,
+    required String songId,
+  }) async {
+    final List<Song> songs = await getSongsByIds(
+      directory: directory,
+      songIds: <String>[songId],
+    );
+    if (songs.isEmpty) {
+      return null;
+    }
+    return songs.first;
+  }
+
+  @override
+  Future<List<Song>> loadAggregatedSongs({String? localDirectory}) async {
+    if (localDirectory == null) {
+      return const <Song>[];
+    }
+    return loadAllSongs(directory: localDirectory);
+  }
+
+  @override
+  Future<SongPage> queryAggregatedSongs({
+    required int pageIndex,
+    required int pageSize,
+    String? localDirectory,
+    String? language,
+    String? artist,
+    String searchQuery = '',
+  }) async {
+    if (localDirectory == null) {
+      return SongPage(
+        songs: const <Song>[],
+        totalCount: 0,
+        pageIndex: pageIndex,
+        pageSize: pageSize,
+      );
+    }
+    return querySongs(
+      directory: localDirectory,
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+    );
+  }
+
+  @override
+  Future<ArtistPage> queryAggregatedArtists({
+    required int pageIndex,
+    required int pageSize,
+    String? localDirectory,
+    String? language,
+    String searchQuery = '',
+  }) async {
+    if (localDirectory == null) {
+      return ArtistPage(
+        artists: const <Artist>[],
+        totalCount: 0,
+        pageIndex: pageIndex,
+        pageSize: pageSize,
+      );
+    }
+    return queryArtists(
+      directory: localDirectory,
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+      language: language,
+      searchQuery: searchQuery,
+    );
+  }
+
+  @override
+  Future<List<Song>> getAggregatedSongsByIds({
+    required List<String> songIds,
+    String? localDirectory,
+  }) async {
+    if (localDirectory == null) {
+      return const <Song>[];
+    }
+    return getSongsByIds(directory: localDirectory, songIds: songIds);
+  }
+
+  @override
+  Future<Song?> getAggregatedSongById({
+    required String songId,
+    String? localDirectory,
+  }) async {
+    if (localDirectory == null) {
+      return null;
+    }
+    return getSongById(directory: localDirectory, songId: songId);
+  }
+}
+
+class FakeAggregatedLibraryRepository implements AggregatedLibraryRepository {
+  FakeAggregatedLibraryRepository({required this.songs});
+
+  final List<Song> songs;
+
+  @override
+  Future<void> refreshSources({String? localDirectory}) async {}
+
+  @override
+  Future<SongPage> querySongs({
+    required LibraryScope scope,
+    required int pageIndex,
+    required int pageSize,
+    String? localDirectory,
+    String? language,
+    String? artist,
+    String searchQuery = '',
+  }) async {
+    final int start = pageIndex * pageSize;
+    final int end = (start + pageSize).clamp(0, songs.length);
+    return SongPage(
+      songs: start >= songs.length ? const <Song>[] : songs.sublist(start, end),
+      totalCount: songs.length,
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+    );
+  }
+
+  @override
+  Future<ArtistPage> queryArtists({
+    required LibraryScope scope,
+    required int pageIndex,
+    required int pageSize,
+    String? localDirectory,
+    String? language,
+    String searchQuery = '',
+  }) async {
+    final Map<String, int> songCountByArtist = <String, int>{};
+    for (final Song song in songs) {
+      songCountByArtist.update(
+        song.artist,
+        (int count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    final List<Artist> artists = songCountByArtist.entries
+        .map(
+          (MapEntry<String, int> entry) => Artist(
+            name: entry.key,
+            songCount: entry.value,
+            searchIndex: entry.key.toLowerCase(),
+          ),
+        )
+        .toList(growable: false);
+    final int start = pageIndex * pageSize;
+    final int end = (start + pageSize).clamp(0, artists.length);
+    return ArtistPage(
+      artists: start >= artists.length
+          ? const <Artist>[]
+          : artists.sublist(start, end),
+      totalCount: artists.length,
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+    );
+  }
+
+  @override
+  Future<List<Song>> getSongsByIds({
+    required List<String> songIds,
+    String? localDirectory,
+  }) async {
+    final Map<String, Song> songsById = <String, Song>{
+      for (final Song song in songs) song.songId: song,
+    };
+    return songIds
+        .map((String songId) => songsById[songId])
+        .whereType<Song>()
+        .toList(growable: false);
+  }
+
+  @override
+  Future<Song?> getSongById({
+    required String songId,
+    String? localDirectory,
+  }) async {
+    final List<Song> results = await getSongsByIds(
+      songIds: <String>[songId],
+      localDirectory: localDirectory,
+    );
+    if (results.isEmpty) {
+      return null;
+    }
+    return results.first;
+  }
+
+  @override
+  Future<String?> resolvePlayableMediaPath({
+    required String songId,
+    String? localDirectory,
+  }) async {
+    return (await getSongById(
+      songId: songId,
+      localDirectory: localDirectory,
+    ))?.mediaPath;
   }
 }
 

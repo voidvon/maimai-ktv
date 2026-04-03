@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../core/models/artist.dart';
 import '../../../core/models/artist_page.dart';
 import '../../../core/models/song.dart';
+import '../../../core/models/song_identity.dart';
 import '../../../core/models/song_page.dart';
 
 class AndroidStorageDataSource {
@@ -146,9 +147,18 @@ class AndroidStorageDataSource {
           final Map<Object?, Object?> map = Map<Object?, Object?>.from(item);
           final List<String> languages = _parseStringList(map['languages']);
           final List<String> tags = _parseStringList(map['tags']);
+          final String title = (map['title'] as String?) ?? '未知歌曲';
+          final String artist = (map['artist'] as String?) ?? '未识别歌手';
           return Song(
-            title: (map['title'] as String?) ?? '未知歌曲',
-            artist: (map['artist'] as String?) ?? '未识别歌手',
+            songId: buildAggregateSongId(title: title, artist: artist),
+            sourceId: 'local',
+            sourceSongId: buildLocalSourceSongId(
+              fingerprint: buildLocalMetadataFingerprint(
+                locator: (map['mediaPath'] as String?) ?? '$artist/$title',
+              ),
+            ),
+            title: title,
+            artist: artist,
             languages: languages.isEmpty
                 ? <String>[(map['language'] as String?) ?? '其它']
                 : languages,

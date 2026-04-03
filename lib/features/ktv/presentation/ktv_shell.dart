@@ -114,7 +114,10 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
   }
 
   void _handleBackToSongBookFromFullscreen() {
-    _controller.enterSongBook(mode: _controller.songBookMode);
+    _controller.enterSongBook(
+      mode: _controller.songBookMode,
+      scope: _controller.libraryScope,
+    );
     _exitPreviewFullscreen();
   }
 
@@ -126,24 +129,44 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
     unawaited(_controller.skipCurrentSong());
   }
 
-  void _enterSongBook() {
+  void _enterAllSongsBook() {
     _searchCoordinator.clear();
-    _controller.enterSongBook(mode: SongBookMode.songs);
+    _controller.enterSongBook(
+      mode: SongBookMode.songs,
+      scope: LibraryScope.aggregated,
+    );
+  }
+
+  void _enterLocalSongBook() {
+    _searchCoordinator.clear();
+    _controller.enterSongBook(
+      mode: SongBookMode.songs,
+      scope: LibraryScope.localOnly,
+    );
   }
 
   void _enterFavoritesBook() {
     _searchCoordinator.clear();
-    _controller.enterSongBook(mode: SongBookMode.favorites);
+    _controller.enterSongBook(
+      mode: SongBookMode.favorites,
+      scope: LibraryScope.aggregated,
+    );
   }
 
   void _enterFrequentBook() {
     _searchCoordinator.clear();
-    _controller.enterSongBook(mode: SongBookMode.frequent);
+    _controller.enterSongBook(
+      mode: SongBookMode.frequent,
+      scope: LibraryScope.aggregated,
+    );
   }
 
   void _enterArtistBook() {
     _searchCoordinator.clear();
-    _controller.enterSongBook(mode: SongBookMode.artists);
+    _controller.enterSongBook(
+      mode: SongBookMode.artists,
+      scope: LibraryScope.aggregated,
+    );
   }
 
   void _enterQueueList() {
@@ -198,6 +221,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       navigation: SongBookNavigationViewModel(
         route: _controller.route,
         songBookMode: _controller.songBookMode,
+        libraryScope: _controller.libraryScope,
         selectedArtist: _controller.selectedArtist,
         breadcrumbLabel: _controller.breadcrumbLabel,
       ),
@@ -206,12 +230,14 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         selectedLanguage: _controller.selectedLanguage,
         songs: _controller.filteredSongs,
         artists: _controller.libraryArtists,
-        favoriteSongPaths: _controller.favoriteSongPaths,
+        favoriteSongIds: _controller.favoriteSongIds,
         totalCount: _controller.libraryTotalCount,
         pageIndex: _controller.libraryPageIndex,
         totalPages: _controller.libraryTotalPages,
         pageSize: _controller.libraryPageSize,
         hasConfiguredDirectory: _controller.hasConfiguredDirectory,
+        hasConfiguredAggregatedSources:
+            _controller.hasConfiguredAggregatedSources,
         isScanning: _controller.isScanningLibrary,
         isLoadingPage: _controller.isLoadingLibraryPage,
         scanErrorMessage: _controller.libraryScanErrorMessage,
@@ -267,7 +293,8 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       controller: _controller.playerController,
       queueCount: _controller.queuedSongs.length,
       previewAnchorKey: _previewCoordinator.previewAnchorKey,
-      onEnterSongBook: _enterSongBook,
+      onEnterAllSongsBook: _enterAllSongsBook,
+      onEnterLocalSongBook: _enterLocalSongBook,
       onEnterFavoritesBook: _enterFavoritesBook,
       onEnterFrequentBook: _enterFrequentBook,
       onEnterArtistBook: _enterArtistBook,
@@ -344,7 +371,8 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
             controller: _controller.playerController,
             compact: true,
             queueCount: _controller.queuedSongs.length,
-            onEnterSongBook: _enterSongBook,
+            onEnterAllSongsBook: _enterAllSongsBook,
+            onEnterLocalSongBook: _enterLocalSongBook,
             onEnterFavoritesBook: _enterFavoritesBook,
             onEnterFrequentBook: _enterFrequentBook,
             onEnterArtistBook: _enterArtistBook,

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/core/models/song.dart';
 import 'package:ktv2_example/features/ktv/application/ktv_controller.dart';
 
@@ -8,8 +9,15 @@ void main() {
       searchQuery: 'jay',
       scanDirectoryPath: '/music',
       libraryTotalCount: 8,
-      libraryPageSongs: const <Song>[
+      libraryPageSongs: <Song>[
         Song(
+          songId: buildAggregateSongId(title: '夜曲', artist: '周杰伦'),
+          sourceId: 'local',
+          sourceSongId: buildLocalSourceSongId(
+            fingerprint: buildLocalMetadataFingerprint(
+              locator: '/music/yequ.mp4',
+            ),
+          ),
           title: '夜曲',
           artist: '周杰伦',
           languages: <String>['国语'],
@@ -17,8 +25,15 @@ void main() {
           mediaPath: '/music/yequ.mp4',
         ),
       ],
-      queuedSongs: const <Song>[
+      queuedSongs: <Song>[
         Song(
+          songId: buildAggregateSongId(title: '青花瓷', artist: '周杰伦'),
+          sourceId: 'local',
+          sourceSongId: buildLocalSourceSongId(
+            fingerprint: buildLocalMetadataFingerprint(
+              locator: '/music/qinghuaci.mp4',
+            ),
+          ),
           title: '青花瓷',
           artist: '周杰伦',
           languages: <String>['国语'],

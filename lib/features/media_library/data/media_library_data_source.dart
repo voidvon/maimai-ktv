@@ -1,10 +1,19 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:lpinyin/lpinyin.dart';
+import 'package:path/path.dart' as path;
 import 'package:ktv2_example/core/media/supported_video_formats.dart';
 
+import '../../../core/models/song_identity.dart';
+import 'media_index_store.dart';
+
 class MediaLibraryDataSource {
-  Future<List<LibrarySong>> scanLibrary(String rootPath) async {
+  Future<List<LibrarySong>> scanLibrary(
+    String rootPath, {
+    Map<String, CachedLocalSongFingerprint> cachedFingerprintsByPath =
+        const <String, CachedLocalSongFingerprint>{},
+  }) async {
     final Directory directory = Directory(rootPath);
     if (!await directory.exists()) {
       throw FileSystemException('媒体库目录不存在', rootPath);
@@ -33,6 +42,8 @@ class MediaLibraryDataSource {
           continue;
         }
 
+        final FileStat stat = await entity.stat();
+
         final String fileName = _extractFileName(entity.path);
         final String extension = extractVideoExtension(fileName);
         if (!supportedVideoExtensionSet.contains(extension)) {
@@ -40,12 +51,28 @@ class MediaLibraryDataSource {
         }
 
         final _ParsedName metadata = _parseFileName(fileName);
+        final String relativePathValue = path.relative(
+          entity.path,
+          from: rootPath,
+        );
+        final CachedLocalSongFingerprint? cachedFingerprint =
+            cachedFingerprintsByPath[entity.path] ??
+            cachedFingerprintsByPath[relativePathValue];
+        final String sourceFingerprint = await _buildLocalSourceFingerprint(
+          entity,
+          stat,
+          cachedFingerprint: cachedFingerprint,
+        );
         songs.add(
           LibrarySong(
             title: metadata.title,
             artist: metadata.artist,
             mediaPath: entity.path,
             fileName: fileName,
+            relativePath: relativePathValue,
+            fileSize: stat.size,
+            modifiedAtMillis: stat.modified.millisecondsSinceEpoch,
+            sourceFingerprint: sourceFingerprint,
             extension: extension,
           ),
         );
@@ -93,6 +120,58 @@ class MediaLibraryDataSource {
 
     return _ParsedName(title: baseName.trim(), artist: '未识别歌手');
   }
+
+  Future<String> _buildLocalSourceFingerprint(
+    File file,
+    FileStat stat, {
+    CachedLocalSongFingerprint? cachedFingerprint,
+  }) async {
+    if (cachedFingerprint != null &&
+        cachedFingerprint.matches(
+          nextFileSize: stat.size,
+          nextModifiedAtMillis: stat.modified.millisecondsSinceEpoch,
+        ) &&
+        cachedFingerprint.sourceFingerprint.trim().isNotEmpty) {
+      return cachedFingerprint.sourceFingerprint;
+    }
+    try {
+      const int chunkSize = 64 * 1024;
+      final int fileSize = stat.size;
+      final RandomAccessFile randomAccessFile = await file.open();
+      try {
+        final List<List<int>> chunks = <List<int>>[
+          utf8.encode('v1:$fileSize:'),
+        ];
+        final int headSize = fileSize < chunkSize ? fileSize : chunkSize;
+        if (headSize > 0) {
+          chunks.add(await randomAccessFile.read(headSize));
+        }
+        if (fileSize > chunkSize) {
+          final int tailSize = fileSize <= chunkSize * 2
+              ? fileSize - headSize
+              : chunkSize;
+          if (tailSize > 0) {
+            await randomAccessFile.setPosition(fileSize - tailSize);
+            chunks.add(await randomAccessFile.read(tailSize));
+          }
+        }
+        final int hashValue = _computeFnv1a64(chunks);
+        final String hashText = hashValue
+            .toUnsigned(64)
+            .toRadixString(16)
+            .padLeft(16, '0');
+        return 'content:$fileSize:$hashText';
+      } finally {
+        await randomAccessFile.close();
+      }
+    } on FileSystemException {
+      return buildLocalMetadataFingerprint(
+        locator: file.path,
+        fileSize: stat.size,
+        modifiedAtMillis: stat.modified.millisecondsSinceEpoch,
+      );
+    }
+  }
 }
 
 class LibrarySong {
@@ -101,6 +180,10 @@ class LibrarySong {
     required this.artist,
     required this.mediaPath,
     required this.fileName,
+    required this.relativePath,
+    required this.fileSize,
+    required this.modifiedAtMillis,
+    required this.sourceFingerprint,
     required this.extension,
   });
 
@@ -108,7 +191,14 @@ class LibrarySong {
   final String artist;
   final String mediaPath;
   final String fileName;
+  final String relativePath;
+  final int fileSize;
+  final int modifiedAtMillis;
+  final String sourceFingerprint;
   final String extension;
+
+  String get sourceSongId =>
+      buildLocalSourceSongId(fingerprint: sourceFingerprint);
 
   List<String> get languages => const <String>['其它'];
 
@@ -122,6 +212,20 @@ class LibrarySong {
     final String artistInitials = _buildPinyinInitials(artist);
     return '$raw $titleInitials $artistInitials'.trim();
   }
+}
+
+int _computeFnv1a64(Iterable<List<int>> chunks) {
+  const int offsetBasis = 0xcbf29ce484222325;
+  const int prime = 0x100000001b3;
+  const int mask = 0xffffffffffffffff;
+  int hash = offsetBasis;
+  for (final List<int> chunk in chunks) {
+    for (final int byte in chunk) {
+      hash ^= byte & 0xff;
+      hash = (hash * prime) & mask;
+    }
+  }
+  return hash;
 }
 
 String _buildPinyinInitials(String source) {

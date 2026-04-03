@@ -14,6 +14,7 @@ void main() {
     expect(
       history.enterQueueList(
         songBookMode: history.current.songBookMode,
+        libraryScope: history.current.libraryScope,
         selectedArtist: history.current.selectedArtist,
       ),
       isTrue,

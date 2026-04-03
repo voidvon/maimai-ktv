@@ -326,7 +326,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
         !isQueueRoute &&
         _navigation.songBookMode == SongBookMode.artists &&
         _navigation.selectedArtist == null;
-    final Set<String> favoriteMediaPaths = _library.favoriteSongPaths.toSet();
+    final Set<String> favoriteSongIds = _library.favoriteSongIds.toSet();
     final int crossAxisCount = isArtistOverview
         ? _resolveArtistCrossAxisCount(media, isLandscape: isLandscape)
         : _resolveCrossAxisCount(media);
@@ -372,7 +372,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                 _playback.queuedSongs.isNotEmpty &&
                 _playback.queuedSongs.first == song;
             final bool isQueued = _playback.queuedSongs.contains(song);
-            final bool isFavorite = favoriteMediaPaths.contains(song.mediaPath);
+            final bool isFavorite = favoriteSongIds.contains(song.songId);
             return SongTile(
               song: song,
               isCurrent: isCurrent,
@@ -423,14 +423,26 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
 
     Widget buildLibraryContent(int rowsPerPage, {required double tileHeight}) {
       final int itemsPerPage = crossAxisCount * rowsPerPage;
-      if (!_library.hasConfiguredDirectory) {
-        return const EmptyContentCard(message: '请先在设置里选择扫描目录，扫描完成后这里会展示歌曲列表。');
+      final bool needsAggregatedSourceConfiguration =
+          _navigation.libraryScope == LibraryScope.aggregated &&
+          !_library.hasConfiguredAggregatedSources &&
+          _navigation.songBookMode != SongBookMode.favorites &&
+          _navigation.songBookMode != SongBookMode.frequent;
+      if (!_library.hasConfiguredDirectory &&
+          _navigation.libraryScope == LibraryScope.localOnly) {
+        return const EmptyContentCard(message: '请先在设置里配置本地目录，扫描完成后这里会展示歌曲列表。');
+      }
+      if (needsAggregatedSourceConfiguration &&
+          _library.songs.isEmpty &&
+          _library.artists.isEmpty &&
+          _library.scanErrorMessage == null) {
+        return const EmptyContentCard(message: '请先在设置里配置数据源，配置完成后这里会展示聚合曲库。');
       }
       _scheduleLibraryPageSizeSync(itemsPerPage);
       if (_library.isScanning &&
           _library.totalCount == 0 &&
           _library.songs.isEmpty) {
-        return const EmptyContentCard(message: '正在扫描目录中的歌曲，请稍候。');
+        return const EmptyContentCard(message: '正在扫描本地目录中的歌曲，请稍候。');
       }
       if (_library.isLoadingPage &&
           _library.totalCount == 0 &&

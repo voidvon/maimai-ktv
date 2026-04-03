@@ -1,7 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/models/song.dart';
-import '../../../core/models/song_page.dart';
 import 'song_profile_database.dart';
 
 class SongProfileRepository {
@@ -14,155 +13,191 @@ class SongProfileRepository {
 
   Future<void> close() => _database.close();
 
-  Future<bool> toggleFavorite({
-    required Song song,
-    required String directoryPath,
-  }) async {
-    final Database database = await _database.database;
-    return database.transaction((Transaction txn) async {
-      final Map<String, Object?> values = await _loadOrCreateRow(
-        txn,
-        song: song,
-        directoryPath: directoryPath,
-      );
-      final bool nextIsFavorite = !_readBool(
-        values[SongProfileDatabase.columnIsFavorite],
-      );
-      final int now = DateTime.now().millisecondsSinceEpoch;
-      values[SongProfileDatabase.columnIsFavorite] = nextIsFavorite ? 1 : 0;
-      values[SongProfileDatabase.columnFavoritedAt] = nextIsFavorite
-          ? now
-          : null;
-      values[SongProfileDatabase.columnUpdatedAt] = now;
-      await txn.insert(
-        SongProfileDatabase.tableName,
-        values,
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-      return nextIsFavorite;
-    });
+  Future<bool> toggleFavorite({required Song song}) async {
+    try {
+      final Database database = await _database.database;
+      return database.transaction((Transaction txn) async {
+        final Map<String, Object?> values = await _loadOrCreateRow(
+          txn,
+          song: song,
+        );
+        final bool nextIsFavorite = !_readBool(
+          values[SongProfileDatabase.columnIsFavorite],
+        );
+        final int now = DateTime.now().millisecondsSinceEpoch;
+        values[SongProfileDatabase.columnIsFavorite] = nextIsFavorite ? 1 : 0;
+        values[SongProfileDatabase.columnFavoritedAt] = nextIsFavorite
+            ? now
+            : null;
+        values[SongProfileDatabase.columnUpdatedAt] = now;
+        await txn.insert(
+          SongProfileDatabase.tableName,
+          values,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        return nextIsFavorite;
+      });
+    } catch (_) {
+      return false;
+    }
   }
 
-  Future<void> recordSongRequested({
-    required Song song,
-    required String directoryPath,
-  }) async {
-    final Database database = await _database.database;
-    await database.transaction((Transaction txn) async {
-      final Map<String, Object?> values = await _loadOrCreateRow(
-        txn,
-        song: song,
-        directoryPath: directoryPath,
-      );
-      final int now = DateTime.now().millisecondsSinceEpoch;
-      values[SongProfileDatabase.columnLastRequestedAt] = now;
-      values[SongProfileDatabase.columnUpdatedAt] = now;
-      await txn.insert(
-        SongProfileDatabase.tableName,
-        values,
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    });
+  Future<void> recordSongRequested({required Song song}) async {
+    try {
+      final Database database = await _database.database;
+      await database.transaction((Transaction txn) async {
+        final Map<String, Object?> values = await _loadOrCreateRow(
+          txn,
+          song: song,
+        );
+        final int now = DateTime.now().millisecondsSinceEpoch;
+        values[SongProfileDatabase.columnLastRequestedAt] = now;
+        values[SongProfileDatabase.columnUpdatedAt] = now;
+        await txn.insert(
+          SongProfileDatabase.tableName,
+          values,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      });
+    } catch (_) {
+      return;
+    }
   }
 
-  Future<void> recordSongStarted({
-    required Song song,
-    required String directoryPath,
-  }) async {
-    final Database database = await _database.database;
-    await database.transaction((Transaction txn) async {
-      final Map<String, Object?> values = await _loadOrCreateRow(
-        txn,
-        song: song,
-        directoryPath: directoryPath,
-      );
-      final int now = DateTime.now().millisecondsSinceEpoch;
-      values[SongProfileDatabase.columnPlayCount] =
-          _readInt(values[SongProfileDatabase.columnPlayCount]) + 1;
-      values[SongProfileDatabase.columnLastPlayedAt] = now;
-      values[SongProfileDatabase.columnUpdatedAt] = now;
-      await txn.insert(
-        SongProfileDatabase.tableName,
-        values,
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    });
+  Future<void> recordSongStarted({required Song song}) async {
+    try {
+      final Database database = await _database.database;
+      await database.transaction((Transaction txn) async {
+        final Map<String, Object?> values = await _loadOrCreateRow(
+          txn,
+          song: song,
+        );
+        final int now = DateTime.now().millisecondsSinceEpoch;
+        values[SongProfileDatabase.columnPlayCount] =
+            _readInt(values[SongProfileDatabase.columnPlayCount]) + 1;
+        values[SongProfileDatabase.columnLastPlayedAt] = now;
+        values[SongProfileDatabase.columnUpdatedAt] = now;
+        await txn.insert(
+          SongProfileDatabase.tableName,
+          values,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      });
+    } catch (_) {
+      return;
+    }
   }
 
-  Future<Set<String>> loadFavoriteMediaPaths(Iterable<Song> songs) async {
-    final List<String> mediaPaths = songs
-        .map((Song song) => song.mediaPath)
-        .where((String mediaPath) => mediaPath.isNotEmpty)
+  Future<Set<String>> loadFavoriteSongIds(Iterable<String> songIds) async {
+    final List<String> normalizedSongIds = songIds
+        .map((String songId) => songId.trim())
+        .where((String songId) => songId.isNotEmpty)
         .toList(growable: false);
-    if (mediaPaths.isEmpty) {
+    if (normalizedSongIds.isEmpty) {
       return <String>{};
     }
 
-    final Database database = await _database.database;
-    final String placeholders = List<String>.filled(
-      mediaPaths.length,
-      '?',
-    ).join(', ');
-    final List<Map<String, Object?>> rows = await database.rawQuery('''
-      SELECT ${SongProfileDatabase.columnMediaPath}
-      FROM ${SongProfileDatabase.tableName}
-      WHERE ${SongProfileDatabase.columnMediaPath} IN ($placeholders)
-        AND ${SongProfileDatabase.columnIsFavorite} = 1
-      ''', mediaPaths);
-    return rows
-        .map(
-          (Map<String, Object?> row) =>
-              row[SongProfileDatabase.columnMediaPath]?.toString() ?? '',
-        )
-        .where((String mediaPath) => mediaPath.isNotEmpty)
-        .toSet();
+    try {
+      final Database database = await _database.database;
+      final String placeholders = List<String>.filled(
+        normalizedSongIds.length,
+        '?',
+      ).join(', ');
+      final List<Map<String, Object?>> rows = await database.rawQuery('''
+        SELECT ${SongProfileDatabase.columnSongId}
+        FROM ${SongProfileDatabase.tableName}
+        WHERE ${SongProfileDatabase.columnSongId} IN ($placeholders)
+          AND ${SongProfileDatabase.columnIsFavorite} = 1
+        ''', normalizedSongIds);
+      return rows
+          .map(
+            (Map<String, Object?> row) =>
+                row[SongProfileDatabase.columnSongId]?.toString() ?? '',
+          )
+          .where((String songId) => songId.isNotEmpty)
+          .toSet();
+    } catch (_) {
+      return <String>{};
+    }
   }
 
-  Future<SongPage> queryFavoriteSongs({
-    required String directory,
+  Future<List<String>> queryFavoriteSongIds({
     required int pageIndex,
     required int pageSize,
     String? language,
     String? artist,
     String searchQuery = '',
   }) {
-    return _querySongs(
-      pageIndex: pageIndex,
-      pageSize: pageSize,
-      language: language,
-      artist: artist,
-      searchQuery: searchQuery,
-      whereClause:
-          '${SongProfileDatabase.columnDirectoryPath} = ? AND ${SongProfileDatabase.columnIsFavorite} = 1',
-      whereArgs: <Object?>[directory],
-      orderBy:
-          '${SongProfileDatabase.columnFavoritedAt} DESC, ${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+    return _guardListResult(
+      () => _querySongIds(
+        pageIndex: pageIndex,
+        pageSize: pageSize,
+        language: language,
+        artist: artist,
+        searchQuery: searchQuery,
+        whereClause: '${SongProfileDatabase.columnIsFavorite} = 1',
+        whereArgs: const <Object?>[],
+        orderBy:
+            '${SongProfileDatabase.columnFavoritedAt} DESC, ${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+      ),
     );
   }
 
-  Future<SongPage> queryFrequentSongs({
-    required String directory,
+  Future<int> countFavoriteSongs({
+    String? language,
+    String? artist,
+    String searchQuery = '',
+  }) {
+    return _guardCountResult(
+      () => _countSongs(
+        language: language,
+        artist: artist,
+        searchQuery: searchQuery,
+        whereClause: '${SongProfileDatabase.columnIsFavorite} = 1',
+        whereArgs: const <Object?>[],
+      ),
+    );
+  }
+
+  Future<List<String>> queryFrequentSongIds({
     required int pageIndex,
     required int pageSize,
     String? language,
     String? artist,
     String searchQuery = '',
   }) {
-    return _querySongs(
-      pageIndex: pageIndex,
-      pageSize: pageSize,
-      language: language,
-      artist: artist,
-      searchQuery: searchQuery,
-      whereClause:
-          '${SongProfileDatabase.columnDirectoryPath} = ? AND ${SongProfileDatabase.columnPlayCount} > 0',
-      whereArgs: <Object?>[directory],
-      orderBy:
-          '${SongProfileDatabase.columnPlayCount} DESC, ${SongProfileDatabase.columnLastPlayedAt} DESC, ${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+    return _guardListResult(
+      () => _querySongIds(
+        pageIndex: pageIndex,
+        pageSize: pageSize,
+        language: language,
+        artist: artist,
+        searchQuery: searchQuery,
+        whereClause: '${SongProfileDatabase.columnPlayCount} > 0',
+        whereArgs: const <Object?>[],
+        orderBy:
+            '${SongProfileDatabase.columnPlayCount} DESC, ${SongProfileDatabase.columnLastPlayedAt} DESC, ${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+      ),
     );
   }
 
-  Future<SongPage> _querySongs({
+  Future<int> countFrequentSongs({
+    String? language,
+    String? artist,
+    String searchQuery = '',
+  }) {
+    return _guardCountResult(
+      () => _countSongs(
+        language: language,
+        artist: artist,
+        searchQuery: searchQuery,
+        whereClause: '${SongProfileDatabase.columnPlayCount} > 0',
+        whereArgs: const <Object?>[],
+      ),
+    );
+  }
+
+  Future<List<String>> _querySongIds({
     required int pageIndex,
     required int pageSize,
     required String? language,
@@ -172,8 +207,57 @@ class SongProfileRepository {
     required List<Object?> whereArgs,
     required String orderBy,
   }) async {
+    final List<Map<String, Object?>> rows = await _loadFilteredRows(
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+      whereClause: whereClause,
+      whereArgs: whereArgs,
+      orderBy: orderBy,
+    );
     final int normalizedPageIndex = pageIndex < 0 ? 0 : pageIndex;
     final int normalizedPageSize = pageSize <= 0 ? 1 : pageSize;
+    final int start = normalizedPageIndex * normalizedPageSize;
+    final int end = (start + normalizedPageSize).clamp(0, rows.length);
+    final List<Map<String, Object?>> pageRows = start >= rows.length
+        ? const <Map<String, Object?>>[]
+        : rows.sublist(start, end);
+    return pageRows
+        .map(
+          (Map<String, Object?> row) =>
+              row[SongProfileDatabase.columnSongId]?.toString() ?? '',
+        )
+        .where((String songId) => songId.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<int> _countSongs({
+    required String? language,
+    required String? artist,
+    required String searchQuery,
+    required String whereClause,
+    required List<Object?> whereArgs,
+  }) async {
+    final List<Map<String, Object?>> rows = await _loadFilteredRows(
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+      whereClause: whereClause,
+      whereArgs: whereArgs,
+      orderBy:
+          '${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+    );
+    return rows.length;
+  }
+
+  Future<List<Map<String, Object?>>> _loadFilteredRows({
+    required String? language,
+    required String? artist,
+    required String searchQuery,
+    required String whereClause,
+    required List<Object?> whereArgs,
+    required String orderBy,
+  }) async {
     final String normalizedLanguage = (language ?? '').trim();
     final String normalizedArtist = (artist ?? '').trim();
     final String normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -184,13 +268,9 @@ class SongProfileRepository {
       whereArgs: whereArgs,
       orderBy: orderBy,
     );
-
-    final List<Song> filteredSongs = rows
-        .map(_mapRowToSong)
-        .where((Song song) {
-          if (song.mediaPath.isEmpty) {
-            return false;
-          }
+    return rows
+        .where((Map<String, Object?> row) {
+          final Song song = _mapRowToSong(row);
           if (normalizedLanguage.isNotEmpty &&
               !song.languages.contains(normalizedLanguage)) {
             return false;
@@ -205,36 +285,25 @@ class SongProfileRepository {
           return song.searchIndex.contains(normalizedSearchQuery);
         })
         .toList(growable: false);
-
-    final int start = normalizedPageIndex * normalizedPageSize;
-    final int end = (start + normalizedPageSize).clamp(0, filteredSongs.length);
-    final List<Song> pageSongs = start >= filteredSongs.length
-        ? const <Song>[]
-        : filteredSongs.sublist(start, end);
-
-    return SongPage(
-      songs: pageSongs,
-      totalCount: filteredSongs.length,
-      pageIndex: normalizedPageIndex,
-      pageSize: normalizedPageSize,
-    );
   }
 
   Future<Map<String, Object?>> _loadOrCreateRow(
     DatabaseExecutor executor, {
     required Song song,
-    required String directoryPath,
   }) async {
     final List<Map<String, Object?>> rows = await executor.query(
       SongProfileDatabase.tableName,
-      where: '${SongProfileDatabase.columnMediaPath} = ?',
-      whereArgs: <Object?>[song.mediaPath],
+      where: '${SongProfileDatabase.columnSongId} = ?',
+      whereArgs: <Object?>[song.songId],
       limit: 1,
     );
     final int now = DateTime.now().millisecondsSinceEpoch;
     final Map<String, Object?> values = <String, Object?>{
+      SongProfileDatabase.columnSongId: song.songId,
+      SongProfileDatabase.columnSourceId: song.sourceId,
+      SongProfileDatabase.columnSourceSongId: song.sourceSongId,
       SongProfileDatabase.columnMediaPath: song.mediaPath,
-      SongProfileDatabase.columnDirectoryPath: directoryPath,
+      SongProfileDatabase.columnDirectoryPath: '',
       SongProfileDatabase.columnTitle: song.title,
       SongProfileDatabase.columnArtist: song.artist,
       SongProfileDatabase.columnLanguages: _encodeList(song.languages),
@@ -251,7 +320,10 @@ class SongProfileRepository {
       values.addAll(rows.first);
     }
     values.addAll(<String, Object?>{
-      SongProfileDatabase.columnDirectoryPath: directoryPath,
+      SongProfileDatabase.columnSongId: song.songId,
+      SongProfileDatabase.columnSourceId: song.sourceId,
+      SongProfileDatabase.columnSourceSongId: song.sourceSongId,
+      SongProfileDatabase.columnMediaPath: song.mediaPath,
       SongProfileDatabase.columnTitle: song.title,
       SongProfileDatabase.columnArtist: song.artist,
       SongProfileDatabase.columnLanguages: _encodeList(song.languages),
@@ -263,6 +335,16 @@ class SongProfileRepository {
 
   Song _mapRowToSong(Map<String, Object?> row) {
     return Song(
+      songId:
+          row[SongProfileDatabase.columnSongId]?.toString() ??
+          row[SongProfileDatabase.columnMediaPath]?.toString() ??
+          '',
+      sourceId: row[SongProfileDatabase.columnSourceId]?.toString() ?? 'local',
+      sourceSongId:
+          row[SongProfileDatabase.columnSourceSongId]?.toString() ??
+          row[SongProfileDatabase.columnMediaPath]?.toString() ??
+          row[SongProfileDatabase.columnSongId]?.toString() ??
+          '',
       title: row[SongProfileDatabase.columnTitle]?.toString() ?? '未知歌曲',
       artist: row[SongProfileDatabase.columnArtist]?.toString() ?? '未识别歌手',
       languages: _decodeList(row[SongProfileDatabase.columnLanguages]),
@@ -297,6 +379,24 @@ class SongProfileRepository {
   }
 
   bool _readBool(Object? rawValue) => _readInt(rawValue) != 0;
+
+  Future<List<String>> _guardListResult(
+    Future<List<String>> Function() action,
+  ) async {
+    try {
+      return await action();
+    } catch (_) {
+      return const <String>[];
+    }
+  }
+
+  Future<int> _guardCountResult(Future<int> Function() action) async {
+    try {
+      return await action();
+    } catch (_) {
+      return 0;
+    }
+  }
 
   List<String> _extractArtistNames(String artistDisplayName) {
     final List<String> artists = artistDisplayName

@@ -16,6 +16,8 @@ const List<_HomeShortcut> _homeShortcuts = <_HomeShortcut>[
     label: '歌名',
     icon: Icons.music_note_rounded,
     colors: <Color>[Color(0xFFFFD36A), Color(0xFFFFB245), Color(0xFFFF9566)],
+    enabled: true,
+    action: _HomeShortcutAction.songs,
   ),
   _HomeShortcut(
     label: '歌星',
@@ -52,7 +54,8 @@ class HomePage extends StatelessWidget {
     super.key,
     required this.controller,
     required this.queueCount,
-    required this.onEnterSongBook,
+    required this.onEnterAllSongsBook,
+    required this.onEnterLocalSongBook,
     required this.onEnterFavoritesBook,
     required this.onEnterFrequentBook,
     required this.onEnterArtistBook,
@@ -66,7 +69,8 @@ class HomePage extends StatelessWidget {
 
   final PlayerController controller;
   final int queueCount;
-  final VoidCallback onEnterSongBook;
+  final VoidCallback onEnterAllSongsBook;
+  final VoidCallback onEnterLocalSongBook;
   final VoidCallback onEnterFavoritesBook;
   final VoidCallback onEnterFrequentBook;
   final VoidCallback onEnterArtistBook;
@@ -88,7 +92,8 @@ class HomePage extends StatelessWidget {
         final bool shouldScroll =
             constraints.maxHeight < (shouldUseCompactLayout ? 360 : 300);
         final Widget shortcutGrid = _HomeShortcutGrid(
-          onEnterSongBook: onEnterSongBook,
+          onEnterAllSongsBook: onEnterAllSongsBook,
+          onEnterLocalSongBook: onEnterLocalSongBook,
           onEnterFavoritesBook: onEnterFavoritesBook,
           onEnterFrequentBook: onEnterFrequentBook,
           onEnterArtistBook: onEnterArtistBook,
@@ -153,7 +158,8 @@ class LandscapeHomePage extends StatelessWidget {
     required this.controller,
     required this.queueCount,
     required this.previewAnchorKey,
-    required this.onEnterSongBook,
+    required this.onEnterAllSongsBook,
+    required this.onEnterLocalSongBook,
     required this.onEnterFavoritesBook,
     required this.onEnterFrequentBook,
     required this.onEnterArtistBook,
@@ -167,7 +173,8 @@ class LandscapeHomePage extends StatelessWidget {
   final PlayerController controller;
   final int queueCount;
   final GlobalKey previewAnchorKey;
-  final VoidCallback onEnterSongBook;
+  final VoidCallback onEnterAllSongsBook;
+  final VoidCallback onEnterLocalSongBook;
   final VoidCallback onEnterFavoritesBook;
   final VoidCallback onEnterFrequentBook;
   final VoidCallback onEnterArtistBook;
@@ -182,8 +189,8 @@ class LandscapeHomePage extends StatelessWidget {
       return null;
     }
     return switch (shortcut.action) {
-      _HomeShortcutAction.songs => onEnterSongBook,
-      _HomeShortcutAction.local => onEnterSongBook,
+      _HomeShortcutAction.songs => onEnterAllSongsBook,
+      _HomeShortcutAction.local => onEnterLocalSongBook,
       _HomeShortcutAction.favorites => onEnterFavoritesBook,
       _HomeShortcutAction.frequent => onEnterFrequentBook,
       _HomeShortcutAction.artists => onEnterArtistBook,
@@ -234,6 +241,8 @@ class LandscapeHomePage extends StatelessWidget {
           Color(0xFFFFB245),
           Color(0xFFFF9566),
         ],
+        enabled: true,
+        action: _HomeShortcutAction.songs,
       ),
       _HomeShortcut(
         label: '歌星',
@@ -654,14 +663,16 @@ class HomePreviewPlaceholder extends StatelessWidget {
 
 class _HomeShortcutGrid extends StatelessWidget {
   const _HomeShortcutGrid({
-    required this.onEnterSongBook,
+    required this.onEnterAllSongsBook,
+    required this.onEnterLocalSongBook,
     required this.onEnterFavoritesBook,
     required this.onEnterFrequentBook,
     required this.onEnterArtistBook,
     this.compact = false,
   });
 
-  final VoidCallback onEnterSongBook;
+  final VoidCallback onEnterAllSongsBook;
+  final VoidCallback onEnterLocalSongBook;
   final VoidCallback onEnterFavoritesBook;
   final VoidCallback onEnterFrequentBook;
   final VoidCallback onEnterArtistBook;
@@ -685,8 +696,8 @@ class _HomeShortcutGrid extends StatelessWidget {
           shortcut: shortcut,
           onTap: shortcut.enabled
               ? switch (shortcut.action) {
-                  _HomeShortcutAction.songs => onEnterSongBook,
-                  _HomeShortcutAction.local => onEnterSongBook,
+                  _HomeShortcutAction.songs => onEnterAllSongsBook,
+                  _HomeShortcutAction.local => onEnterLocalSongBook,
                   _HomeShortcutAction.favorites => onEnterFavoritesBook,
                   _HomeShortcutAction.frequent => onEnterFrequentBook,
                   _HomeShortcutAction.artists => onEnterArtistBook,

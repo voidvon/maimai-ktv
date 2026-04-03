@@ -4,6 +4,8 @@ import 'package:ktv2/ktv2.dart';
 
 import '../../../core/models/artist.dart';
 import '../../../core/models/song.dart';
+import '../../media_library/data/aggregated_library_repository.dart';
+import '../../media_library/data/local_song_source_adapter.dart';
 import '../../media_library/data/media_library_repository.dart';
 import '../../song_profile/data/song_profile_repository.dart';
 import 'library_session.dart';
@@ -11,30 +13,42 @@ import 'navigation_history.dart';
 import 'playback_queue_manager.dart';
 import 'ktv_state.dart';
 
-export 'ktv_state.dart' show KtvRoute, SongBookMode, KtvState;
+export 'ktv_state.dart' show KtvRoute, SongBookMode, LibraryScope, KtvState;
 
 class KtvController extends ChangeNotifier {
   KtvController({
     MediaLibraryRepository? mediaLibraryRepository,
+    AggregatedLibraryRepository? aggregatedLibraryRepository,
     SongProfileRepository? songProfileRepository,
     PlayerController? playerController,
   }) : _mediaLibraryRepository =
            mediaLibraryRepository ?? MediaLibraryRepository(),
        _songProfileRepository =
            songProfileRepository ?? SongProfileRepository(),
-       playerController = playerController ?? createPlayerController();
+       playerController = playerController ?? createPlayerController() {
+    _aggregatedLibraryRepository =
+        aggregatedLibraryRepository ??
+        DefaultAggregatedLibraryRepository(
+          mediaLibraryRepository: _mediaLibraryRepository,
+          localSource: LocalSongSourceAdapter(
+            repository: _mediaLibraryRepository,
+          ),
+        );
+  }
 
   static const String allLanguagesLabel = '全部';
   static const Duration _searchRefreshDebounce = Duration(milliseconds: 180);
 
   final MediaLibraryRepository _mediaLibraryRepository;
+  late final AggregatedLibraryRepository _aggregatedLibraryRepository;
   final SongProfileRepository _songProfileRepository;
   final PlayerController playerController;
   late final PlaybackQueueManager _playbackQueueManager = PlaybackQueueManager(
     playerController: playerController,
   );
   late final LibrarySession _librarySession = LibrarySession(
-    repository: _mediaLibraryRepository,
+    directoryRepository: _mediaLibraryRepository,
+    libraryRepository: _aggregatedLibraryRepository,
     songProfileRepository: _songProfileRepository,
     readState: () => _state,
     writeState: _setState,
@@ -51,6 +65,7 @@ class KtvController extends ChangeNotifier {
 
   KtvRoute get route => _state.route;
   SongBookMode get songBookMode => _state.songBookMode;
+  LibraryScope get libraryScope => _state.libraryScope;
   String get selectedLanguage => _state.selectedLanguage;
   String? get selectedArtist => _state.selectedArtist;
   String get searchQuery => _state.searchQuery;
@@ -59,14 +74,16 @@ class KtvController extends ChangeNotifier {
   bool get isScanningLibrary => _state.isScanningLibrary;
   bool get isLoadingLibraryPage => _state.isLoadingLibraryPage;
   bool get hasConfiguredDirectory => _state.hasConfiguredDirectory;
+  bool get hasConfiguredAggregatedSources =>
+      _state.hasConfiguredAggregatedSources;
   bool get canNavigateBack => _navigationHistory.canNavigateBack;
   List<Song> get queuedSongs => List<Song>.unmodifiable(_state.queuedSongs);
   List<Song> get librarySongs =>
       List<Song>.unmodifiable(_state.libraryPageSongs);
   List<Artist> get libraryArtists =>
       List<Artist>.unmodifiable(_state.libraryPageArtists);
-  List<String> get favoriteSongPaths =>
-      List<String>.unmodifiable(_state.libraryFavoriteSongPaths);
+  List<String> get favoriteSongIds =>
+      List<String>.unmodifiable(_state.libraryFavoriteSongIds);
   List<Song> get filteredSongs => librarySongs;
   int get libraryTotalCount => _state.libraryTotalCount;
   int get libraryPageIndex => _state.libraryPageIndex;
@@ -96,8 +113,11 @@ class KtvController extends ChangeNotifier {
     _scheduleLibraryRefresh(resetPage: true);
   }
 
-  void enterSongBook({SongBookMode mode = SongBookMode.songs}) {
-    if (!_navigationHistory.enterSongBook(mode: mode)) {
+  void enterSongBook({
+    SongBookMode mode = SongBookMode.songs,
+    LibraryScope? scope,
+  }) {
+    if (!_navigationHistory.enterSongBook(mode: mode, scope: scope)) {
       return;
     }
     _applyNavigationState(_navigationHistory.current);
@@ -115,6 +135,7 @@ class KtvController extends ChangeNotifier {
   void enterQueueList() {
     if (!_navigationHistory.enterQueueList(
       songBookMode: _state.songBookMode,
+      libraryScope: _state.libraryScope,
       selectedArtist: _state.selectedArtist,
     )) {
       return;
@@ -245,25 +266,19 @@ class KtvController extends ChangeNotifier {
   }
 
   Future<void> toggleFavorite(Song song) async {
-    final String? directory = _state.scanDirectoryPath;
-    if (directory == null) {
-      return;
-    }
-
     final bool isFavorite = await _songProfileRepository.toggleFavorite(
       song: song,
-      directoryPath: directory,
     );
-    final Set<String> nextFavoritePaths = _state.libraryFavoriteSongPaths
+    final Set<String> nextFavoriteSongIds = _state.libraryFavoriteSongIds
         .toSet();
     if (isFavorite) {
-      nextFavoritePaths.add(song.mediaPath);
+      nextFavoriteSongIds.add(song.songId);
     } else {
-      nextFavoritePaths.remove(song.mediaPath);
+      nextFavoriteSongIds.remove(song.songId);
     }
     _setState(
       _state.copyWith(
-        libraryFavoriteSongPaths: nextFavoritePaths.toList(growable: false),
+        libraryFavoriteSongIds: nextFavoriteSongIds.toList(growable: false),
       ),
     );
 
@@ -296,25 +311,11 @@ class KtvController extends ChangeNotifier {
   }
 
   Future<void> _recordSongRequested(Song song) async {
-    final String? directory = _state.scanDirectoryPath;
-    if (directory == null) {
-      return;
-    }
-    await _songProfileRepository.recordSongRequested(
-      song: song,
-      directoryPath: directory,
-    );
+    await _songProfileRepository.recordSongRequested(song: song);
   }
 
   Future<void> _recordSongStarted(Song song) async {
-    final String? directory = _state.scanDirectoryPath;
-    if (directory == null) {
-      return;
-    }
-    await _songProfileRepository.recordSongStarted(
-      song: song,
-      directoryPath: directory,
-    );
+    await _songProfileRepository.recordSongStarted(song: song);
   }
 
   Future<void> _reloadSongProfileDrivenPageIfNeeded() async {
@@ -330,10 +331,11 @@ class KtvController extends ChangeNotifier {
       _state.copyWith(
         route: target.route,
         songBookMode: target.songBookMode,
+        libraryScope: target.libraryScope,
         selectedArtist: target.selectedArtist,
         searchQuery: '',
         libraryPageIndex: 0,
-        libraryFavoriteSongPaths: const <String>[],
+        libraryFavoriteSongIds: const <String>[],
       ),
     );
   }

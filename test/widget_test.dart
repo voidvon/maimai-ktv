@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ktv2/ktv2.dart';
 import 'package:ktv2_example/core/models/artist.dart';
 import 'package:ktv2_example/core/models/song.dart';
+import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/features/ktv/application/ktv_controller.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_contracts.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_page.dart';
@@ -30,9 +31,9 @@ void main() {
     await tester.tap(find.text('设置').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('媒体库设置'), findsOneWidget);
-    expect(find.text('扫描目录'), findsOneWidget);
-    expect(find.text('选择目录'), findsOneWidget);
+    expect(find.text('设置'), findsOneWidget);
+    expect(find.text('本地目录'), findsOneWidget);
+    expect(find.text('115 网盘'), findsOneWidget);
   });
 
   testWidgets('opens queued songs page from home toolbar', (
@@ -63,7 +64,7 @@ void main() {
     await tester.tap(find.text('歌名'));
     await tester.pumpAndSettle();
 
-    expect(find.text('请先在设置里选择扫描目录，扫描完成后这里会展示歌曲列表。'), findsOneWidget);
+    expect(find.text('请先在设置里配置数据源，配置完成后这里会展示聚合曲库。'), findsOneWidget);
   });
 
   testWidgets('renders landscape song book without layout exceptions', (
@@ -82,7 +83,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('‹ 主页 / 歌名'), findsOneWidget);
-    expect(find.text('请先在设置里选择扫描目录，扫描完成后这里会展示歌曲列表。'), findsOneWidget);
+    expect(find.text('请先在设置里配置数据源，配置完成后这里会展示聚合曲库。'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -109,6 +110,7 @@ void main() {
               navigation: SongBookNavigationViewModel(
                 route: KtvRoute.songBook,
                 songBookMode: SongBookMode.artists,
+                libraryScope: LibraryScope.aggregated,
                 selectedArtist: null,
                 breadcrumbLabel: '‹ 主页 / 歌星',
               ),
@@ -128,11 +130,13 @@ void main() {
                   Artist(name: '邓紫棋', songCount: 10, searchIndex: 'dengziqi'),
                   Artist(name: 'Beyond', songCount: 9, searchIndex: 'beyond'),
                 ],
+                favoriteSongIds: <String>[],
                 totalCount: 6,
                 pageIndex: 0,
                 totalPages: 1,
                 pageSize: 6,
                 hasConfiguredDirectory: true,
+                hasConfiguredAggregatedSources: true,
                 isScanning: false,
                 isLoadingPage: false,
                 scanErrorMessage: null,
@@ -153,6 +157,7 @@ void main() {
                 onClearSearch: () {},
                 onRequestLibraryPage: (_, _) {},
                 onRequestSong: (_) {},
+                onToggleFavorite: (_) {},
               ),
               playback: SongBookPlaybackCallbacks(
                 onPrioritizeQueuedSong: (_) {},
@@ -187,10 +192,11 @@ void main() {
             height: 520,
             child: SongBookRightColumn(
               controller: _TestPlayerController(),
-              viewModel: const SongBookViewModel(
-                navigation: SongBookNavigationViewModel(
+              viewModel: SongBookViewModel(
+                navigation: const SongBookNavigationViewModel(
                   route: KtvRoute.songBook,
                   songBookMode: SongBookMode.songs,
+                  libraryScope: LibraryScope.aggregated,
                   selectedArtist: null,
                   breadcrumbLabel: '‹ 主页 / 歌名',
                 ),
@@ -199,6 +205,13 @@ void main() {
                   selectedLanguage: '全部',
                   songs: <Song>[
                     Song(
+                      songId: buildAggregateSongId(title: '青花瓷', artist: '周杰伦'),
+                      sourceId: 'local',
+                      sourceSongId: buildLocalSourceSongId(
+                        fingerprint: buildLocalMetadataFingerprint(
+                          locator: '/tmp/1.mp4',
+                        ),
+                      ),
                       title: '青花瓷',
                       artist: '周杰伦',
                       languages: <String>['国语'],
@@ -206,6 +219,13 @@ void main() {
                       mediaPath: '/tmp/1.mp4',
                     ),
                     Song(
+                      songId: buildAggregateSongId(title: '夜曲', artist: '周杰伦'),
+                      sourceId: 'local',
+                      sourceSongId: buildLocalSourceSongId(
+                        fingerprint: buildLocalMetadataFingerprint(
+                          locator: '/tmp/2.mp4',
+                        ),
+                      ),
                       title: '夜曲',
                       artist: '周杰伦',
                       languages: <String>['国语'],
@@ -213,6 +233,13 @@ void main() {
                       mediaPath: '/tmp/2.mp4',
                     ),
                     Song(
+                      songId: buildAggregateSongId(title: '后来', artist: '刘若英'),
+                      sourceId: 'local',
+                      sourceSongId: buildLocalSourceSongId(
+                        fingerprint: buildLocalMetadataFingerprint(
+                          locator: '/tmp/3.mp4',
+                        ),
+                      ),
                       title: '后来',
                       artist: '刘若英',
                       languages: <String>['国语'],
@@ -220,6 +247,16 @@ void main() {
                       mediaPath: '/tmp/3.mp4',
                     ),
                     Song(
+                      songId: buildAggregateSongId(
+                        title: '海阔天空',
+                        artist: 'Beyond',
+                      ),
+                      sourceId: 'local',
+                      sourceSongId: buildLocalSourceSongId(
+                        fingerprint: buildLocalMetadataFingerprint(
+                          locator: '/tmp/4.mp4',
+                        ),
+                      ),
                       title: '海阔天空',
                       artist: 'Beyond',
                       languages: <String>['粤语'],
@@ -228,11 +265,13 @@ void main() {
                     ),
                   ],
                   artists: <Artist>[],
+                  favoriteSongIds: <String>[],
                   totalCount: 4,
                   pageIndex: 0,
                   totalPages: 2,
                   pageSize: 2,
                   hasConfiguredDirectory: true,
+                  hasConfiguredAggregatedSources: true,
                   isScanning: false,
                   isLoadingPage: false,
                   scanErrorMessage: null,
@@ -253,6 +292,7 @@ void main() {
                   onClearSearch: () {},
                   onRequestLibraryPage: (_, _) {},
                   onRequestSong: (_) {},
+                  onToggleFavorite: (_) {},
                 ),
                 playback: SongBookPlaybackCallbacks(
                   onPrioritizeQueuedSong: (_) {},

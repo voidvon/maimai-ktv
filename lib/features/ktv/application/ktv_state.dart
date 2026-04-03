@@ -5,15 +5,19 @@ enum KtvRoute { home, songBook, queueList }
 
 enum SongBookMode { songs, artists, favorites, frequent }
 
+enum LibraryScope { localOnly, aggregated }
+
 class LibraryState {
   const LibraryState({
     this.scanDirectoryPath,
+    this.scope = LibraryScope.localOnly,
+    this.hasConfiguredAggregatedSources = false,
     this.searchQuery = '',
     this.isScanningLibrary = false,
     this.isLoadingLibraryPage = false,
     this.pageSongs = const <Song>[],
     this.pageArtists = const <Artist>[],
-    this.favoriteSongPaths = const <String>[],
+    this.favoriteSongIds = const <String>[],
     this.totalCount = 0,
     this.pageIndex = 0,
     this.pageSize = 8,
@@ -23,12 +27,14 @@ class LibraryState {
   static const Object _unset = Object();
 
   final String? scanDirectoryPath;
+  final LibraryScope scope;
+  final bool hasConfiguredAggregatedSources;
   final String searchQuery;
   final bool isScanningLibrary;
   final bool isLoadingLibraryPage;
   final List<Song> pageSongs;
   final List<Artist> pageArtists;
-  final List<String> favoriteSongPaths;
+  final List<String> favoriteSongIds;
   final int totalCount;
   final int pageIndex;
   final int pageSize;
@@ -45,12 +51,14 @@ class LibraryState {
 
   LibraryState copyWith({
     Object? scanDirectoryPath = _unset,
+    LibraryScope? scope,
+    bool? hasConfiguredAggregatedSources,
     String? searchQuery,
     bool? isScanningLibrary,
     bool? isLoadingLibraryPage,
     List<Song>? pageSongs,
     List<Artist>? pageArtists,
-    List<String>? favoriteSongPaths,
+    List<String>? favoriteSongIds,
     int? totalCount,
     int? pageIndex,
     int? pageSize,
@@ -60,12 +68,15 @@ class LibraryState {
       scanDirectoryPath: identical(scanDirectoryPath, _unset)
           ? this.scanDirectoryPath
           : scanDirectoryPath as String?,
+      scope: scope ?? this.scope,
+      hasConfiguredAggregatedSources:
+          hasConfiguredAggregatedSources ?? this.hasConfiguredAggregatedSources,
       searchQuery: searchQuery ?? this.searchQuery,
       isScanningLibrary: isScanningLibrary ?? this.isScanningLibrary,
       isLoadingLibraryPage: isLoadingLibraryPage ?? this.isLoadingLibraryPage,
       pageSongs: pageSongs ?? this.pageSongs,
       pageArtists: pageArtists ?? this.pageArtists,
-      favoriteSongPaths: favoriteSongPaths ?? this.favoriteSongPaths,
+      favoriteSongIds: favoriteSongIds ?? this.favoriteSongIds,
       totalCount: totalCount ?? this.totalCount,
       pageIndex: pageIndex ?? this.pageIndex,
       pageSize: pageSize ?? this.pageSize,
@@ -107,13 +118,16 @@ class KtvState {
 
   String? get libraryScanErrorMessage => library.scanErrorMessage;
   String? get scanDirectoryPath => library.scanDirectoryPath;
+  LibraryScope get libraryScope => library.scope;
+  bool get hasConfiguredAggregatedSources =>
+      library.hasConfiguredAggregatedSources;
   String get searchQuery => library.searchQuery;
   bool get isScanningLibrary => library.isScanningLibrary;
   bool get isLoadingLibraryPage => library.isLoadingLibraryPage;
   List<Song> get queuedSongs => playback.queuedSongs;
   List<Song> get libraryPageSongs => library.pageSongs;
   List<Artist> get libraryPageArtists => library.pageArtists;
-  List<String> get libraryFavoriteSongPaths => library.favoriteSongPaths;
+  List<String> get libraryFavoriteSongIds => library.favoriteSongIds;
   int get libraryTotalCount => library.totalCount;
   int get libraryPageIndex => library.pageIndex;
   int get libraryPageSize => library.pageSize;
@@ -143,12 +157,17 @@ class KtvState {
 
   String get currentSubtitle {
     if (queuedSongs.isNotEmpty) {
-      return '${queuedSongs.first.artist} · 已从目录中加载 $libraryTotalCount 首';
+      final String sourceLabel = libraryScope == LibraryScope.aggregated
+          ? '聚合曲库'
+          : '本地目录';
+      return '${queuedSongs.first.artist} · 已从$sourceLabel加载 $libraryTotalCount 首';
     }
-    if (scanDirectoryPath != null && libraryTotalCount > 0) {
-      return '已从扫描目录加载 $libraryTotalCount 首歌曲。';
+    if (libraryTotalCount > 0) {
+      return libraryScope == LibraryScope.aggregated
+          ? '已从聚合曲库加载 $libraryTotalCount 首歌曲。'
+          : '已从本地目录加载 $libraryTotalCount 首歌曲。';
     }
-    return '请先在设置中选择扫描目录。';
+    return '请先在设置中配置数据源。';
   }
 
   KtvState copyWith({
@@ -160,25 +179,29 @@ class KtvState {
     Object? selectedArtist = _unset,
     Object? libraryScanErrorMessage = _unset,
     Object? scanDirectoryPath = _unset,
+    LibraryScope? libraryScope,
+    bool? hasConfiguredAggregatedSources,
     String? searchQuery,
     bool? isScanningLibrary,
     bool? isLoadingLibraryPage,
     List<Song>? queuedSongs,
     List<Song>? libraryPageSongs,
     List<Artist>? libraryPageArtists,
-    List<String>? libraryFavoriteSongPaths,
+    List<String>? libraryFavoriteSongIds,
     int? libraryTotalCount,
     int? libraryPageIndex,
     int? libraryPageSize,
   }) {
     final LibraryState nextLibrary = (library ?? this.library).copyWith(
       scanDirectoryPath: scanDirectoryPath,
+      scope: libraryScope,
+      hasConfiguredAggregatedSources: hasConfiguredAggregatedSources,
       searchQuery: searchQuery,
       isScanningLibrary: isScanningLibrary,
       isLoadingLibraryPage: isLoadingLibraryPage,
       pageSongs: libraryPageSongs,
       pageArtists: libraryPageArtists,
-      favoriteSongPaths: libraryFavoriteSongPaths,
+      favoriteSongIds: libraryFavoriteSongIds,
       totalCount: libraryTotalCount,
       pageIndex: libraryPageIndex,
       pageSize: libraryPageSize,

@@ -20,12 +20,14 @@ class SongBookNavigationViewModel {
   const SongBookNavigationViewModel({
     required this.route,
     required this.songBookMode,
+    required this.libraryScope,
     required this.selectedArtist,
     required this.breadcrumbLabel,
   });
 
   final KtvRoute route;
   final SongBookMode songBookMode;
+  final LibraryScope libraryScope;
   final String? selectedArtist;
   final String breadcrumbLabel;
 }
@@ -36,12 +38,13 @@ class SongBookLibraryViewModel {
     required this.selectedLanguage,
     required this.songs,
     required this.artists,
-    required this.favoriteSongPaths,
+    required this.favoriteSongIds,
     required this.totalCount,
     required this.pageIndex,
     required this.totalPages,
     required this.pageSize,
     required this.hasConfiguredDirectory,
+    required this.hasConfiguredAggregatedSources,
     required this.isScanning,
     required this.isLoadingPage,
     required this.scanErrorMessage,
@@ -51,12 +54,13 @@ class SongBookLibraryViewModel {
   final String selectedLanguage;
   final List<Song> songs;
   final List<Artist> artists;
-  final List<String> favoriteSongPaths;
+  final List<String> favoriteSongIds;
   final int totalCount;
   final int pageIndex;
   final int totalPages;
   final int pageSize;
   final bool hasConfiguredDirectory;
+  final bool hasConfiguredAggregatedSources;
   final bool isScanning;
   final bool isLoadingPage;
   final String? scanErrorMessage;

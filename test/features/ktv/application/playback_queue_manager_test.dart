@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ktv2/ktv2.dart';
+import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/core/models/song.dart';
 import 'package:ktv2_example/features/ktv/application/playback_queue_manager.dart';
 
@@ -58,6 +59,11 @@ void main() {
 
 Song _song(String title) {
   return Song(
+    songId: buildAggregateSongId(title: title, artist: '歌手'),
+    sourceId: 'local',
+    sourceSongId: buildLocalSourceSongId(
+      fingerprint: buildLocalMetadataFingerprint(locator: '/tmp/$title.mp4'),
+    ),
     title: title,
     artist: '歌手',
     languages: const <String>['其它'],
