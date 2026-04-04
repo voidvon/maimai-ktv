@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
@@ -289,15 +291,56 @@ class ArtistTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final String badgeLabel = artist.songCount.toString();
     return Material(
-      color: const Color(0x1AFFFFFF),
-      borderRadius: BorderRadius.circular(12),
+      type: MaterialType.transparency,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
-            final bool useCompactLayout = constraints.maxHeight < 72;
-            final double avatarSize = useCompactLayout ? 24 : 42;
+            final bool useCompactLayout =
+                constraints.maxHeight < 88 || constraints.maxWidth < 128;
+            final double horizontalPadding = useCompactLayout ? 2 : 6;
+            final double verticalPadding = useCompactLayout ? 1 : 4;
+            final double availableWidth = math.max(
+              0,
+              constraints.maxWidth - (horizontalPadding * 2),
+            );
+            final double nameFontSize = useCompactLayout ? 12 : 13;
+            final double nameGap = useCompactLayout ? 6 : 10;
+            final double nameHeight = nameFontSize * 1.12;
+            final double availableAvatarHeight = math.max(
+              0,
+              constraints.maxHeight -
+                  (verticalPadding * 2) -
+                  nameGap -
+                  nameHeight,
+            );
+            final double avatarSize = math.min(
+              (availableWidth * 0.66).clamp(
+                useCompactLayout ? 24.0 : 30.0,
+                useCompactLayout ? 42.0 : 52.0,
+              ),
+              (availableAvatarHeight * 0.72).clamp(
+                useCompactLayout ? 24.0 : 30.0,
+                useCompactLayout ? 42.0 : 52.0,
+              ),
+            );
+            final double avatarLabelFontSize = (avatarSize * 0.32).clamp(
+              useCompactLayout ? 8.5 : 10.5,
+              useCompactLayout ? 10.5 : 13,
+            );
+            final double badgeFontSize = (avatarSize * 0.24).clamp(
+              useCompactLayout ? 7.5 : 8.5,
+              useCompactLayout ? 9.0 : 10.5,
+            );
+            final double badgeHorizontalPadding = (avatarSize * 0.14).clamp(
+              4.0,
+              6.0,
+            );
+            final double badgeVerticalPadding = (avatarSize * 0.05).clamp(
+              1.5,
+              2.5,
+            );
             final Widget avatar = Stack(
               clipBehavior: Clip.none,
               children: <Widget>[
@@ -318,7 +361,7 @@ class ArtistTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: useCompactLayout ? 8 : 11,
+                      fontSize: avatarLabelFontSize,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
@@ -329,11 +372,11 @@ class ArtistTile extends StatelessWidget {
                   bottom: useCompactLayout ? -4 : -2,
                   child: Container(
                     constraints: BoxConstraints(
-                      minWidth: useCompactLayout ? 14 : 18,
+                      minWidth: badgeFontSize + (badgeHorizontalPadding * 2),
                     ),
                     padding: EdgeInsets.symmetric(
-                      horizontal: useCompactLayout ? 4 : 5,
-                      vertical: useCompactLayout ? 1.5 : 2,
+                      horizontal: badgeHorizontalPadding,
+                      vertical: badgeVerticalPadding,
                     ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFF8A63),
@@ -347,7 +390,7 @@ class ArtistTile extends StatelessWidget {
                       badgeLabel,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: useCompactLayout ? 7 : 8,
+                        fontSize: badgeFontSize,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                         height: 1,
@@ -360,50 +403,28 @@ class ArtistTile extends StatelessWidget {
 
             return Container(
               padding: EdgeInsets.symmetric(
-                horizontal: useCompactLayout ? 10 : 12,
-                vertical: useCompactLayout ? 6 : 10,
+                horizontal: horizontalPadding,
+                vertical: verticalPadding,
               ),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0x1AFFFFFF)),
-              ),
-              child: useCompactLayout
-                  ? Row(
-                      children: <Widget>[
-                        avatar,
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            artist.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xEDFFF7FF),
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        avatar,
-                        const SizedBox(height: 8),
-                        Text(
-                          artist.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xEDFFF7FF),
-                          ),
-                        ),
-                      ],
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  avatar,
+                  SizedBox(height: nameGap),
+                  Text(
+                    artist.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: nameFontSize,
+                      fontWeight: FontWeight.w700,
+                      height: 1.05,
+                      color: const Color(0xEDFFF7FF),
                     ),
+                  ),
+                ],
+              ),
             );
           },
         ),
@@ -456,13 +477,13 @@ class PaginationBar extends StatelessWidget {
       alignment: Alignment.centerRight,
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 12,
+        spacing: 8,
         children: <Widget>[
           _PaginationButton(label: '上一页', onPressed: onPrevious),
           Text(
             '$currentPage/$totalPages',
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w500,
               color: Color(0xCCFFF2FF),
             ),
@@ -490,11 +511,11 @@ class _PaginationButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         onTap: onPressed,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
               color: enabled
                   ? const Color(0xCCFFF2FF)

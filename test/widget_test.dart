@@ -7,10 +7,40 @@ import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/features/ktv/application/ktv_controller.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_contracts.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_page.dart';
+import 'package:ktv2_example/features/ktv/presentation/songbook_right_column.dart';
+import 'package:ktv2_example/features/ktv/presentation/songbook_right_column_widgets.dart';
 import 'package:ktv2_example/features/ktv/presentation/shared_widgets.dart';
 import 'package:ktv2_example/main.dart';
 
 void main() {
+  SongBookCallbacks buildSongBookCallbacks() {
+    return SongBookCallbacks(
+      navigation: SongBookNavigationCallbacks(
+        onBackPressed: () {},
+        onQueuePressed: () {},
+        onSelectArtist: (_) {},
+        onSettingsPressed: () {},
+      ),
+      library: SongBookLibraryCallbacks(
+        onLanguageSelected: (_) {},
+        onAppendSearchToken: (_) {},
+        onRemoveSearchCharacter: () {},
+        onClearSearch: () {},
+        onRequestLibraryPage: (_, _) {},
+        onRequestSong: (_) {},
+        onToggleFavorite: (_) {},
+      ),
+      playback: SongBookPlaybackCallbacks(
+        onPrioritizeQueuedSong: (_) {},
+        onRemoveQueuedSong: (_) {},
+        onToggleAudioMode: () {},
+        onTogglePlayback: () {},
+        onRestartPlayback: () {},
+        onSkipSong: () {},
+      ),
+    );
+  }
+
   testWidgets('shows home shell before media library is selected', (
     WidgetTester tester,
   ) async {
@@ -440,6 +470,350 @@ void main() {
       );
     },
   );
+
+  testWidgets('compact song grid keeps at least two columns', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 640,
+            child: SongBookRightColumn(
+              controller: _TestPlayerController(),
+              viewModel: SongBookViewModel(
+                navigation: const SongBookNavigationViewModel(
+                  route: KtvRoute.songBook,
+                  songBookMode: SongBookMode.songs,
+                  libraryScope: LibraryScope.aggregated,
+                  selectedArtist: null,
+                  breadcrumbLabel: '主页 / 歌名',
+                ),
+                library: SongBookLibraryViewModel(
+                  searchQuery: '',
+                  selectedLanguage: '全部',
+                  songs: List<Song>.generate(
+                    6,
+                    (int index) => Song(
+                      songId: buildAggregateSongId(
+                        title: '歌曲$index',
+                        artist: '歌手$index',
+                      ),
+                      sourceId: 'local',
+                      sourceSongId: buildLocalSourceSongId(
+                        fingerprint: buildLocalMetadataFingerprint(
+                          locator: '/tmp/song_$index.mp4',
+                        ),
+                      ),
+                      title: '歌曲$index',
+                      artist: '歌手$index',
+                      languages: const <String>['国语'],
+                      searchIndex: 'gequ$index geshou$index',
+                      mediaPath: '/tmp/song_$index.mp4',
+                    ),
+                  ),
+                  artists: const <Artist>[],
+                  favoriteSongIds: const <String>[],
+                  totalCount: 6,
+                  pageIndex: 0,
+                  totalPages: 1,
+                  pageSize: 6,
+                  hasConfiguredDirectory: true,
+                  hasConfiguredAggregatedSources: true,
+                  isScanning: false,
+                  isLoadingPage: false,
+                  scanErrorMessage: null,
+                ),
+                playback: const SongBookPlaybackViewModel(
+                  queuedSongs: <Song>[],
+                ),
+              ),
+              callbacks: buildSongBookCallbacks(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final GridView grid = tester.widget<GridView>(find.byType(GridView).first);
+    final SliverGridDelegateWithFixedCrossAxisCount delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 2);
+  });
+
+  testWidgets('compact artist grid keeps at least three columns', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            height: 640,
+            child: SongBookRightColumn(
+              controller: _TestPlayerController(),
+              viewModel: const SongBookViewModel(
+                navigation: SongBookNavigationViewModel(
+                  route: KtvRoute.songBook,
+                  songBookMode: SongBookMode.artists,
+                  libraryScope: LibraryScope.aggregated,
+                  selectedArtist: null,
+                  breadcrumbLabel: '主页 / 歌星',
+                ),
+                library: SongBookLibraryViewModel(
+                  searchQuery: '',
+                  selectedLanguage: '全部',
+                  songs: <Song>[],
+                  artists: <Artist>[
+                    Artist(
+                      name: '周杰伦',
+                      songCount: 12,
+                      searchIndex: 'zhoujielun',
+                    ),
+                    Artist(
+                      name: '林俊杰',
+                      songCount: 10,
+                      searchIndex: 'linjunjie',
+                    ),
+                    Artist(
+                      name: '张学友',
+                      songCount: 8,
+                      searchIndex: 'zhangxueyou',
+                    ),
+                    Artist(
+                      name: '刘若英',
+                      songCount: 6,
+                      searchIndex: 'liuruoying',
+                    ),
+                    Artist(name: '陈奕迅', songCount: 9, searchIndex: 'chenyixun'),
+                    Artist(name: '孙燕姿', songCount: 7, searchIndex: 'sunyanzi'),
+                  ],
+                  favoriteSongIds: <String>[],
+                  totalCount: 6,
+                  pageIndex: 0,
+                  totalPages: 1,
+                  pageSize: 6,
+                  hasConfiguredDirectory: true,
+                  hasConfiguredAggregatedSources: true,
+                  isScanning: false,
+                  isLoadingPage: false,
+                  scanErrorMessage: null,
+                ),
+                playback: SongBookPlaybackViewModel(queuedSongs: <Song>[]),
+              ),
+              callbacks: buildSongBookCallbacks(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final GridView grid = tester.widget<GridView>(find.byType(GridView).first);
+    final SliverGridDelegateWithFixedCrossAxisCount delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, greaterThanOrEqualTo(3));
+  });
+
+  testWidgets('wide artist grid increases columns responsively', (
+    WidgetTester tester,
+  ) async {
+    Future<int> pumpArtistGrid(double width) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: width,
+              height: 430,
+              child: SongBookRightColumn(
+                controller: _TestPlayerController(),
+                viewModel: const SongBookViewModel(
+                  navigation: SongBookNavigationViewModel(
+                    route: KtvRoute.songBook,
+                    songBookMode: SongBookMode.artists,
+                    libraryScope: LibraryScope.aggregated,
+                    selectedArtist: null,
+                    breadcrumbLabel: '主页 / 歌星',
+                  ),
+                  library: SongBookLibraryViewModel(
+                    searchQuery: '',
+                    selectedLanguage: '全部',
+                    songs: <Song>[],
+                    artists: <Artist>[
+                      Artist(
+                        name: '周杰伦',
+                        songCount: 12,
+                        searchIndex: 'zhoujielun',
+                      ),
+                      Artist(
+                        name: '林俊杰',
+                        songCount: 10,
+                        searchIndex: 'linjunjie',
+                      ),
+                      Artist(
+                        name: '张学友',
+                        songCount: 8,
+                        searchIndex: 'zhangxueyou',
+                      ),
+                      Artist(
+                        name: '刘若英',
+                        songCount: 6,
+                        searchIndex: 'liuruoying',
+                      ),
+                      Artist(
+                        name: '陈奕迅',
+                        songCount: 9,
+                        searchIndex: 'chenyixun',
+                      ),
+                      Artist(
+                        name: '孙燕姿',
+                        songCount: 7,
+                        searchIndex: 'sunyanzi',
+                      ),
+                      Artist(name: '王菲', songCount: 5, searchIndex: 'wangfei'),
+                      Artist(
+                        name: '五月天',
+                        songCount: 11,
+                        searchIndex: 'wuyuetian',
+                      ),
+                    ],
+                    favoriteSongIds: <String>[],
+                    totalCount: 8,
+                    pageIndex: 0,
+                    totalPages: 1,
+                    pageSize: 8,
+                    hasConfiguredDirectory: true,
+                    hasConfiguredAggregatedSources: true,
+                    isScanning: false,
+                    isLoadingPage: false,
+                    scanErrorMessage: null,
+                  ),
+                  playback: SongBookPlaybackViewModel(queuedSongs: <Song>[]),
+                ),
+                callbacks: buildSongBookCallbacks(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final GridView grid = tester.widget<GridView>(
+        find.byType(GridView).first,
+      );
+      final SliverGridDelegateWithFixedCrossAxisCount delegate =
+          grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+      return delegate.crossAxisCount;
+    }
+
+    final int mediumColumns = await pumpArtistGrid(430);
+    final int expandedColumns = await pumpArtistGrid(540);
+    final int wideColumns = await pumpArtistGrid(900);
+
+    expect(mediumColumns, 6);
+    expect(expandedColumns, greaterThan(mediumColumns));
+    expect(expandedColumns, 7);
+    expect(wideColumns, greaterThan(mediumColumns));
+  });
+
+  testWidgets('artist tile keeps artist name below avatar in compact mode', (
+    WidgetTester tester,
+  ) async {
+    const Artist artist = Artist(
+      name: 'Alice Singer',
+      songCount: 12,
+      searchIndex: 'alice singer',
+    );
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 76,
+              height: 65,
+              child: ArtistTile(artist: artist),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Rect avatarRect = tester.getRect(find.text(artist.avatarLabel));
+    final Rect nameRect = tester.getRect(find.text(artist.name));
+    expect(nameRect.top, greaterThan(avatarRect.bottom));
+  });
+
+  testWidgets('phone-height song grid uses bottom space to fit one more row', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 430,
+            height: 430,
+            child: SongBookRightColumn(
+              controller: _TestPlayerController(),
+              viewModel: SongBookViewModel(
+                navigation: const SongBookNavigationViewModel(
+                  route: KtvRoute.songBook,
+                  songBookMode: SongBookMode.songs,
+                  libraryScope: LibraryScope.aggregated,
+                  selectedArtist: null,
+                  breadcrumbLabel: '主页 / 歌名',
+                ),
+                library: SongBookLibraryViewModel(
+                  searchQuery: '',
+                  selectedLanguage: '全部',
+                  songs: List<Song>.generate(
+                    11,
+                    (int index) => Song(
+                      songId: buildAggregateSongId(
+                        title: '歌曲$index',
+                        artist: '歌手$index',
+                      ),
+                      sourceId: 'local',
+                      sourceSongId: buildLocalSourceSongId(
+                        fingerprint: buildLocalMetadataFingerprint(
+                          locator: '/tmp/phone_song_$index.mp4',
+                        ),
+                      ),
+                      title: '歌曲$index',
+                      artist: '歌手$index',
+                      languages: const <String>['国语'],
+                      searchIndex: 'gequ$index geshou$index',
+                      mediaPath: '/tmp/phone_song_$index.mp4',
+                    ),
+                  ),
+                  artists: const <Artist>[],
+                  favoriteSongIds: const <String>[],
+                  totalCount: 11,
+                  pageIndex: 0,
+                  totalPages: 2,
+                  pageSize: 11,
+                  hasConfiguredDirectory: true,
+                  hasConfiguredAggregatedSources: true,
+                  isScanning: false,
+                  isLoadingPage: false,
+                  scanErrorMessage: null,
+                ),
+                playback: const SongBookPlaybackViewModel(
+                  queuedSongs: <Song>[],
+                ),
+              ),
+              callbacks: buildSongBookCallbacks(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1/1'), findsOneWidget);
+  });
 
   testWidgets('opens fullscreen preview and toggles overlay controls on tap', (
     WidgetTester tester,

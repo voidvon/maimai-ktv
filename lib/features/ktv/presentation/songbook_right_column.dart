@@ -42,13 +42,14 @@ class SongBookRightColumn extends StatefulWidget {
 class _SongBookRightColumnState extends State<SongBookRightColumn> {
   static const double _gridSpacing = 8;
   static const double _songTileHeight = 44;
-  static const double _songTileMinHeight = 40;
+  static const double _songTileMinHeight = 36;
   static const double _artistTileHeight = 104;
   static const double _artistTileMinHeight = 72;
+  static const double _artistTargetTileWidth = 64;
   static const double _queueTileHeight = 48;
   static const double _queueTileMinHeight = 44;
-  static const double _paginationSectionHeight = 32;
-  static const double _paginationSectionGap = 8;
+  static const double _paginationSectionHeight = 28;
+  static const double _paginationSectionGap = 6;
   static const double _pageViewportFraction = 0.92;
   static const double _pageGap = 12;
   static const int _maxVisiblePages = 20;
@@ -80,9 +81,6 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
   }
 
   int _resolveCrossAxisCountForWidth(double availableWidth) {
-    if (availableWidth < 340) {
-      return 1;
-    }
     if (availableWidth < 760) {
       return 2;
     }
@@ -93,19 +91,14 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
   }
 
   int _resolveArtistCrossAxisCountForWidth(double availableWidth) {
-    if (availableWidth < 360) {
-      return 2;
-    }
-    if (availableWidth < 620) {
+    if (!availableWidth.isFinite || availableWidth <= 0) {
       return 3;
     }
-    if (availableWidth < 860) {
-      return 4;
-    }
-    if (availableWidth < 1100) {
-      return 5;
-    }
-    return 6;
+    final int fittedColumns =
+        ((availableWidth + _gridSpacing) /
+                (_artistTargetTileWidth + _gridSpacing))
+            .floor();
+    return fittedColumns.clamp(3, 8);
   }
 
   int _resolveRowsPerPage(
