@@ -27,12 +27,20 @@ class PlayerProgressTrack extends StatelessWidget {
     required this.thickness,
     required this.barHeight,
     this.trackShape,
+    this.activeTrackColor = const Color(0xFFFF4D8D),
+    this.inactiveTrackColor = const Color(0x33FFFFFF),
+    this.disabledInactiveTrackColor = const Color(0x33FFFFFF),
+    this.overlayColor = const Color(0x29FF4D8D),
   });
 
   final PlayerController controller;
   final double thickness;
   final double barHeight;
   final SliderTrackShape? trackShape;
+  final Color activeTrackColor;
+  final Color inactiveTrackColor;
+  final Color disabledInactiveTrackColor;
+  final Color overlayColor;
 
   @override
   Widget build(BuildContext context) {
@@ -58,9 +66,10 @@ class PlayerProgressTrack extends StatelessWidget {
                   overlayShape: const RoundSliderOverlayShape(
                     overlayRadius: 12,
                   ),
-                  activeTrackColor: const Color(0xFFFF4D8D),
-                  inactiveTrackColor: const Color(0x33FFFFFF),
-                  overlayColor: const Color(0x29FF4D8D),
+                  activeTrackColor: activeTrackColor,
+                  inactiveTrackColor: inactiveTrackColor,
+                  disabledInactiveTrackColor: disabledInactiveTrackColor,
+                  overlayColor: overlayColor,
                 ),
                 child: Slider(
                   value: hasMedia ? controller.playbackProgress : 0,
@@ -194,32 +203,18 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                 ),
               ),
               Positioned(
-                right: 10,
-                top: 10,
-                child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0x52000000),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.fullscreen_rounded,
-                      size: 14,
-                      color: Color(0xE8FFFFFF),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
                 left: 0,
                 right: 0,
                 bottom: 0,
                 child: PlayerProgressTrack(
                   controller: widget.controller,
-                  thickness: 6,
+                  thickness: 2,
                   barHeight: _nonFullscreenProgressControlHeight,
                   trackShape: const _BottomAlignedSliderTrackShape(),
+                  activeTrackColor: const Color(0x73FF9DBD),
+                  inactiveTrackColor: Colors.transparent,
+                  disabledInactiveTrackColor: Colors.transparent,
+                  overlayColor: const Color(0x0DFF9DBD),
                 ),
               ),
             ] else ...<Widget>[
@@ -538,20 +533,8 @@ class _BottomAlignedSliderTrackShape extends RoundedRectSliderTrackShape {
     bool isDiscrete = false,
   }) {
     final double trackHeight = sliderTheme.trackHeight ?? 0;
-    final double thumbWidth =
-        sliderTheme.thumbShape?.getPreferredSize(isEnabled, isDiscrete).width ??
-        0;
-    final double overlayWidth =
-        sliderTheme.overlayShape
-            ?.getPreferredSize(isEnabled, isDiscrete)
-            .width ??
-        0;
-    final double horizontalInset = math.max(overlayWidth / 2, thumbWidth / 2);
-    final double trackLeft = offset.dx + horizontalInset;
-    final double trackWidth = math.max(
-      0,
-      parentBox.size.width - (horizontalInset * 2),
-    );
+    final double trackLeft = offset.dx;
+    final double trackWidth = math.max(0, parentBox.size.width);
     final double trackTop = offset.dy + parentBox.size.height - trackHeight;
     return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
   }
