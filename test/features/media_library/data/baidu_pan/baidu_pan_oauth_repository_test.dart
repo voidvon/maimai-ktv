@@ -59,6 +59,104 @@ void main() {
     expect(authStore.savedToken?.refreshToken, 'refresh');
     expect(authStore.savedToken?.scope, 'basic,netdisk');
   });
+
+  test('createDeviceCodeSession parses qrcode session response', () async {
+    final BaiduPanOAuthRepository repository = BaiduPanOAuthRepository(
+      appCredentials: const BaiduPanAppCredentials(
+        appId: '122751914',
+        appKey: 'app-key',
+        secretKey: 'secret-key',
+        signKey: 'sign-key',
+      ),
+      authStore: _FakeBaiduPanAuthStore(),
+      httpClient: _FakeHttpClient(
+        getResponses: <_FakeResponseData>[
+          _FakeResponseData(<String, Object?>{
+            'device_code': 'device-code',
+            'user_code': 'user-code',
+            'verification_url': 'https://openapi.baidu.com/device',
+            'qrcode_url': 'https://openapi.baidu.com/device/qrcode/demo',
+            'expires_in': 300,
+            'interval': 5,
+          }),
+        ],
+      ),
+    );
+
+    final BaiduPanDeviceCodeSession session = await repository
+        .createDeviceCodeSession();
+
+    expect(session.deviceCode, 'device-code');
+    expect(session.userCode, 'user-code');
+    expect(session.verificationUrl, 'https://openapi.baidu.com/device');
+    expect(session.qrcodeUrl, 'https://openapi.baidu.com/device/qrcode/demo');
+    expect(session.intervalSeconds, 5);
+    expect(session.isExpired, isFalse);
+  });
+
+  test(
+    'loginWithDeviceCode stores token when authorization completed',
+    () async {
+      final _FakeBaiduPanAuthStore authStore = _FakeBaiduPanAuthStore();
+      final BaiduPanOAuthRepository repository = BaiduPanOAuthRepository(
+        appCredentials: const BaiduPanAppCredentials(
+          appId: '122751914',
+          appKey: 'app-key',
+          secretKey: 'secret-key',
+          signKey: 'sign-key',
+        ),
+        authStore: authStore,
+        httpClient: _FakeHttpClient(
+          postResponses: <_FakeResponseData>[
+            _FakeResponseData(<String, Object?>{
+              'access_token': 'token',
+              'refresh_token': 'refresh',
+              'expires_in': 3600,
+            }),
+          ],
+        ),
+      );
+
+      final BaiduPanAuthToken? token = await repository.loginWithDeviceCode(
+        'device-code',
+      );
+
+      expect(token, isNotNull);
+      expect(authStore.savedToken?.accessToken, 'token');
+      expect(authStore.savedToken?.refreshToken, 'refresh');
+    },
+  );
+
+  test(
+    'loginWithDeviceCode returns null while authorization pending',
+    () async {
+      final _FakeBaiduPanAuthStore authStore = _FakeBaiduPanAuthStore();
+      final BaiduPanOAuthRepository repository = BaiduPanOAuthRepository(
+        appCredentials: const BaiduPanAppCredentials(
+          appId: '122751914',
+          appKey: 'app-key',
+          secretKey: 'secret-key',
+          signKey: 'sign-key',
+        ),
+        authStore: authStore,
+        httpClient: _FakeHttpClient(
+          postResponses: <_FakeResponseData>[
+            _FakeResponseData(<String, Object?>{
+              'error': 'authorization_pending',
+              'error_description': 'pending',
+            }, statusCode: 400),
+          ],
+        ),
+      );
+
+      final BaiduPanAuthToken? token = await repository.loginWithDeviceCode(
+        'device-code',
+      );
+
+      expect(token, isNull);
+      expect(authStore.savedToken, isNull);
+    },
+  );
 }
 
 class _FakeBaiduPanAuthStore implements BaiduPanAuthStore {
@@ -79,24 +177,46 @@ class _FakeBaiduPanAuthStore implements BaiduPanAuthStore {
 }
 
 class _FakeHttpClient implements HttpClient {
-  _FakeHttpClient.forJson(Map<String, Object?> json)
-    : _payload = jsonEncode(json).codeUnits;
+  _FakeHttpClient({
+    List<_FakeResponseData>? getResponses,
+    List<_FakeResponseData>? postResponses,
+  }) : _getResponses = getResponses ?? <_FakeResponseData>[],
+       _postResponses = postResponses ?? <_FakeResponseData>[];
 
-  final List<int> _payload;
+  factory _FakeHttpClient.forJson(Map<String, Object?> json) {
+    return _FakeHttpClient(
+      postResponses: <_FakeResponseData>[_FakeResponseData(json)],
+    );
+  }
+
+  final List<_FakeResponseData> _getResponses;
+  final List<_FakeResponseData> _postResponses;
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) async {
+    return _FakeHttpClientRequest(_takeResponse(_getResponses));
+  }
 
   @override
   Future<HttpClientRequest> postUrl(Uri url) async {
-    return _FakeHttpClientRequest(_payload);
+    return _FakeHttpClientRequest(_takeResponse(_postResponses));
   }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  _FakeResponseData _takeResponse(List<_FakeResponseData> queue) {
+    if (queue.isEmpty) {
+      throw StateError('No queued fake response available');
+    }
+    return queue.removeAt(0);
+  }
 }
 
 class _FakeHttpClientRequest implements HttpClientRequest {
-  _FakeHttpClientRequest(this._payload);
+  _FakeHttpClientRequest(this._responseData);
 
-  final List<int> _payload;
+  final _FakeResponseData _responseData;
   int? _contentLength;
 
   @override
@@ -109,7 +229,7 @@ class _FakeHttpClientRequest implements HttpClientRequest {
 
   @override
   Future<HttpClientResponse> close() async {
-    return _FakeHttpClientResponse(_payload);
+    return _FakeHttpClientResponse(_responseData);
   }
 
   @override
@@ -126,12 +246,12 @@ class _FakeHttpClientRequest implements HttpClientRequest {
 
 class _FakeHttpClientResponse extends Stream<List<int>>
     implements HttpClientResponse {
-  _FakeHttpClientResponse(this._payload);
+  _FakeHttpClientResponse(this._responseData);
 
-  final List<int> _payload;
+  final _FakeResponseData _responseData;
 
   @override
-  int get statusCode => 200;
+  int get statusCode => _responseData.statusCode;
 
   @override
   StreamSubscription<List<int>> listen(
@@ -140,7 +260,9 @@ class _FakeHttpClientResponse extends Stream<List<int>>
     void Function()? onDone,
     bool? cancelOnError,
   }) {
-    return Stream<List<int>>.fromIterable(<List<int>>[_payload]).listen(
+    return Stream<List<int>>.fromIterable(<List<int>>[
+      _responseData.payload,
+    ]).listen(
       onData,
       onError: onError,
       onDone: onDone,
@@ -154,8 +276,21 @@ class _FakeHttpClientResponse extends Stream<List<int>>
 
 class _FakeHttpHeaders implements HttpHeaders {
   @override
-  void set(String name, Object value, {bool preserveHeaderCase = false}) {}
+  void set(String name, Object value, {bool preserveHeaderCase = false}) {
+    final bool unusedPreserveHeaderCase = preserveHeaderCase;
+    if (unusedPreserveHeaderCase) {
+      return;
+    }
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeResponseData {
+  _FakeResponseData(Map<String, Object?> json, {this.statusCode = 200})
+    : payload = jsonEncode(json).codeUnits;
+
+  final int statusCode;
+  final List<int> payload;
 }

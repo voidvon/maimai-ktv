@@ -92,6 +92,25 @@ class CloudSourceSettingsController<
   bool get canRefreshRemoteFolder =>
       isAuthorized && (rootPath?.trim().isNotEmpty ?? false);
 
+  @protected
+  void setErrorMessage(String? message) {
+    _errorMessage = message;
+  }
+
+  @protected
+  Future<void> applyAuthorizedToken(TToken token) async {
+    _authToken = token;
+    _errorMessage = null;
+    await _loadAccountSummary();
+  }
+
+  @protected
+  void clearAuthorizedSessionState() {
+    _authToken = null;
+    _userInfo = null;
+    _quotaInfo = null;
+  }
+
   Future<void> load() async {
     _isLoading = true;
     _errorMessage = null;
@@ -156,9 +175,7 @@ class CloudSourceSettingsController<
     notifyListeners();
     try {
       await _authRepository.logout();
-      _authToken = null;
-      _userInfo = null;
-      _quotaInfo = null;
+      clearAuthorizedSessionState();
     } catch (error) {
       _errorMessage = '$_providerLabel退出登录失败：$error';
     } finally {

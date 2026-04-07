@@ -72,6 +72,27 @@ class BaiduPanQuotaInfo extends CloudQuotaInfo {
   });
 }
 
+class BaiduPanDeviceCodeSession {
+  const BaiduPanDeviceCodeSession({
+    required this.deviceCode,
+    required this.userCode,
+    required this.verificationUrl,
+    required this.qrcodeUrl,
+    required this.expiresAtMillis,
+    required this.intervalSeconds,
+  });
+
+  final String deviceCode;
+  final String userCode;
+  final String verificationUrl;
+  final String qrcodeUrl;
+  final int expiresAtMillis;
+  final int intervalSeconds;
+
+  bool get isExpired =>
+      DateTime.now().millisecondsSinceEpoch >= expiresAtMillis;
+}
+
 class BaiduPanUnauthorizedException implements Exception {
   const BaiduPanUnauthorizedException([this.message = '百度网盘未授权']);
 

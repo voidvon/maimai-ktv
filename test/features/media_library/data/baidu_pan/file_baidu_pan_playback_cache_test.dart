@@ -109,6 +109,11 @@ class _FakeBaiduPanAuthRepository implements BaiduPanAuthRepository {
   Future<Uri> buildAuthorizeUri() async => Uri.parse('https://example.com');
 
   @override
+  Future<BaiduPanDeviceCodeSession> createDeviceCodeSession() async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<String> getValidAccessToken() async => 'mock-access-token';
 
   @override
@@ -116,6 +121,11 @@ class _FakeBaiduPanAuthRepository implements BaiduPanAuthRepository {
 
   @override
   Future<void> loginWithAuthorizationCode(String code) async {}
+
+  @override
+  Future<BaiduPanAuthToken?> loginWithDeviceCode(String deviceCode) async {
+    throw UnimplementedError();
+  }
 
   @override
   Future<void> logout() async {}

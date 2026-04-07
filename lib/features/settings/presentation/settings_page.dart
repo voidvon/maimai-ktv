@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../media_library/data/baidu_pan/baidu_pan_models.dart';
 import '../application/baidu_pan_settings_controller.dart';
 import '../application/settings_controller.dart';
 
@@ -244,15 +244,22 @@ class _BaiduPanSettingsPage extends StatefulWidget {
 }
 
 class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
-  late final TextEditingController _authorizationCodeController =
-      TextEditingController();
   late final TextEditingController _rootPathController = TextEditingController(
     text: widget.controller.rootPath ?? '',
   );
 
   @override
+  void initState() {
+    super.initState();
+    if (!widget.controller.isAuthorized && widget.controller.supportsQrLogin) {
+      Future<void>.microtask(() {
+        return widget.controller.ensureDeviceLoginSession();
+      });
+    }
+  }
+
+  @override
   void dispose() {
-    _authorizationCodeController.dispose();
     _rootPathController.dispose();
     super.dispose();
   }
@@ -262,6 +269,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (BuildContext context, _) {
+        final bool supportsQrLogin = widget.controller.supportsQrLogin;
         return Scaffold(
           backgroundColor: const Color(0xFF0A0014),
           appBar: AppBar(
@@ -275,8 +283,10 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                 child: ListView(
                   padding: const EdgeInsets.all(24),
                   children: <Widget>[
-                    const Text(
-                      '百度网盘开放平台凭证已经内置到应用配置里。用户侧这里只需要完成登录，并配置歌曲根目录。当前版本已经落了根目录配置，登录流程下一步接入。',
+                    Text(
+                      supportsQrLogin
+                          ? '百度网盘开放平台凭证已经内置到应用配置里。用户进入本页后，未登录时会自动拉起扫码登录二维码。登录后只需要配置歌曲根目录。'
+                          : '百度网盘开放平台凭证已经内置到应用配置里。移动端后续会改为跳转百度网盘 App 授权，当前版本暂未实现该流程，先保留为空。',
                       style: TextStyle(height: 1.5),
                     ),
                     const SizedBox(height: 18),
@@ -306,21 +316,27 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: const Color(0x26FFFFFF)),
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            '用户登录',
+                            widget.controller.isAuthorized
+                                ? '登录已完成'
+                                : supportsQrLogin
+                                ? '扫码登录'
+                                : 'App 授权',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
-                            '1. 复制下方登录链接到浏览器打开。\n'
-                            '2. 完成百度网盘登录与授权。\n'
-                            '3. 把百度返回的授权码粘贴到下面，完成登录。',
+                            widget.controller.isAuthorized
+                                ? '当前百度网盘账号已登录，可以继续配置歌曲根目录并扫描指定文件夹。'
+                                : supportsQrLogin
+                                ? '进入页面后已自动生成二维码。请直接使用百度 App 扫码授权，授权完成后会自动登录。'
+                                : 'Android 和 iOS 端将使用跳转百度网盘 App 的授权方式。当前版本暂未实现，因此这里先留空。',
                             style: TextStyle(
                               color: Color(0xCCFFFFFF),
                               height: 1.5,
@@ -337,114 +353,59 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                                 '账号：${widget.controller.accountDisplayName ?? '未知账号'}\n'
                                 '容量：${widget.controller.quotaSummary ?? '未知'}\n'
                                 'Token 过期时间：${widget.controller.tokenExpiresAt}'
-                          : '未登录',
+                          : supportsQrLogin
+                          ? '未登录'
+                          : '未登录\n移动端 App 授权暂未实现',
                     ),
                     const SizedBox(height: 16),
-                    _InfoCard(
-                      title: '登录链接',
-                      content: widget.controller.authorizeUrlText ?? '暂未生成登录链接',
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: widget.controller.isLoading
-                                ? null
-                                : () async {
-                                    await widget.controller
-                                        .refreshAuthorizeUri();
-                                  },
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF4D88FF),
-                            ),
-                            icon: const Icon(Icons.refresh_rounded),
-                            label: const Text('刷新登录链接'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed:
-                                (widget.controller.authorizeUrlText == null ||
-                                    widget.controller.authorizeUrlText!.isEmpty)
-                                ? null
-                                : () async {
-                                    await Clipboard.setData(
-                                      ClipboardData(
-                                        text:
-                                            widget
-                                                .controller
-                                                .authorizeUrlText ??
-                                            '',
-                                      ),
+                    if (!widget.controller.isAuthorized &&
+                        supportsQrLogin) ...<Widget>[
+                      _BaiduPanQrCard(controller: widget.controller),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed:
+                            widget.controller.isPreparingDeviceLogin ||
+                                widget.controller.isLoading
+                            ? null
+                            : () async {
+                                await widget.controller
+                                    .ensureDeviceLoginSession(
+                                      forceRefresh: true,
                                     );
-                                    if (!context.mounted) {
-                                      return;
-                                    }
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('登录链接已复制')),
-                                    );
-                                  },
-                            icon: const Icon(Icons.copy_rounded),
-                            label: const Text('复制链接'),
-                          ),
+                              },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF4D88FF),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _SettingsTextField(
-                      controller: _authorizationCodeController,
-                      label: '授权码',
-                      hintText: '粘贴百度网盘授权后返回的 code',
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: widget.controller.isLoggingIn
-                                ? null
-                                : () async {
-                                    final bool success = await widget.controller
-                                        .loginWithAuthorizationCode(
-                                          _authorizationCodeController.text,
-                                        );
-                                    if (!context.mounted || !success) {
-                                      return;
-                                    }
-                                    _authorizationCodeController.clear();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('百度网盘登录成功')),
-                                    );
-                                  },
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF00A86B),
-                            ),
-                            icon: const Icon(Icons.login_rounded),
-                            label: Text(
-                              widget.controller.isLoggingIn ? '登录中' : '确认登录',
-                            ),
-                          ),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: Text(
+                          widget.controller.isPreparingDeviceLogin
+                              ? '生成中'
+                              : '刷新二维码',
                         ),
-                        const SizedBox(width: 12),
-                        OutlinedButton.icon(
-                          onPressed: widget.controller.isLoggingIn
-                              ? null
-                              : () async {
-                                  await widget.controller.logout();
-                                  if (!context.mounted) {
-                                    return;
-                                  }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('百度网盘已退出登录')),
-                                  );
-                                },
-                          icon: const Icon(Icons.logout_rounded),
-                          label: const Text('退出登录'),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ] else if (!widget.controller.isAuthorized) ...<Widget>[
+                      const _InfoCard(
+                        title: '移动端授权',
+                        content:
+                            'Android 和 iOS 暂不使用扫码登录，后续会改为跳转百度网盘 App 授权。当前版本尚未实现该能力，因此这里暂时不提供登录操作。',
+                      ),
+                    ] else ...<Widget>[
+                      OutlinedButton.icon(
+                        onPressed: widget.controller.isLoggingIn
+                            ? null
+                            : () async {
+                                await widget.controller.logout();
+                                if (!context.mounted) {
+                                  return;
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('百度网盘已退出登录')),
+                                );
+                              },
+                        icon: const Icon(Icons.logout_rounded),
+                        label: const Text('退出登录'),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     _SettingsTextField(
                       controller: _rootPathController,
@@ -541,6 +502,80 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _BaiduPanQrCard extends StatelessWidget {
+  const _BaiduPanQrCard({required this.controller});
+
+  final BaiduPanSettingsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final BaiduPanDeviceCodeSession? session = controller.deviceCodeSession;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0x14FFFFFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x26FFFFFF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            '登录二维码',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          if (controller.isPreparingDeviceLogin || session == null)
+            const SizedBox(
+              height: 280,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else ...<Widget>[
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(16),
+                  child: Image.network(
+                    session.qrcodeUrl,
+                    width: 240,
+                    height: 240,
+                    fit: BoxFit.contain,
+                    errorBuilder:
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stackTrace,
+                        ) {
+                          return const SizedBox(
+                            width: 240,
+                            height: 240,
+                            child: Center(
+                              child: Text(
+                                '二维码加载失败',
+                                style: TextStyle(color: Colors.black54),
+                              ),
+                            ),
+                          );
+                        },
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SelectableText(
+              '用户码：${session.userCode}\n验证页：${session.verificationUrl}',
+              style: const TextStyle(color: Color(0xCCFFFFFF), height: 1.5),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

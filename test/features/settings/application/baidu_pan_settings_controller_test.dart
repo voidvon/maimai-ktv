@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_api_client.dart';
 import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_auth_repository.dart';
@@ -6,6 +9,14 @@ import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_sou
 import 'package:ktv2_example/features/settings/application/baidu_pan_settings_controller.dart';
 
 void main() {
+  setUp(() {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+  });
+
+  tearDown(() {
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   test('load restores saved baidu pan settings', () async {
     final _FakeBaiduPanSourceConfigStore sourceConfigStore =
         _FakeBaiduPanSourceConfigStore(
@@ -49,6 +60,103 @@ void main() {
     expect(controller.quotaSummary, isNotNull);
     expect(controller.rootPath, '/KTV');
     expect(controller.errorMessage, isNull);
+  });
+
+  test('load prepares device login session when unauthorized', () async {
+    final BaiduPanSettingsController controller = BaiduPanSettingsController(
+      appCredentials: const BaiduPanAppCredentials(
+        appId: '122751914',
+        appKey: 'app-key',
+        secretKey: 'secret-key',
+        signKey: 'sign-key',
+      ),
+      apiClient: _FakeBaiduPanApiClient(),
+      authRepository: _FakeBaiduPanAuthRepository(
+        authorizeUri: Uri.parse('https://example.com/login'),
+        deviceCodeSession: BaiduPanDeviceCodeSession(
+          deviceCode: 'device-code',
+          userCode: 'user-code',
+          verificationUrl: 'https://openapi.baidu.com/device',
+          qrcodeUrl: 'https://openapi.baidu.com/device/qrcode/demo',
+          expiresAtMillis: DateTime.now()
+              .add(const Duration(minutes: 5))
+              .millisecondsSinceEpoch,
+          intervalSeconds: 5,
+        ),
+      ),
+      sourceConfigStore: _FakeBaiduPanSourceConfigStore(),
+    );
+
+    await controller.load();
+
+    expect(controller.isAuthorized, isFalse);
+    expect(controller.deviceCodeSession, isNotNull);
+    expect(controller.deviceCodeSession?.qrcodeUrl, contains('/qrcode/'));
+  });
+
+  test('ensureDeviceLoginSession reuses in-flight preparation', () async {
+    final Completer<void> createCompleter = Completer<void>();
+    final _FakeBaiduPanAuthRepository authRepository =
+        _FakeBaiduPanAuthRepository(
+          authorizeUri: Uri.parse('https://example.com/login'),
+          createDeviceCodeSessionHandler: () async {
+            await createCompleter.future;
+            return BaiduPanDeviceCodeSession(
+              deviceCode: 'device-code',
+              userCode: 'user-code',
+              verificationUrl: 'https://openapi.baidu.com/device',
+              qrcodeUrl: 'https://openapi.baidu.com/device/qrcode/demo',
+              expiresAtMillis: DateTime.now()
+                  .add(const Duration(minutes: 5))
+                  .millisecondsSinceEpoch,
+              intervalSeconds: 5,
+            );
+          },
+        );
+    final BaiduPanSettingsController controller = BaiduPanSettingsController(
+      appCredentials: const BaiduPanAppCredentials(
+        appId: '122751914',
+        appKey: 'app-key',
+        secretKey: 'secret-key',
+        signKey: 'sign-key',
+      ),
+      apiClient: _FakeBaiduPanApiClient(),
+      authRepository: authRepository,
+      sourceConfigStore: _FakeBaiduPanSourceConfigStore(),
+    );
+
+    final Future<void> first = controller.ensureDeviceLoginSession();
+    final Future<void> second = controller.ensureDeviceLoginSession();
+    createCompleter.complete();
+    await Future.wait(<Future<void>>[first, second]);
+
+    expect(authRepository.createDeviceCodeSessionCallCount, 1);
+    expect(controller.deviceCodeSession, isNotNull);
+  });
+
+  test('load does not prepare qr login session on android', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final _FakeBaiduPanAuthRepository authRepository =
+        _FakeBaiduPanAuthRepository(
+          authorizeUri: Uri.parse('https://example.com/login'),
+        );
+    final BaiduPanSettingsController controller = BaiduPanSettingsController(
+      appCredentials: const BaiduPanAppCredentials(
+        appId: '122751914',
+        appKey: 'app-key',
+        secretKey: 'secret-key',
+        signKey: 'sign-key',
+      ),
+      apiClient: _FakeBaiduPanApiClient(),
+      authRepository: authRepository,
+      sourceConfigStore: _FakeBaiduPanSourceConfigStore(),
+    );
+
+    await controller.load();
+
+    expect(controller.supportsQrLogin, isFalse);
+    expect(controller.deviceCodeSession, isNull);
+    expect(authRepository.createDeviceCodeSessionCallCount, 0);
   });
 
   test('saveSettings validates root path', () async {
@@ -185,6 +293,7 @@ void main() {
 
     expect(authRepository.logoutCallCount, 1);
     expect(controller.isAuthorized, isFalse);
+    expect(controller.deviceCodeSession, isNotNull);
   });
 }
 
@@ -192,17 +301,44 @@ class _FakeBaiduPanAuthRepository implements BaiduPanAuthRepository {
   _FakeBaiduPanAuthRepository({
     required this.authorizeUri,
     this.token,
+    this.deviceCodeSession,
     this.hasValidSessionValue = false,
+    this.createDeviceCodeSessionHandler,
   });
 
   final Uri authorizeUri;
   BaiduPanAuthToken? token;
+  BaiduPanDeviceCodeSession? deviceCodeSession;
   bool hasValidSessionValue;
+  final Future<BaiduPanDeviceCodeSession> Function()?
+  createDeviceCodeSessionHandler;
   String? lastLoginCode;
   int logoutCallCount = 0;
+  int createDeviceCodeSessionCallCount = 0;
 
   @override
   Future<Uri> buildAuthorizeUri() async => authorizeUri;
+
+  @override
+  Future<BaiduPanDeviceCodeSession> createDeviceCodeSession() async {
+    createDeviceCodeSessionCallCount += 1;
+    final Future<BaiduPanDeviceCodeSession> Function()? createHandler =
+        createDeviceCodeSessionHandler;
+    if (createHandler != null) {
+      return createHandler();
+    }
+    return deviceCodeSession ??
+        BaiduPanDeviceCodeSession(
+          deviceCode: 'device-code',
+          userCode: 'user-code',
+          verificationUrl: 'https://openapi.baidu.com/device',
+          qrcodeUrl: 'https://openapi.baidu.com/device/qrcode/demo',
+          expiresAtMillis: DateTime.now()
+              .add(const Duration(minutes: 5))
+              .millisecondsSinceEpoch,
+          intervalSeconds: 5,
+        );
+  }
 
   @override
   Future<String> getValidAccessToken() async => token?.accessToken ?? '';
@@ -221,6 +357,19 @@ class _FakeBaiduPanAuthRepository implements BaiduPanAuthRepository {
           .millisecondsSinceEpoch,
     );
     hasValidSessionValue = true;
+  }
+
+  @override
+  Future<BaiduPanAuthToken?> loginWithDeviceCode(String deviceCode) async {
+    token ??= BaiduPanAuthToken(
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      expiresAtMillis: DateTime.now()
+          .add(const Duration(hours: 1))
+          .millisecondsSinceEpoch,
+    );
+    hasValidSessionValue = true;
+    return token;
   }
 
   @override
