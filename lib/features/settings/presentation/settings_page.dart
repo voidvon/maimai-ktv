@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../media_library/data/baidu_pan/baidu_pan_models.dart';
 import '../application/baidu_pan_settings_controller.dart';
+import '../data/qr_image_save_data_source.dart';
 import '../application/settings_controller.dart';
 
 class SettingsPageResult {
@@ -253,6 +254,9 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
   late final TextEditingController _rootPathController = TextEditingController(
     text: widget.controller.rootPath ?? '',
   );
+  final QrImageSaveDataSource _qrImageSaveDataSource =
+      const QrImageSaveDataSource();
+  bool _isSavingQrImage = false;
 
   @override
   void initState() {
@@ -276,6 +280,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
       animation: widget.controller,
       builder: (BuildContext context, _) {
         final bool supportsQrLogin = widget.controller.supportsQrLogin;
+        final bool canSaveQrImage = _qrImageSaveDataSource.isSupported;
         final bool canRefreshRemoteFolder =
             widget.controller.canRefreshRemoteFolder;
         final String? rootPath = widget.controller.rootPath;
@@ -293,9 +298,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                   padding: const EdgeInsets.all(24),
                   children: <Widget>[
                     Text(
-                      supportsQrLogin
-                          ? '百度网盘开放平台凭证已经内置到应用配置里。用户进入本页后，未登录时会自动拉起扫码登录二维码。登录后只需要配置歌曲根目录。'
-                          : '百度网盘开放平台凭证已经内置到应用配置里。移动端后续会改为跳转百度网盘 App 授权，当前版本暂未实现该流程，先保留为空。',
+                      '百度网盘开放平台凭证已经内置到应用配置里。用户进入本页后，未登录时会自动拉起扫码登录二维码。登录后只需要配置歌曲根目录。',
                       style: TextStyle(height: 1.5),
                     ),
                     const SizedBox(height: 18),
@@ -331,11 +334,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            widget.controller.isAuthorized
-                                ? '登录已完成'
-                                : supportsQrLogin
-                                ? '扫码登录'
-                                : 'App 授权',
+                            widget.controller.isAuthorized ? '登录已完成' : '扫码登录',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -345,9 +344,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                           Text(
                             widget.controller.isAuthorized
                                 ? '当前百度网盘账号已登录，可以继续配置歌曲根目录并扫描指定文件夹。'
-                                : supportsQrLogin
-                                ? '进入页面后已自动生成二维码。请直接使用百度 App 扫码授权，授权完成后会自动登录。'
-                                : 'Android 和 iOS 端将使用跳转百度网盘 App 的授权方式。当前版本暂未实现，因此这里先留空。',
+                                : '进入页面后已自动生成二维码。请直接使用百度 App 扫码授权，授权完成后会自动登录。',
                             style: TextStyle(
                               color: Color(0xCCFFFFFF),
                               height: 1.5,
@@ -364,14 +361,32 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                                 '账号：${widget.controller.accountDisplayName ?? '未知账号'}\n'
                                 '容量：${widget.controller.quotaSummary ?? '未知'}\n'
                                 'Token 过期时间：${widget.controller.tokenExpiresAt}'
-                          : supportsQrLogin
-                          ? '未登录'
-                          : '未登录\n移动端 App 授权暂未实现',
+                          : '未登录',
                     ),
                     const SizedBox(height: 16),
                     if (!widget.controller.isAuthorized &&
                         supportsQrLogin) ...<Widget>[
                       _BaiduPanQrCard(controller: widget.controller),
+                      if (canSaveQrImage &&
+                          widget.controller.deviceCodeSession !=
+                              null) ...<Widget>[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _isSavingQrImage
+                              ? null
+                              : () async {
+                                  await _saveCurrentQrCode(
+                                    widget.controller.deviceCodeSession!,
+                                  );
+                                },
+                          icon: Icon(
+                            _isSavingQrImage
+                                ? Icons.downloading_rounded
+                                : Icons.download_rounded,
+                          ),
+                          label: Text(_isSavingQrImage ? '保存中' : '保存二维码到手机'),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       FilledButton.icon(
                         onPressed:
@@ -394,13 +409,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                               : '刷新二维码',
                         ),
                       ),
-                    ] else if (!widget.controller.isAuthorized) ...<Widget>[
-                      const _InfoCard(
-                        title: '移动端授权',
-                        content:
-                            'Android 和 iOS 暂不使用扫码登录，后续会改为跳转百度网盘 App 授权。当前版本尚未实现该能力，因此这里暂时不提供登录操作。',
-                      ),
-                    ] else ...<Widget>[
+                    ] else if (widget.controller.isAuthorized) ...<Widget>[
                       OutlinedButton.icon(
                         onPressed: widget.controller.isLoggingIn
                             ? null
@@ -514,6 +523,42 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
         );
       },
     );
+  }
+
+  Future<void> _saveCurrentQrCode(BaiduPanDeviceCodeSession session) async {
+    if (_isSavingQrImage) {
+      return;
+    }
+    setState(() {
+      _isSavingQrImage = true;
+    });
+    try {
+      final String fileName =
+          'baidu_pan_qr_${DateTime.now().millisecondsSinceEpoch}.png';
+      await _qrImageSaveDataSource.saveQrImage(
+        imageUrl: session.qrcodeUrl,
+        fileName: fileName,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('二维码已保存到手机')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存二维码失败：$error')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingQrImage = false;
+        });
+      }
+    }
   }
 }
 

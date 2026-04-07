@@ -51,14 +51,7 @@ class BaiduPanSettingsController
   bool get isPreparingDeviceLogin => _isPreparingDeviceLogin;
   bool get hasActiveDeviceLogin =>
       _deviceCodeSession != null && !_deviceCodeSession!.isExpired;
-  bool get supportsQrLogin =>
-      !kIsWeb &&
-      switch (defaultTargetPlatform) {
-        TargetPlatform.macOS ||
-        TargetPlatform.windows ||
-        TargetPlatform.linux => true,
-        _ => false,
-      };
+  bool get supportsQrLogin => !kIsWeb;
 
   @override
   Future<void> load() async {

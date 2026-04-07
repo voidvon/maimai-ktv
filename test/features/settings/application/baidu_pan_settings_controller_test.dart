@@ -134,7 +134,7 @@ void main() {
     expect(controller.deviceCodeSession, isNotNull);
   });
 
-  test('load does not prepare qr login session on android', () async {
+  test('load prepares qr login session on android', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     final _FakeBaiduPanAuthRepository authRepository =
         _FakeBaiduPanAuthRepository(
@@ -154,9 +154,9 @@ void main() {
 
     await controller.load();
 
-    expect(controller.supportsQrLogin, isFalse);
-    expect(controller.deviceCodeSession, isNull);
-    expect(authRepository.createDeviceCodeSessionCallCount, 0);
+    expect(controller.supportsQrLogin, isTrue);
+    expect(controller.deviceCodeSession, isNotNull);
+    expect(authRepository.createDeviceCodeSessionCallCount, 1);
   });
 
   test('saveSettings validates root path', () async {

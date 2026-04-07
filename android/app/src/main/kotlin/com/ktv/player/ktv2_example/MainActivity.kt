@@ -11,7 +11,9 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.icu.text.Transliterator
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.view.Surface
 import androidx.documentfile.provider.DocumentFile
@@ -19,6 +21,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import java.text.Normalizer
 
 private const val unrecognizedArtistValue = "未识别歌手"
@@ -127,6 +130,7 @@ class MainActivity : FlutterActivity() {
         const val videoPickerChannel = "ktv2_example/video_picker"
         const val androidStorageChannel = "ktv2_example/android_storage"
         const val orientationChannel = "ktv2_example/orientation"
+        const val qrImageChannel = "ktv2_example/qr_image"
         val supportedExtensions =
             setOf(
                 "3g2",
@@ -305,6 +309,32 @@ class MainActivity : FlutterActivity() {
                 "exitVideoFullscreen" -> {
                     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                     result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            qrImageChannel,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "saveQrImage" -> {
+                    val bytes = call.argument<ByteArray>("bytes")
+                    val fileName = call.argument<String>("fileName")
+                    if (bytes == null || bytes.isEmpty()) {
+                        result.error("invalid_args", "Missing image bytes", null)
+                    } else {
+                        try {
+                            result.success(saveQrImage(bytes, fileName))
+                        } catch (error: Exception) {
+                            result.error(
+                                "save_failed",
+                                error.message ?: "Failed to save qr image",
+                                null,
+                            )
+                        }
+                    }
                 }
                 else -> result.notImplemented()
             }
@@ -510,6 +540,51 @@ class MainActivity : FlutterActivity() {
     private fun loadSelectedDirectory(): String? {
         return getSharedPreferences(preferencesName, MODE_PRIVATE)
             .getString(selectedDirectoryKey, null)
+    }
+
+    private fun saveQrImage(
+        bytes: ByteArray,
+        fileName: String?,
+    ): String {
+        val resolvedFileName =
+            fileName?.takeIf { it.isNotBlank() } ?: "baidu_pan_qr_${System.currentTimeMillis()}.png"
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            saveQrImageWithMediaStore(bytes, resolvedFileName)
+        } else {
+            throw IllegalStateException("当前 Android 版本暂不支持直接保存二维码到系统相册")
+        }
+    }
+
+    private fun saveQrImageWithMediaStore(
+        bytes: ByteArray,
+        fileName: String,
+    ): String {
+        val values =
+            ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_PICTURES}${File.separator}我爱KTV",
+                )
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        val uri =
+            contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("无法创建二维码保存记录")
+        try {
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.write(bytes)
+                outputStream.flush()
+            } ?: throw IllegalStateException("无法写入二维码图片")
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            contentResolver.update(uri, values, null, null)
+            return uri.toString()
+        } catch (error: Exception) {
+            contentResolver.delete(uri, null, null)
+            throw error
+        }
     }
 
     private fun scanLibrary(rootUri: String): List<Map<String, Any?>> {
