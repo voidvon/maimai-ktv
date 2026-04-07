@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../../../core/models/song.dart';
+import '../cloud/cloud_playback_cache.dart';
 import '../cloud/cloud_song_download_service.dart';
 import '_baidu_pan_file_store_support.dart';
 import 'baidu_pan_playback_cache.dart';
@@ -35,10 +36,14 @@ class BaiduPanSongDownloadService extends CloudSongDownloadService {
   Future<BaiduPanDownloadResult> downloadSong({
     required Song song,
     String? preferredDirectory,
+    void Function(CloudDownloadProgress progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
   }) async {
     final CloudSongDownloadResult result = await super.downloadSong(
       song: song,
       preferredDirectory: preferredDirectory,
+      onProgress: onProgress,
+      cancellationToken: cancellationToken,
     );
     return BaiduPanDownloadResult(
       savedPath: result.savedPath,

@@ -54,14 +54,22 @@ class BaiduPanSettingsController
   bool get supportsQrLogin => !kIsWeb;
 
   @override
+  String get expiredSessionMessage => '百度网盘登录已过期，请重新扫码登录。';
+
+  @override
   Future<void> load() async {
     await super.load();
     if (!isAuthorized && supportsQrLogin) {
-      await ensureDeviceLoginSession();
+      await ensureDeviceLoginSession(
+        preserveErrorMessage: errorMessage != null,
+      );
     }
   }
 
-  Future<void> ensureDeviceLoginSession({bool forceRefresh = false}) async {
+  Future<void> ensureDeviceLoginSession({
+    bool forceRefresh = false,
+    bool preserveErrorMessage = false,
+  }) async {
     if (isAuthorized || !isAppConfigured || !supportsQrLogin) {
       _deviceLoginTimer?.cancel();
       _deviceCodeSession = null;
@@ -81,7 +89,10 @@ class BaiduPanSettingsController
     }
 
     final int generation = ++_deviceLoginGeneration;
-    final Future<void> preparation = _prepareDeviceLoginSession(generation);
+    final Future<void> preparation = _prepareDeviceLoginSession(
+      generation,
+      preserveErrorMessage: preserveErrorMessage,
+    );
     _deviceLoginPreparation = preparation;
     try {
       await preparation;
@@ -92,11 +103,16 @@ class BaiduPanSettingsController
     }
   }
 
-  Future<void> _prepareDeviceLoginSession(int generation) async {
+  Future<void> _prepareDeviceLoginSession(
+    int generation, {
+    required bool preserveErrorMessage,
+  }) async {
     _deviceLoginTimer?.cancel();
     _deviceCodeSession = null;
     _isPreparingDeviceLogin = true;
-    setErrorMessage(null);
+    if (!preserveErrorMessage) {
+      setErrorMessage(null);
+    }
     notifyListeners();
     try {
       final BaiduPanDeviceCodeSession session = await _authRepository

@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
 import '../../../core/models/song.dart';
+import '../../../core/presentation/center_overlay_toast.dart';
 import '../../media_library/data/baidu_pan/baidu_pan_app_config.dart';
 import '../../media_library/data/baidu_pan/baidu_pan_http_api_client.dart';
 import '../../media_library/data/baidu_pan/baidu_pan_oauth_repository.dart';
 import '../../media_library/data/baidu_pan/file_baidu_pan_auth_store.dart';
 import '../../media_library/data/baidu_pan/file_baidu_pan_source_config_store.dart';
+import '../../media_library/data/cloud/cloud_playback_cache.dart';
 import '../../media_library/data/cloud/cloud_song_download_service.dart';
 import '../../settings/application/baidu_pan_settings_controller.dart';
 import '../../settings/application/settings_controller.dart';
@@ -101,6 +103,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
               return SettingsPage(
                 controller: settingsController,
                 baiduPanController: baiduPanController,
+                ktvController: _controller,
               );
             },
             fullscreenDialog: true,
@@ -267,6 +270,10 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       ).showSnackBar(SnackBar(content: Text(label)));
     } catch (error) {
       if (!mounted) {
+        return;
+      }
+      if (error is CloudDownloadCancelledException) {
+        CenterOverlayToast.showSuccess(context, message: '已取消');
         return;
       }
       ScaffoldMessenger.of(

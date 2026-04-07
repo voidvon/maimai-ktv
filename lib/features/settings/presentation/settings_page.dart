@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../core/presentation/center_overlay_toast.dart';
+import '../../ktv/application/download_manager_models.dart';
+import '../../ktv/application/ktv_controller.dart';
 import '../../media_library/data/baidu_pan/baidu_pan_models.dart';
 import '../application/baidu_pan_settings_controller.dart';
 import '../data/qr_image_save_data_source.dart';
@@ -25,10 +27,12 @@ class SettingsPage extends StatelessWidget {
     super.key,
     required this.controller,
     required this.baiduPanController,
+    required this.ktvController,
   });
 
   final SettingsController controller;
   final BaiduPanSettingsController baiduPanController;
+  final KtvController ktvController;
 
   @override
   Widget build(BuildContext context) {
@@ -63,14 +67,40 @@ class SettingsPage extends StatelessWidget {
                   animation: Listenable.merge(<Listenable>[
                     controller,
                     baiduPanController,
+                    ktvController,
                   ]),
                   builder: (BuildContext context, _) {
                     final bool baiduPanReady =
                         baiduPanController.canRefreshRemoteFolder;
                     final String? baiduPanRootPath =
                         baiduPanController.rootPath;
+                    final int downloadingCount =
+                        ktvController.downloadingSongs.length;
+                    final int downloadedCount =
+                        ktvController.downloadedSongs.length;
                     return Column(
                       children: <Widget>[
+                        _SettingsEntryCard(
+                          title: '下载管理',
+                          subtitle: downloadingCount > 0
+                              ? '正在下载 $downloadingCount 首，已下载 $downloadedCount 首'
+                              : downloadedCount > 0
+                              ? '已下载 $downloadedCount 首歌曲'
+                              : '查看下载中和已下载的歌曲列表',
+                          icon: Icons.download_rounded,
+                          onTap: () async {
+                            await Navigator.of(context).push<void>(
+                              MaterialPageRoute<void>(
+                                builder: (BuildContext context) {
+                                  return _DownloadManagerPage(
+                                    controller: ktvController,
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 14),
                         _SettingsEntryCard(
                           title: '本地目录',
                           subtitle: controller.currentDirectoryPath == null
@@ -135,6 +165,147 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DownloadManagerPage extends StatelessWidget {
+  const _DownloadManagerPage({required this.controller});
+
+  final KtvController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (BuildContext context, _) {
+        final List<DownloadingSongItem> downloadingSongs =
+            controller.downloadingSongs;
+        final List<DownloadedSongItem> downloadedSongs =
+            controller.downloadedSongs;
+        return DefaultTabController(
+          length: 2,
+          child: Scaffold(
+            backgroundColor: const Color(0xFF0A0014),
+            appBar: AppBar(
+              title: const Text('下载管理'),
+              backgroundColor: Colors.transparent,
+              bottom: TabBar(
+                tabs: <Widget>[
+                  Tab(text: '下载中 (${downloadingSongs.length})'),
+                  Tab(text: '已下载 (${downloadedSongs.length})'),
+                ],
+              ),
+            ),
+            body: TabBarView(
+              children: <Widget>[
+                _DownloadListView(
+                  emptyMessage: '当前没有正在下载的歌曲。',
+                  children: downloadingSongs
+                      .map(
+                        (DownloadingSongItem item) => _DownloadListItem(
+                          title: '${item.displayArtist}-${item.title}',
+                          subtitle: '',
+                          sourceLabel: item.sourceLabel,
+                          trailing: IconButton(
+                            onPressed: () {
+                              controller.cancelDownload(
+                                sourceId: item.sourceId,
+                                sourceSongId: item.sourceSongId,
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white,
+                            ),
+                            tooltip: '取消下载',
+                          ),
+                          footer:
+                              '${item.phaseLabel} · ${item.progressPercent}%',
+                          progress: item.progress,
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+                _DownloadListView(
+                  emptyMessage: '还没有已下载的歌曲。',
+                  children: downloadedSongs
+                      .map(
+                        (DownloadedSongItem item) => _DownloadListItem(
+                          title: '${item.displayArtist}-${item.displayTitle}',
+                          subtitle: '',
+                          sourceLabel: item.sourceLabel,
+                          trailing: IconButton(
+                            onPressed: () async {
+                              final bool confirmed =
+                                  await _confirmDeleteDownloadedSong(
+                                    context,
+                                    item,
+                                  ) ??
+                                  false;
+                              if (!confirmed || !context.mounted) {
+                                return;
+                              }
+                              await controller.deleteDownloadedSong(
+                                sourceId: item.sourceId,
+                                sourceSongId: item.sourceSongId,
+                              );
+                              if (!context.mounted) {
+                                return;
+                              }
+                              CenterOverlayToast.showSuccess(
+                                context,
+                                message: '已删除',
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: Color(0xFFFF9B9B),
+                            ),
+                            tooltip: '删除源文件',
+                          ),
+                          footer: item.savedPath,
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool?> _confirmDeleteDownloadedSong(
+    BuildContext context,
+    DownloadedSongItem item,
+  ) {
+    return showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF16081F),
+          title: const Text('删除已下载文件', style: TextStyle(color: Colors.white)),
+          content: Text(
+            '将删除本地文件：${item.displayTitle}\n来源：${item.sourceLabel}',
+            style: const TextStyle(color: Color(0xCCFFFFFF), height: 1.5),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6E67),
+              ),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -538,8 +709,8 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
     try {
       final String fileName =
           'baidu_pan_qr_${DateTime.now().millisecondsSinceEpoch}.png';
-      final BaiduPanDeviceCodeSession? session = widget.controller
-          .deviceCodeSession;
+      final BaiduPanDeviceCodeSession? session =
+          widget.controller.deviceCodeSession;
       if (session == null) {
         throw StateError('二维码会话不存在，请先刷新二维码');
       }
@@ -706,6 +877,140 @@ class _InfoCard extends StatelessWidget {
             content,
             style: const TextStyle(color: Color(0xCCFFFFFF), height: 1.5),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DownloadListView extends StatelessWidget {
+  const _DownloadListView({required this.emptyMessage, required this.children});
+
+  final String emptyMessage;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            emptyMessage,
+            style: const TextStyle(color: Color(0xCCFFFFFF), height: 1.5),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(24),
+      itemCount: children.length,
+      separatorBuilder: (BuildContext context, int index) =>
+          const SizedBox(height: 14),
+      itemBuilder: (BuildContext context, int index) => children[index],
+    );
+  }
+}
+
+class _DownloadListItem extends StatelessWidget {
+  const _DownloadListItem({
+    required this.title,
+    required this.subtitle,
+    required this.sourceLabel,
+    required this.footer,
+    required this.trailing,
+    this.progress,
+  });
+
+  final String title;
+  final String subtitle;
+  final String sourceLabel;
+  final String footer;
+  final Widget trailing;
+  final double? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0x14FFFFFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x26FFFFFF)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xCCFFFFFF),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1A4D88FF),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: const Color(0x334D88FF)),
+                  ),
+                  child: Text(
+                    '来源：$sourceLabel',
+                    style: const TextStyle(
+                      color: Color(0xFFD8E5FF),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  footer,
+                  style: const TextStyle(color: Color(0x99FFFFFF), height: 1.4),
+                ),
+                if (progress != null) ...<Widget>[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 6,
+                      backgroundColor: const Color(0x1AFFFFFF),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF4D88FF),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Padding(padding: const EdgeInsets.only(top: 4), child: trailing),
         ],
       ),
     );

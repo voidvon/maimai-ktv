@@ -7,6 +7,7 @@ import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_aut
 import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_models.dart';
 import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_remote_data_source.dart';
 import 'package:ktv2_example/features/media_library/data/baidu_pan/file_baidu_pan_playback_cache.dart';
+import 'package:ktv2_example/features/media_library/data/cloud/cloud_playback_cache.dart';
 
 void main() {
   test(
@@ -29,11 +30,19 @@ void main() {
         authRepository: _FakeBaiduPanAuthRepository(),
         remoteDataSource: remoteDataSource,
         cacheDirectoryProvider: () async => tempDirectory,
-        fileDownloader: ({required Uri uri, required File targetFile}) async {
-          downloadCount += 1;
-          downloadedUri = uri;
-          await targetFile.writeAsString('mock video payload', flush: true);
-        },
+        fileDownloader:
+            ({
+              required Uri uri,
+              required File targetFile,
+              void Function(double progress)? onProgress,
+              CloudDownloadCancellationToken? cancellationToken,
+            }) async {
+              downloadCount += 1;
+              downloadedUri = uri;
+              cancellationToken?.throwIfCancelled();
+              onProgress?.call(1);
+              await targetFile.writeAsString('mock video payload', flush: true);
+            },
       );
       final Song song = _song();
 

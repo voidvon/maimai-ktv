@@ -7,10 +7,16 @@ import '_baidu_pan_file_store_support.dart';
 import 'baidu_pan_auth_repository.dart';
 import 'baidu_pan_models.dart';
 import 'baidu_pan_playback_cache.dart';
+import '../cloud/cloud_playback_cache.dart';
 import 'baidu_pan_remote_data_source.dart';
 
 typedef BaiduPanFileDownloader =
-    Future<void> Function({required Uri uri, required File targetFile});
+    Future<void> Function({
+      required Uri uri,
+      required File targetFile,
+      void Function(double progress)? onProgress,
+      CloudDownloadCancellationToken? cancellationToken,
+    });
 
 class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
   FileBaiduPanPlaybackCache({
@@ -61,6 +67,8 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
   Future<BaiduPanCachedMedia> resolve({
     required Song song,
     required String sourceSongId,
+    void Function(double progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
   }) {
     final String normalizedSourceSongId = sourceSongId.trim();
     if (normalizedSourceSongId.isEmpty) {
@@ -74,6 +82,8 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
     final Future<BaiduPanCachedMedia> future = _resolveInternal(
       song: song,
       sourceSongId: normalizedSourceSongId,
+      onProgress: onProgress,
+      cancellationToken: cancellationToken,
     );
     _pendingResolutions[normalizedSourceSongId] = future;
     return future.whenComplete(() {
@@ -84,13 +94,17 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
   Future<BaiduPanCachedMedia> _resolveInternal({
     required Song song,
     required String sourceSongId,
+    void Function(double progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
   }) async {
     final Directory directory = await _cacheDirectoryProvider();
+    cancellationToken?.throwIfCancelled();
     final File? cachedFile = await _findCachedFile(
       directory: directory,
       sourceSongId: sourceSongId,
     );
     if (cachedFile != null) {
+      onProgress?.call(1);
       return BaiduPanCachedMedia(
         localPath: cachedFile.path,
         displayName: song.title,
@@ -130,7 +144,10 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
       await _fileDownloader(
         uri: _appendAccessToken(dlink, accessToken),
         targetFile: tempFile,
+        onProgress: onProgress,
+        cancellationToken: cancellationToken,
       );
+      cancellationToken?.throwIfCancelled();
       if (await targetFile.exists()) {
         await targetFile.delete();
       }
@@ -231,6 +248,8 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
   static Future<void> _defaultDownloadToFile({
     required Uri uri,
     required File targetFile,
+    void Function(double progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
   }) async {
     final HttpClient client = HttpClient();
     try {
@@ -244,8 +263,17 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
       }
       await targetFile.parent.create(recursive: true);
       final IOSink sink = targetFile.openWrite();
+      final int totalBytes = response.contentLength;
+      int receivedBytes = 0;
       try {
-        await sink.addStream(response);
+        await for (final List<int> chunk in response) {
+          cancellationToken?.throwIfCancelled();
+          sink.add(chunk);
+          receivedBytes += chunk.length;
+          if (totalBytes > 0) {
+            onProgress?.call(receivedBytes / totalBytes);
+          }
+        }
       } finally {
         await sink.close();
       }

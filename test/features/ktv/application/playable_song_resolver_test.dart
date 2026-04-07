@@ -3,6 +3,7 @@ import 'package:ktv2_example/core/models/song.dart';
 import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/features/ktv/application/playable_song_resolver.dart';
 import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_playback_cache.dart';
+import 'package:ktv2_example/features/media_library/data/cloud/cloud_playback_cache.dart';
 
 void main() {
   test('local song uses media path directly', () async {
@@ -71,6 +72,8 @@ class _FakeBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
   Future<BaiduPanCachedMedia> resolve({
     required Song song,
     required String sourceSongId,
+    void Function(double progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
   }) async {
     lastSourceSongId = sourceSongId;
     return const BaiduPanCachedMedia(

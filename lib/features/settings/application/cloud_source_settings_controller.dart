@@ -93,6 +93,9 @@ class CloudSourceSettingsController<
       isAuthorized && (rootPath?.trim().isNotEmpty ?? false);
 
   @protected
+  String get expiredSessionMessage => '$_providerLabel登录已过期，请重新登录。';
+
+  @protected
   void setErrorMessage(String? message) {
     _errorMessage = message;
   }
@@ -118,13 +121,20 @@ class CloudSourceSettingsController<
     try {
       _sourceConfig = await _sourceConfigStore.loadConfig();
       _authorizeUri = await _authRepository.buildAuthorizeUri();
-      final bool hasValidSession = await _authRepository.hasValidSession();
+      final TToken? storedToken = await _authRepository.readToken();
+      final bool hasStoredSession =
+          storedToken != null && storedToken.accessToken.trim().isNotEmpty;
+      final bool hasValidSession = hasStoredSession
+          ? await _authRepository.hasValidSession()
+          : false;
       _authToken = hasValidSession ? await _authRepository.readToken() : null;
       if (_authToken != null) {
         await _loadAccountSummary();
       } else {
-        _userInfo = null;
-        _quotaInfo = null;
+        clearAuthorizedSessionState();
+        if (hasStoredSession) {
+          _errorMessage = expiredSessionMessage;
+        }
       }
     } catch (error) {
       _errorMessage = '加载$_providerLabel配置失败：$error';

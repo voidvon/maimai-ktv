@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ktv2/ktv2.dart';
@@ -8,6 +11,8 @@ import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/core/models/song_page.dart';
 import 'package:ktv2_example/features/ktv/application/ktv_controller.dart';
 import 'package:ktv2_example/features/media_library/data/aggregated_library_repository.dart';
+import 'package:ktv2_example/features/media_library/data/cloud/cloud_playback_cache.dart';
+import 'package:ktv2_example/features/media_library/data/cloud/cloud_song_download_service.dart';
 import 'package:ktv2_example/features/media_library/data/media_library_repository.dart';
 
 void main() {
@@ -367,6 +372,203 @@ void main() {
     expect(playerController.lastOpenedSource?.displayName, '第二首');
     expect(playerController.audioOutputMode, AudioOutputMode.accompaniment);
   });
+
+  test(
+    'initialize loads downloaded song records for download manager',
+    () async {
+      final _FakeCloudSongDownloadService downloadService =
+          _FakeCloudSongDownloadService(
+            sourceId: 'baidu_pan',
+            downloadedSongs: <CloudDownloadedSongRecord>[
+              const CloudDownloadedSongRecord(
+                sourceId: 'baidu_pan',
+                sourceSongId: 'fsid-1',
+                title: '夜曲',
+                artist: '周杰伦',
+                savedPath: '/tmp/night.mp4',
+                savedAtMillis: 100,
+              ),
+            ],
+          );
+      final KtvController controller = KtvController(
+        mediaLibraryRepository: FakeMediaLibraryRepository(),
+        playerController: FakePlayerController(),
+        songDownloadServices: <String, CloudSongDownloadService>{
+          'baidu_pan': downloadService,
+        },
+      );
+
+      await controller.initialize();
+
+      expect(controller.downloadedSongs, hasLength(1));
+      expect(controller.downloadedSongs.single.title, '夜曲');
+      expect(controller.downloadedSongs.single.sourceLabel, '百度网盘');
+      expect(controller.downloadedSongKeys, contains('baidu_pan::fsid-1'));
+    },
+  );
+
+  test(
+    'downloadSongToLocal updates downloading and downloaded lists',
+    () async {
+      final Song remoteSong = Song(
+        songId: buildAggregateSongId(title: '夜曲', artist: '周杰伦'),
+        sourceId: 'baidu_pan',
+        sourceSongId: 'fsid-2',
+        title: '夜曲',
+        artist: '周杰伦',
+        languages: const <String>['国语'],
+        searchIndex: '夜曲 周杰伦',
+        mediaPath: '',
+      );
+      final _FakeCloudSongDownloadService downloadService =
+          _FakeCloudSongDownloadService(
+            sourceId: 'baidu_pan',
+            onDownloadSong:
+                ({
+                  required Song song,
+                  String? preferredDirectory,
+                  void Function(CloudDownloadProgress progress)? onProgress,
+                  CloudDownloadCancellationToken? cancellationToken,
+                }) async {
+                  onProgress?.call(
+                    const CloudDownloadProgress(
+                      phaseLabel: '缓存云端文件',
+                      value: 0.4,
+                    ),
+                  );
+                  await Future<void>.delayed(const Duration(milliseconds: 10));
+                  return const CloudSongDownloadResult(
+                    savedPath: '/tmp/downloaded/night.mp4',
+                    usedPreferredDirectory: false,
+                  );
+                },
+          );
+      final KtvController controller = KtvController(
+        mediaLibraryRepository: FakeMediaLibraryRepository(),
+        playerController: FakePlayerController(),
+        songDownloadServices: <String, CloudSongDownloadService>{
+          'baidu_pan': downloadService,
+        },
+      );
+
+      final Future<CloudSongDownloadResult> future = controller
+          .downloadSongToLocal(remoteSong);
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(controller.downloadingSongs, hasLength(1));
+      expect(controller.downloadingSongs.single.title, '夜曲');
+      expect(controller.downloadingSongs.single.sourceLabel, '百度网盘');
+      expect(controller.downloadingSongs.single.progress, 0.4);
+
+      await future;
+
+      expect(controller.downloadingSongs, isEmpty);
+      expect(controller.downloadedSongs, hasLength(1));
+      expect(
+        controller.downloadedSongs.single.savedPath,
+        '/tmp/downloaded/night.mp4',
+      );
+    },
+  );
+
+  test(
+    'cancelDownload cancels active task and clears downloading item',
+    () async {
+      final Song remoteSong = Song(
+        songId: buildAggregateSongId(title: '稻香', artist: '周杰伦'),
+        sourceId: 'baidu_pan',
+        sourceSongId: 'fsid-3',
+        title: '稻香',
+        artist: '周杰伦',
+        languages: const <String>['国语'],
+        searchIndex: '稻香 周杰伦',
+        mediaPath: '',
+      );
+      final Completer<void> gate = Completer<void>();
+      final _FakeCloudSongDownloadService downloadService =
+          _FakeCloudSongDownloadService(
+            sourceId: 'baidu_pan',
+            onDownloadSong:
+                ({
+                  required Song song,
+                  String? preferredDirectory,
+                  void Function(CloudDownloadProgress progress)? onProgress,
+                  CloudDownloadCancellationToken? cancellationToken,
+                }) async {
+                  onProgress?.call(
+                    const CloudDownloadProgress(
+                      phaseLabel: '缓存云端文件',
+                      value: 0.2,
+                    ),
+                  );
+                  await gate.future;
+                  cancellationToken?.throwIfCancelled();
+                  return const CloudSongDownloadResult(
+                    savedPath: '/tmp/should-not-exist.mp4',
+                    usedPreferredDirectory: false,
+                  );
+                },
+          );
+      final KtvController controller = KtvController(
+        mediaLibraryRepository: FakeMediaLibraryRepository(),
+        playerController: FakePlayerController(),
+        songDownloadServices: <String, CloudSongDownloadService>{
+          'baidu_pan': downloadService,
+        },
+      );
+
+      final Future<CloudSongDownloadResult> future = controller
+          .downloadSongToLocal(remoteSong);
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      controller.cancelDownload(
+        sourceId: remoteSong.sourceId,
+        sourceSongId: remoteSong.sourceSongId,
+      );
+      gate.complete();
+
+      await expectLater(
+        future,
+        throwsA(isA<CloudDownloadCancelledException>()),
+      );
+      expect(controller.downloadingSongs, isEmpty);
+      expect(controller.downloadedSongs, isEmpty);
+    },
+  );
+
+  test('deleteDownloadedSong deletes source file entry from manager', () async {
+    final _FakeCloudSongDownloadService downloadService =
+        _FakeCloudSongDownloadService(
+          sourceId: 'baidu_pan',
+          downloadedSongs: <CloudDownloadedSongRecord>[
+            const CloudDownloadedSongRecord(
+              sourceId: 'baidu_pan',
+              sourceSongId: 'fsid-4',
+              title: '青花瓷',
+              artist: '周杰伦',
+              savedPath: '/tmp/qinghuaci.mp4',
+              savedAtMillis: 200,
+            ),
+          ],
+        );
+    final KtvController controller = KtvController(
+      mediaLibraryRepository: FakeMediaLibraryRepository(),
+      playerController: FakePlayerController(),
+      songDownloadServices: <String, CloudSongDownloadService>{
+        'baidu_pan': downloadService,
+      },
+    );
+    await controller.initialize();
+
+    await controller.deleteDownloadedSong(
+      sourceId: 'baidu_pan',
+      sourceSongId: 'fsid-4',
+    );
+
+    expect(downloadService.deletedSourceSongIds, <String>['fsid-4']);
+    expect(controller.downloadedSongs, isEmpty);
+    expect(controller.downloadedSongKeys, isEmpty);
+  });
 }
 
 Song _song({
@@ -653,6 +855,90 @@ class FakeMediaLibraryRepository extends MediaLibraryRepository {
       return null;
     }
     return getSongById(directory: localDirectory, songId: songId);
+  }
+}
+
+class _FakeCloudSongDownloadService extends CloudSongDownloadService {
+  _FakeCloudSongDownloadService({
+    required super.sourceId,
+    this.downloadedSongs = const <CloudDownloadedSongRecord>[],
+    this.onDownloadSong,
+  }) : super(
+         playbackCache: const _FakeCloudPlaybackCache(),
+         fallbackDirectoryProvider: _fallbackDirectoryProvider,
+         downloadIndexFileProvider: _downloadIndexFileProvider,
+       );
+
+  final List<CloudDownloadedSongRecord> downloadedSongs;
+  final List<String> deletedSourceSongIds = <String>[];
+  final Future<CloudSongDownloadResult> Function({
+    required Song song,
+    String? preferredDirectory,
+    void Function(CloudDownloadProgress progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
+  })?
+  onDownloadSong;
+
+  static Future<Directory> _fallbackDirectoryProvider() async {
+    return Directory.systemTemp;
+  }
+
+  static Future<File> _downloadIndexFileProvider() async {
+    return File(
+      '${Directory.systemTemp.path}/ktv-controller-test-downloads.json',
+    );
+  }
+
+  @override
+  Future<List<CloudDownloadedSongRecord>> loadDownloadedSongs() async {
+    return downloadedSongs;
+  }
+
+  @override
+  Future<CloudSongDownloadResult> downloadSong({
+    required Song song,
+    String? preferredDirectory,
+    void Function(CloudDownloadProgress progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
+  }) async {
+    final Future<CloudSongDownloadResult> Function({
+      required Song song,
+      String? preferredDirectory,
+      void Function(CloudDownloadProgress progress)? onProgress,
+      CloudDownloadCancellationToken? cancellationToken,
+    })?
+    handler = onDownloadSong;
+    if (handler == null) {
+      throw UnimplementedError('downloadSong handler is not configured');
+    }
+    return handler(
+      song: song,
+      preferredDirectory: preferredDirectory,
+      onProgress: onProgress,
+      cancellationToken: cancellationToken,
+    );
+  }
+
+  @override
+  Future<void> deleteDownloadedSong({required String sourceSongId}) async {
+    deletedSourceSongIds.add(sourceSongId);
+  }
+}
+
+class _FakeCloudPlaybackCache implements CloudPlaybackCache {
+  const _FakeCloudPlaybackCache();
+
+  @override
+  Future<void> clearExpiredCache() async {}
+
+  @override
+  Future<CloudCachedMedia> resolve({
+    required Song song,
+    required String sourceSongId,
+    void Function(double progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
+  }) {
+    throw UnimplementedError();
   }
 }
 

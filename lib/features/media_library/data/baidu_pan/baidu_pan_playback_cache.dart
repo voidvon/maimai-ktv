@@ -14,6 +14,8 @@ abstract class BaiduPanPlaybackCache extends CloudPlaybackCache {
   Future<BaiduPanCachedMedia> resolve({
     required Song song,
     required String sourceSongId,
+    void Function(double progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
   });
 
   @override

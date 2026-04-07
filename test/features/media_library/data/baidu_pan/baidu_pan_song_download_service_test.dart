@@ -5,6 +5,8 @@ import 'package:ktv2_example/core/models/song.dart';
 import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_playback_cache.dart';
 import 'package:ktv2_example/features/media_library/data/baidu_pan/baidu_pan_song_download_service.dart';
+import 'package:ktv2_example/features/media_library/data/cloud/cloud_playback_cache.dart';
+import 'package:ktv2_example/features/media_library/data/cloud/cloud_song_download_service.dart';
 
 void main() {
   test(
@@ -64,8 +66,49 @@ void main() {
         await service.loadDownloadedSourceSongIds(),
         contains(song.sourceSongId),
       );
+      final List<CloudDownloadedSongRecord> records = await service
+          .loadDownloadedSongs();
+      expect(records, hasLength(1));
+      expect(records.single.sourceId, 'baidu_pan');
+      expect(records.single.sourceSongId, song.sourceSongId);
+      expect(records.single.title, '夜曲');
+      expect(records.single.artist, '周杰伦');
+      expect(records.single.savedPath, result.savedPath);
     },
   );
+
+  test('loadDownloadedSongs supports legacy string index entries', () async {
+    final Directory storeDirectory = await Directory.systemTemp.createTemp(
+      'baidu-pan-legacy-store-',
+    );
+    addTearDown(() async {
+      if (await storeDirectory.exists()) {
+        await storeDirectory.delete(recursive: true);
+      }
+    });
+
+    final File savedFile = File('${storeDirectory.path}/legacy_song.mp4');
+    await savedFile.writeAsString('legacy', flush: true);
+    final File indexFile = File('${storeDirectory.path}/downloaded_songs.json');
+    await indexFile.writeAsString(
+      '{"legacy-fsid":"${savedFile.path.replaceAll(r'\', r'\\')}"}',
+      flush: true,
+    );
+
+    final BaiduPanSongDownloadService service = BaiduPanSongDownloadService(
+      playbackCache: _FakeBaiduPanPlaybackCache(savedFile.path),
+      downloadIndexFileProvider: () async => indexFile,
+    );
+
+    final List<CloudDownloadedSongRecord> records = await service
+        .loadDownloadedSongs();
+
+    expect(records, hasLength(1));
+    expect(records.single.sourceSongId, 'legacy-fsid');
+    expect(records.single.savedPath, savedFile.path);
+    expect(records.single.title, isEmpty);
+    expect(records.single.artist, isEmpty);
+  });
 }
 
 class _FakeBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
@@ -80,6 +123,8 @@ class _FakeBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
   Future<BaiduPanCachedMedia> resolve({
     required Song song,
     required String sourceSongId,
+    void Function(double progress)? onProgress,
+    CloudDownloadCancellationToken? cancellationToken,
   }) async {
     return BaiduPanCachedMedia(
       localPath: cachedPath,

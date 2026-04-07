@@ -159,6 +159,41 @@ void main() {
     expect(authRepository.createDeviceCodeSessionCallCount, 1);
   });
 
+  test(
+    'load shows relogin message when stored token session is expired',
+    () async {
+      final _FakeBaiduPanAuthRepository authRepository =
+          _FakeBaiduPanAuthRepository(
+            authorizeUri: Uri.parse('https://example.com/login'),
+            token: BaiduPanAuthToken(
+              accessToken: 'expired-token',
+              refreshToken: 'refresh-token',
+              expiresAtMillis: DateTime.now()
+                  .subtract(const Duration(minutes: 1))
+                  .millisecondsSinceEpoch,
+            ),
+            hasValidSessionValue: false,
+          );
+      final BaiduPanSettingsController controller = BaiduPanSettingsController(
+        appCredentials: const BaiduPanAppCredentials(
+          appId: '122751914',
+          appKey: 'app-key',
+          secretKey: 'secret-key',
+          signKey: 'sign-key',
+        ),
+        apiClient: _FakeBaiduPanApiClient(),
+        authRepository: authRepository,
+        sourceConfigStore: _FakeBaiduPanSourceConfigStore(),
+      );
+
+      await controller.load();
+
+      expect(controller.isAuthorized, isFalse);
+      expect(controller.deviceCodeSession, isNotNull);
+      expect(controller.errorMessage, '百度网盘登录已过期，请重新扫码登录。');
+    },
+  );
+
   test('saveSettings validates root path', () async {
     final BaiduPanSettingsController controller = BaiduPanSettingsController(
       appCredentials: const BaiduPanAppCredentials(
