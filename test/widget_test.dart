@@ -7,7 +7,6 @@ import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/features/ktv/application/ktv_controller.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_contracts.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_page.dart';
-import 'package:ktv2_example/features/ktv/presentation/songbook_right_column.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_right_column_widgets.dart';
 import 'package:ktv2_example/features/ktv/presentation/shared_widgets.dart';
 import 'package:ktv2_example/main.dart';
@@ -29,6 +28,7 @@ void main() {
         onRequestLibraryPage: (_, _) {},
         onRequestSong: (_) {},
         onToggleFavorite: (_) {},
+        onDownloadSong: (_) {},
       ),
       playback: SongBookPlaybackCallbacks(
         onPrioritizeQueuedSong: (_) {},
@@ -63,7 +63,7 @@ void main() {
 
     expect(find.text('设置'), findsOneWidget);
     expect(find.text('本地目录'), findsOneWidget);
-    expect(find.text('115 网盘'), findsOneWidget);
+    expect(find.text('百度网盘'), findsOneWidget);
   });
 
   testWidgets('opens queued songs page from home toolbar', (
@@ -161,6 +161,8 @@ void main() {
                   Artist(name: 'Beyond', songCount: 9, searchIndex: 'beyond'),
                 ],
                 favoriteSongIds: <String>[],
+                downloadingSongIds: <String>{},
+                downloadedSourceSongIds: <String>{},
                 totalCount: 6,
                 pageIndex: 0,
                 totalPages: 1,
@@ -188,6 +190,7 @@ void main() {
                 onRequestLibraryPage: (_, _) {},
                 onRequestSong: (_) {},
                 onToggleFavorite: (_) {},
+                onDownloadSong: (_) {},
               ),
               playback: SongBookPlaybackCallbacks(
                 onPrioritizeQueuedSong: (_) {},
@@ -295,6 +298,8 @@ void main() {
                   ],
                   artists: <Artist>[],
                   favoriteSongIds: <String>[],
+                  downloadingSongIds: <String>{},
+                  downloadedSourceSongIds: <String>{},
                   totalCount: 4,
                   pageIndex: 0,
                   totalPages: 2,
@@ -322,6 +327,7 @@ void main() {
                   onRequestLibraryPage: (_, _) {},
                   onRequestSong: (_) {},
                   onToggleFavorite: (_) {},
+                  onDownloadSong: (_) {},
                 ),
                 playback: SongBookPlaybackCallbacks(
                   onPrioritizeQueuedSong: (_) {},
@@ -405,6 +411,8 @@ void main() {
                       ),
                       artists: <Artist>[],
                       favoriteSongIds: <String>[],
+                      downloadingSongIds: <String>{},
+                      downloadedSourceSongIds: <String>{},
                       totalCount: 9,
                       pageIndex: 0,
                       totalPages: 5,
@@ -434,6 +442,7 @@ void main() {
                       onRequestLibraryPage: (_, _) {},
                       onRequestSong: (_) {},
                       onToggleFavorite: (_) {},
+                      onDownloadSong: (_) {},
                     ),
                     playback: SongBookPlaybackCallbacks(
                       onPrioritizeQueuedSong: (_) {},
@@ -515,6 +524,8 @@ void main() {
                   ),
                   artists: const <Artist>[],
                   favoriteSongIds: const <String>[],
+                  downloadingSongIds: <String>{},
+                  downloadedSourceSongIds: <String>{},
                   totalCount: 6,
                   pageIndex: 0,
                   totalPages: 1,
@@ -591,6 +602,8 @@ void main() {
                     Artist(name: '孙燕姿', songCount: 7, searchIndex: 'sunyanzi'),
                   ],
                   favoriteSongIds: <String>[],
+                  downloadingSongIds: <String>{},
+                  downloadedSourceSongIds: <String>{},
                   totalCount: 6,
                   pageIndex: 0,
                   totalPages: 1,
@@ -680,6 +693,8 @@ void main() {
                       ),
                     ],
                     favoriteSongIds: <String>[],
+                    downloadingSongIds: <String>{},
+                    downloadedSourceSongIds: <String>{},
                     totalCount: 8,
                     pageIndex: 0,
                     totalPages: 1,
@@ -790,6 +805,8 @@ void main() {
                   ),
                   artists: const <Artist>[],
                   favoriteSongIds: const <String>[],
+                  downloadingSongIds: <String>{},
+                  downloadedSourceSongIds: <String>{},
                   totalCount: 11,
                   pageIndex: 0,
                   totalPages: 2,

@@ -391,12 +391,25 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                 _playback.queuedSongs.first == song;
             final bool isQueued = _playback.queuedSongs.contains(song);
             final bool isFavorite = favoriteSongIds.contains(song.songId);
+            final bool isDownloaded = _library.downloadedSourceSongIds.contains(
+              song.sourceSongId,
+            );
+            final bool showDownloadAction =
+                song.sourceId == 'baidu_pan' && !isDownloaded;
+            final bool isDownloading = _library.downloadingSongIds.contains(
+              song.songId,
+            );
             return SongTile(
               song: song,
               isCurrent: isCurrent,
               isQueued: isQueued,
               isFavorite: isFavorite,
+              showDownloadAction: showDownloadAction,
+              isDownloading: isDownloading,
               onToggleFavorite: () => _libraryCallbacks.onToggleFavorite(song),
+              onDownload: showDownloadAction && !isDownloading
+                  ? () => _libraryCallbacks.onDownloadSong(song)
+                  : null,
               onTap: isQueued
                   ? null
                   : () => _libraryCallbacks.onRequestSong(song),

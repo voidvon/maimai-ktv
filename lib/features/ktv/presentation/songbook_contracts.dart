@@ -39,6 +39,8 @@ class SongBookLibraryViewModel {
     required this.songs,
     required this.artists,
     required this.favoriteSongIds,
+    required this.downloadingSongIds,
+    required this.downloadedSourceSongIds,
     required this.totalCount,
     required this.pageIndex,
     required this.totalPages,
@@ -55,6 +57,8 @@ class SongBookLibraryViewModel {
   final List<Song> songs;
   final List<Artist> artists;
   final List<String> favoriteSongIds;
+  final Set<String> downloadingSongIds;
+  final Set<String> downloadedSourceSongIds;
   final int totalCount;
   final int pageIndex;
   final int totalPages;
@@ -107,6 +111,7 @@ class SongBookLibraryCallbacks {
     required this.onRequestLibraryPage,
     required this.onRequestSong,
     required this.onToggleFavorite,
+    required this.onDownloadSong,
   });
 
   final ValueChanged<String> onLanguageSelected;
@@ -116,6 +121,7 @@ class SongBookLibraryCallbacks {
   final void Function(int pageIndex, int pageSize) onRequestLibraryPage;
   final ValueChanged<Song> onRequestSong;
   final ValueChanged<Song> onToggleFavorite;
+  final ValueChanged<Song> onDownloadSong;
 }
 
 class SongBookPlaybackCallbacks {

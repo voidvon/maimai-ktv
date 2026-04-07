@@ -4,6 +4,7 @@ import 'package:ktv2/ktv2.dart';
 import 'package:ktv2_example/core/models/song_identity.dart';
 import 'package:ktv2_example/core/models/song.dart';
 import 'package:ktv2_example/features/ktv/application/playback_queue_manager.dart';
+import 'package:ktv2_example/features/ktv/application/playable_song_resolver.dart';
 
 void main() {
   test('requestSong opens first song and appends later songs', () async {
@@ -54,6 +55,23 @@ void main() {
     expect(remainingQueue, <Song>[second]);
     expect(playerController.lastOpenedSource?.displayName, '第二首');
     expect(playerController.audioOutputMode, AudioOutputMode.accompaniment);
+  });
+
+  test('requestSong resolves playable media before opening player', () async {
+    final _FakePlayerController playerController = _FakePlayerController();
+    final PlaybackQueueManager manager = PlaybackQueueManager(
+      playerController: playerController,
+      playableSongResolver: _FakePlayableSongResolver(
+        resolvedPath: '/cache/resolved.mp4',
+        displayName: '缓存版第一首',
+      ),
+    );
+    final Song first = _song('第一首');
+
+    await manager.requestSong(const <Song>[], first);
+
+    expect(playerController.lastOpenedSource?.path, '/cache/resolved.mp4');
+    expect(playerController.lastOpenedSource?.displayName, '缓存版第一首');
   });
 }
 
@@ -132,5 +150,25 @@ class _FakePlayerController extends PlayerController {
       playbackPosition: _state.playbackPosition,
     );
     notifyListeners();
+  }
+}
+
+class _FakePlayableSongResolver implements PlayableSongResolver {
+  const _FakePlayableSongResolver({
+    required this.resolvedPath,
+    required this.displayName,
+  });
+
+  final String resolvedPath;
+  final String displayName;
+
+  @override
+  Future<PlayableMediaResolution> resolve(Song song) async {
+    return PlayableMediaResolution(
+      song: song,
+      localPath: resolvedPath,
+      displayName: displayName,
+      cacheHit: true,
+    );
   }
 }

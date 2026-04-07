@@ -501,16 +501,10 @@ class TestLibrarySong extends LibrarySong {
     required super.modifiedAtMillis,
     required super.sourceFingerprint,
     required super.extension,
-    this.languages = const <String>['其它'],
-    this.tags = const <String>[],
+    super.languages = const <String>['其它'],
+    super.tags = const <String>[],
     required this.searchIndex,
   });
-
-  @override
-  final List<String> languages;
-
-  @override
-  final List<String> tags;
 
   @override
   final String searchIndex;

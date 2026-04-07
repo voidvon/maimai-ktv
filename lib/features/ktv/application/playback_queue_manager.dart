@@ -3,11 +3,16 @@ import 'dart:async';
 import 'package:ktv2/ktv2.dart';
 
 import '../../../core/models/song.dart';
+import 'playable_song_resolver.dart';
 
 class PlaybackQueueManager {
-  const PlaybackQueueManager({required this.playerController});
+  const PlaybackQueueManager({
+    required this.playerController,
+    this.playableSongResolver = const DefaultPlayableSongResolver(),
+  });
 
   final PlayerController playerController;
+  final PlayableSongResolver playableSongResolver;
 
   Future<List<Song>> requestSong(List<Song> queuedSongs, Song song) async {
     final List<Song> nextQueue = List<Song>.of(queuedSongs);
@@ -25,8 +30,11 @@ class PlaybackQueueManager {
     nextQueue
       ..remove(song)
       ..insert(0, song);
+    final PlayableMediaResolution media = await playableSongResolver.resolve(
+      song,
+    );
     await playerController.openMedia(
-      MediaSource(path: song.mediaPath, displayName: song.title),
+      MediaSource(path: media.localPath, displayName: media.displayName),
     );
     return nextQueue;
   }
@@ -90,8 +98,11 @@ class PlaybackQueueManager {
     }
 
     final Song nextSong = remainingQueue.first;
+    final PlayableMediaResolution media = await playableSongResolver.resolve(
+      nextSong,
+    );
     await playerController.openMedia(
-      MediaSource(path: nextSong.mediaPath, displayName: nextSong.title),
+      MediaSource(path: media.localPath, displayName: media.displayName),
     );
     return remainingQueue;
   }

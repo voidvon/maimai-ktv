@@ -2,8 +2,16 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
 
 import '../../../core/models/song.dart';
+import '../../media_library/data/baidu_pan/baidu_pan_app_config.dart';
+import '../../media_library/data/baidu_pan/baidu_pan_http_api_client.dart';
+import '../../media_library/data/baidu_pan/baidu_pan_oauth_repository.dart';
+import '../../media_library/data/baidu_pan/baidu_pan_song_download_service.dart';
+import '../../media_library/data/baidu_pan/file_baidu_pan_auth_store.dart';
+import '../../media_library/data/baidu_pan/file_baidu_pan_source_config_store.dart';
+import '../../settings/application/baidu_pan_settings_controller.dart';
 import '../../settings/application/settings_controller.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../application/ktv_controller.dart';
@@ -71,22 +79,49 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       mediaLibraryRepository: _controller.mediaLibraryRepository,
       initialDirectoryPath: _controller.scanDirectoryPath,
     );
-    final String? directory = await Navigator.of(context).push<String>(
-      MaterialPageRoute<String>(
-        builder: (BuildContext context) {
-          return SettingsPage(controller: settingsController);
-        },
-        fullscreenDialog: true,
-      ),
-    );
+    final BaiduPanOAuthRepository baiduPanAuthRepository =
+        BaiduPanOAuthRepository(
+          appCredentials: kBaiduPanAppCredentials,
+          authStore: FileBaiduPanAuthStore(),
+        );
+    final BaiduPanSettingsController baiduPanController =
+        BaiduPanSettingsController(
+          appCredentials: kBaiduPanAppCredentials,
+          apiClient: BaiduPanHttpApiClient(
+            authRepository: baiduPanAuthRepository,
+          ),
+          authRepository: baiduPanAuthRepository,
+          sourceConfigStore: FileBaiduPanSourceConfigStore(),
+        );
+    unawaited(baiduPanController.load());
+    final SettingsPageResult? result = await Navigator.of(context)
+        .push<SettingsPageResult>(
+          MaterialPageRoute<SettingsPageResult>(
+            builder: (BuildContext context) {
+              return SettingsPage(
+                controller: settingsController,
+                baiduPanController: baiduPanController,
+              );
+            },
+            fullscreenDialog: true,
+          ),
+        );
     settingsController.dispose();
+    baiduPanController.dispose();
 
-    if (!mounted || directory == null) {
+    if (!mounted || result == null) {
       return;
     }
 
-    await _controller.handleSelectedDirectory(directory);
-    _searchCoordinator.clear();
+    if (result.localDirectory != null) {
+      await _controller.handleSelectedDirectory(result.localDirectory!);
+      _searchCoordinator.clear();
+      return;
+    }
+    if (result.refreshAggregatedSources) {
+      await _controller.refreshConfiguredSources();
+      _searchCoordinator.clear();
+    }
   }
 
   void _togglePlayback() {
@@ -216,6 +251,30 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
     await _controller.toggleFavorite(song);
   }
 
+  Future<void> _downloadSong(Song song) async {
+    try {
+      final BaiduPanDownloadResult result = await _controller
+          .downloadSongToLocal(song);
+      if (!mounted) {
+        return;
+      }
+      final String fileName = path.basename(result.savedPath);
+      final String label = result.usedPreferredDirectory
+          ? '已下载到本地目录：$fileName'
+          : '已下载到应用目录：$fileName';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(label)));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('下载失败：$error')));
+    }
+  }
+
   SongBookViewModel _buildSongBookViewModel() {
     return SongBookViewModel(
       navigation: SongBookNavigationViewModel(
@@ -231,6 +290,8 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         songs: _controller.filteredSongs,
         artists: _controller.libraryArtists,
         favoriteSongIds: _controller.favoriteSongIds,
+        downloadingSongIds: _controller.downloadingSongIds,
+        downloadedSourceSongIds: _controller.downloadedSourceSongIds,
         totalCount: _controller.libraryTotalCount,
         pageIndex: _controller.libraryPageIndex,
         totalPages: _controller.libraryTotalPages,
@@ -262,6 +323,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         onRequestLibraryPage: _requestLibraryPage,
         onRequestSong: _requestSong,
         onToggleFavorite: _toggleFavorite,
+        onDownloadSong: _downloadSong,
       ),
       playback: SongBookPlaybackCallbacks(
         onPrioritizeQueuedSong: _controller.prioritizeQueuedSong,

@@ -165,6 +165,29 @@ class LibrarySession {
     }
   }
 
+  Future<void> refreshConfiguredSources() async {
+    final KtvState state = _readState();
+    final String? directory = state.scanDirectoryPath;
+    _writeState(
+      state.copyWith(isScanningLibrary: true, libraryScanErrorMessage: null),
+    );
+    try {
+      await _libraryRepository.refreshSources(localDirectory: directory);
+      await _syncConfiguredSourceFlags(localDirectory: directory);
+      await reloadLibraryPage(
+        pageIndex: state.libraryPageIndex,
+        pageSize: state.libraryPageSize,
+        clearErrorMessage: true,
+      );
+    } catch (error) {
+      _writeState(
+        _readState().copyWith(libraryScanErrorMessage: '刷新数据源失败：$error'),
+      );
+    } finally {
+      _writeState(_readState().copyWith(isScanningLibrary: false));
+    }
+  }
+
   Future<void> reloadLibraryPage({
     int? pageIndex,
     int? pageSize,

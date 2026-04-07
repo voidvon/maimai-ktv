@@ -5,12 +5,14 @@ import 'package:ktv2/ktv2.dart';
 import '../../../core/models/artist.dart';
 import '../../../core/models/song.dart';
 import '../../media_library/data/aggregated_library_repository.dart';
+import '../../media_library/data/baidu_pan/baidu_pan_song_download_service.dart';
 import '../../media_library/data/local_song_source_adapter.dart';
 import '../../media_library/data/media_library_repository.dart';
 import '../../song_profile/data/song_profile_repository.dart';
 import 'library_session.dart';
 import 'navigation_history.dart';
 import 'playback_queue_manager.dart';
+import 'playable_song_resolver.dart';
 import 'ktv_state.dart';
 
 export 'ktv_state.dart' show KtvRoute, SongBookMode, LibraryScope, KtvState;
@@ -21,11 +23,18 @@ class KtvController extends ChangeNotifier {
     AggregatedLibraryRepository? aggregatedLibraryRepository,
     SongProfileRepository? songProfileRepository,
     PlayerController? playerController,
+    PlayableSongResolver? playableSongResolver,
+    BaiduPanSongDownloadService? baiduPanSongDownloadService,
   }) : _mediaLibraryRepository =
            mediaLibraryRepository ?? MediaLibraryRepository(),
        _songProfileRepository =
            songProfileRepository ?? SongProfileRepository(),
-       playerController = playerController ?? createPlayerController() {
+       playerController = playerController ?? createPlayerController(),
+       _playableSongResolver =
+           playableSongResolver ?? const DefaultPlayableSongResolver(),
+       _baiduPanSongDownloadService =
+           baiduPanSongDownloadService ??
+           _createDefaultDownloadService(playableSongResolver) {
     _aggregatedLibraryRepository =
         aggregatedLibraryRepository ??
         DefaultAggregatedLibraryRepository(
@@ -39,12 +48,28 @@ class KtvController extends ChangeNotifier {
   static const String allLanguagesLabel = '全部';
   static const Duration _searchRefreshDebounce = Duration(milliseconds: 180);
 
+  static BaiduPanSongDownloadService? _createDefaultDownloadService(
+    PlayableSongResolver? resolver,
+  ) {
+    if (resolver is! DefaultPlayableSongResolver) {
+      return null;
+    }
+    final playbackCache = resolver.baiduPanPlaybackCache;
+    if (playbackCache == null) {
+      return null;
+    }
+    return BaiduPanSongDownloadService(playbackCache: playbackCache);
+  }
+
   final MediaLibraryRepository _mediaLibraryRepository;
   late final AggregatedLibraryRepository _aggregatedLibraryRepository;
   final SongProfileRepository _songProfileRepository;
   final PlayerController playerController;
+  final PlayableSongResolver _playableSongResolver;
+  final BaiduPanSongDownloadService? _baiduPanSongDownloadService;
   late final PlaybackQueueManager _playbackQueueManager = PlaybackQueueManager(
     playerController: playerController,
+    playableSongResolver: _playableSongResolver,
   );
   late final LibrarySession _librarySession = LibrarySession(
     directoryRepository: _mediaLibraryRepository,
@@ -59,6 +84,8 @@ class KtvController extends ChangeNotifier {
   KtvState _state = const KtvState();
   bool _didInitialize = false;
   Timer? _pendingSearchRefresh;
+  final Set<String> _downloadingSongIds = <String>{};
+  final Set<String> _downloadedSourceSongIds = <String>{};
 
   MediaLibraryRepository get mediaLibraryRepository => _mediaLibraryRepository;
   KtvState get state => _state;
@@ -84,6 +111,10 @@ class KtvController extends ChangeNotifier {
       List<Artist>.unmodifiable(_state.libraryPageArtists);
   List<String> get favoriteSongIds =>
       List<String>.unmodifiable(_state.libraryFavoriteSongIds);
+  Set<String> get downloadingSongIds =>
+      Set<String>.unmodifiable(_downloadingSongIds);
+  Set<String> get downloadedSourceSongIds =>
+      Set<String>.unmodifiable(_downloadedSourceSongIds);
   List<Song> get filteredSongs => librarySongs;
   int get libraryTotalCount => _state.libraryTotalCount;
   int get libraryPageIndex => _state.libraryPageIndex;
@@ -103,6 +134,14 @@ class KtvController extends ChangeNotifier {
     }
     _didInitialize = true;
     await _librarySession.restoreSavedDirectory();
+    final BaiduPanSongDownloadService? downloader =
+        _baiduPanSongDownloadService;
+    if (downloader != null) {
+      _downloadedSourceSongIds
+        ..clear()
+        ..addAll(await downloader.loadDownloadedSourceSongIds());
+      notifyListeners();
+    }
   }
 
   void setSearchQuery(String query) {
@@ -195,6 +234,11 @@ class KtvController extends ChangeNotifier {
     return _librarySession.scanLibrary(directory);
   }
 
+  Future<void> refreshConfiguredSources() {
+    _pendingSearchRefresh?.cancel();
+    return _librarySession.refreshConfiguredSources();
+  }
+
   Future<void> requestLibraryPage({
     required int pageIndex,
     required int pageSize,
@@ -218,6 +262,43 @@ class KtvController extends ChangeNotifier {
     }
     _setState(_state.copyWith(queuedSongs: nextQueue));
     await _reloadSongProfileDrivenPageIfNeeded();
+  }
+
+  Future<BaiduPanDownloadResult> downloadSongToLocal(Song song) async {
+    final BaiduPanSongDownloadService? downloader =
+        _baiduPanSongDownloadService;
+    if (downloader == null) {
+      throw StateError('百度网盘下载服务未启用');
+    }
+    if (song.sourceId != 'baidu_pan') {
+      throw StateError('仅支持下载百度网盘歌曲');
+    }
+    if (_downloadingSongIds.contains(song.songId)) {
+      throw StateError('这首歌曲正在下载中');
+    }
+
+    _downloadingSongIds.add(song.songId);
+    notifyListeners();
+    try {
+      final String? preferredDirectory = _state.scanDirectoryPath;
+      final BaiduPanDownloadResult result = await downloader.downloadSong(
+        song: song,
+        preferredDirectory: preferredDirectory,
+      );
+      if (result.usedPreferredDirectory &&
+          preferredDirectory != null &&
+          preferredDirectory.trim().isNotEmpty) {
+        unawaited(
+          _librarySession.refreshLibraryIndexInBackground(preferredDirectory),
+        );
+      }
+      _downloadedSourceSongIds.add(song.sourceSongId);
+      notifyListeners();
+      return result;
+    } finally {
+      _downloadingSongIds.remove(song.songId);
+      notifyListeners();
+    }
   }
 
   void prioritizeQueuedSong(Song song) {

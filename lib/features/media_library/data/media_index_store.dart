@@ -30,6 +30,40 @@ class CachedLocalSongFingerprint {
   }
 }
 
+class SourceSongRecord {
+  const SourceSongRecord({
+    required this.sourceType,
+    required this.sourceSongId,
+    required this.sourceRootId,
+    required this.title,
+    required this.artist,
+    required this.languages,
+    required this.tags,
+    required this.searchIndex,
+    required this.mediaLocator,
+    required this.fileFingerprint,
+    required this.fileSize,
+    required this.modifiedAtMillis,
+    this.availabilityStatus = 'ready',
+    this.rawPayloadJson = '{}',
+  });
+
+  final String sourceType;
+  final String sourceSongId;
+  final String sourceRootId;
+  final String title;
+  final String artist;
+  final List<String> languages;
+  final List<String> tags;
+  final String searchIndex;
+  final String mediaLocator;
+  final String fileFingerprint;
+  final int fileSize;
+  final int modifiedAtMillis;
+  final String availabilityStatus;
+  final String rawPayloadJson;
+}
+
 class MediaIndexStore {
   MediaIndexStore();
 
@@ -120,6 +154,35 @@ class MediaIndexStore {
     required String sourceRootId,
     required List<LibrarySong> songs,
   }) async {
+    return replaceSourceSongs(
+      sourceType: 'local',
+      sourceRootId: sourceRootId,
+      songs: songs
+          .map(
+            (LibrarySong song) => SourceSongRecord(
+              sourceType: 'local',
+              sourceSongId: song.sourceSongId,
+              sourceRootId: sourceRootId,
+              title: song.title,
+              artist: song.artist,
+              languages: song.languages,
+              tags: song.tags,
+              searchIndex: song.searchIndex,
+              mediaLocator: song.mediaPath,
+              fileFingerprint: song.sourceFingerprint,
+              fileSize: song.fileSize,
+              modifiedAtMillis: song.modifiedAtMillis,
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Future<int> replaceSourceSongs({
+    required String sourceType,
+    required String sourceRootId,
+    required List<SourceSongRecord> songs,
+  }) async {
     final Database db = await database;
     _aggregateIndexVerified = false;
     final int now = DateTime.now().millisecondsSinceEpoch;
@@ -128,7 +191,7 @@ class MediaIndexStore {
         aggregateSongLinksTable,
         columns: <String>[columnAggregateSongId],
         where: '$columnSourceType = ? AND $columnSourceRootId = ?',
-        whereArgs: <Object?>['local', sourceRootId],
+        whereArgs: <Object?>[sourceType, sourceRootId],
       );
       final Set<String> affectedAggregateIds = oldAggregateRows
           .map(
@@ -141,42 +204,42 @@ class MediaIndexStore {
       await txn.delete(
         aggregateSongLinksTable,
         where: '$columnSourceType = ? AND $columnSourceRootId = ?',
-        whereArgs: <Object?>['local', sourceRootId],
+        whereArgs: <Object?>[sourceType, sourceRootId],
       );
       await txn.delete(
         sourceSongItemsTable,
         where: '$columnSourceType = ? AND $columnSourceRootId = ?',
-        whereArgs: <Object?>['local', sourceRootId],
+        whereArgs: <Object?>[sourceType, sourceRootId],
       );
 
-      for (final LibrarySong song in songs) {
+      for (final SourceSongRecord song in songs) {
         final String aggregateSongId = buildAggregateSongId(
           title: song.title,
           artist: song.artist,
         );
         affectedAggregateIds.add(aggregateSongId);
         await txn.insert(sourceSongItemsTable, <String, Object?>{
-          columnSourceType: 'local',
+          columnSourceType: song.sourceType,
           columnSourceSongId: song.sourceSongId,
-          columnSourceRootId: sourceRootId,
+          columnSourceRootId: song.sourceRootId,
           columnTitle: song.title,
           columnArtist: song.artist,
           columnLanguagesJson: _encodeList(song.languages),
           columnTagsJson: _encodeList(song.tags),
           columnSearchIndex: song.searchIndex,
-          columnMediaLocator: song.mediaPath,
-          columnFileFingerprint: song.sourceFingerprint,
+          columnMediaLocator: song.mediaLocator,
+          columnFileFingerprint: song.fileFingerprint,
           columnFileSize: song.fileSize,
           columnModifiedAt: song.modifiedAtMillis,
-          columnAvailabilityStatus: 'ready',
-          columnRawPayloadJson: '{}',
+          columnAvailabilityStatus: song.availabilityStatus,
+          columnRawPayloadJson: song.rawPayloadJson,
           columnUpdatedAt: now,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
         await txn.insert(aggregateSongLinksTable, <String, Object?>{
           columnAggregateSongId: aggregateSongId,
-          columnSourceType: 'local',
+          columnSourceType: song.sourceType,
           columnSourceSongId: song.sourceSongId,
-          columnSourceRootId: sourceRootId,
+          columnSourceRootId: song.sourceRootId,
           columnMatchScore: 1.0,
           columnIsPrimary: 0,
           columnLinkedAt: now,
@@ -188,7 +251,7 @@ class MediaIndexStore {
       }
 
       await txn.insert(sourceSyncStatesTable, <String, Object?>{
-        columnSourceType: 'local',
+        columnSourceType: sourceType,
         columnSourceRootId: sourceRootId,
         columnSyncToken: null,
         columnLastSyncedAt: now,
@@ -197,6 +260,56 @@ class MediaIndexStore {
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       return songs.length;
+    });
+  }
+
+  Future<void> clearSourceSongs({
+    required String sourceType,
+    String? sourceRootId,
+  }) async {
+    final Database db = await database;
+    _aggregateIndexVerified = false;
+    await db.transaction((Transaction txn) async {
+      final String whereClause = sourceRootId == null
+          ? '$columnSourceType = ?'
+          : '$columnSourceType = ? AND $columnSourceRootId = ?';
+      final List<Object?> whereArgs = sourceRootId == null
+          ? <Object?>[sourceType]
+          : <Object?>[sourceType, sourceRootId];
+
+      final List<Map<String, Object?>> oldAggregateRows = await txn.query(
+        aggregateSongLinksTable,
+        columns: <String>[columnAggregateSongId],
+        where: whereClause,
+        whereArgs: whereArgs,
+      );
+      final Set<String> affectedAggregateIds = oldAggregateRows
+          .map(
+            (Map<String, Object?> row) =>
+                row[columnAggregateSongId]?.toString() ?? '',
+          )
+          .where((String value) => value.isNotEmpty)
+          .toSet();
+
+      await txn.delete(
+        aggregateSongLinksTable,
+        where: whereClause,
+        whereArgs: whereArgs,
+      );
+      await txn.delete(
+        sourceSongItemsTable,
+        where: whereClause,
+        whereArgs: whereArgs,
+      );
+      await txn.delete(
+        sourceSyncStatesTable,
+        where: whereClause,
+        whereArgs: whereArgs,
+      );
+
+      for (final String aggregateSongId in affectedAggregateIds) {
+        await _refreshAggregateEntry(txn, aggregateSongId: aggregateSongId);
+      }
     });
   }
 
