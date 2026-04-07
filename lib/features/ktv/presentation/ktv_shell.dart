@@ -302,6 +302,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       onSettingsPressed: _openSettingsPage,
       onToggleAudioMode: _toggleAudioMode,
       onTogglePlayback: _togglePlayback,
+      onRestartPlayback: _restartPlayback,
       onSkipSong: _skipCurrentSong,
     );
   }
@@ -380,6 +381,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
             onSettingsPressed: _openSettingsPage,
             onToggleAudioMode: _toggleAudioMode,
             onTogglePlayback: _togglePlayback,
+            onRestartPlayback: _restartPlayback,
             onSkipSong: _skipCurrentSong,
           )
         else

@@ -3,8 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
-import 'ktv_presentation_helpers.dart';
 import 'shared_widgets.dart';
+import 'songbook_right_column_widgets.dart';
 
 const List<_HomeShortcut> _homeShortcuts = <_HomeShortcut>[
   _HomeShortcut(
@@ -63,6 +63,7 @@ class HomePage extends StatelessWidget {
     required this.onSettingsPressed,
     required this.onToggleAudioMode,
     required this.onTogglePlayback,
+    required this.onRestartPlayback,
     required this.onSkipSong,
     this.compact = false,
   });
@@ -78,6 +79,7 @@ class HomePage extends StatelessWidget {
   final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
+  final VoidCallback onRestartPlayback;
   final VoidCallback onSkipSong;
   final bool compact;
 
@@ -109,6 +111,7 @@ class HomePage extends StatelessWidget {
             onSettingsPressed: onSettingsPressed,
             onToggleAudioMode: onToggleAudioMode,
             onTogglePlayback: onTogglePlayback,
+            onRestartPlayback: onRestartPlayback,
             onSkipSong: onSkipSong,
           ),
           SizedBox(height: shouldUseCompactLayout ? 16 : 18),
@@ -167,6 +170,7 @@ class LandscapeHomePage extends StatelessWidget {
     required this.onSettingsPressed,
     required this.onToggleAudioMode,
     required this.onTogglePlayback,
+    required this.onRestartPlayback,
     required this.onSkipSong,
   });
 
@@ -182,6 +186,7 @@ class LandscapeHomePage extends StatelessWidget {
   final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
+  final VoidCallback onRestartPlayback;
   final VoidCallback onSkipSong;
 
   VoidCallback? _resolveShortcutAction(_HomeShortcut shortcut) {
@@ -285,6 +290,7 @@ class LandscapeHomePage extends StatelessWidget {
               onSettingsPressed: onSettingsPressed,
               onToggleAudioMode: onToggleAudioMode,
               onTogglePlayback: onTogglePlayback,
+              onRestartPlayback: onRestartPlayback,
               onSkipSong: onSkipSong,
             ),
             SizedBox(height: gap),
@@ -436,6 +442,7 @@ class _HomeToolbar extends StatelessWidget {
     required this.onSettingsPressed,
     required this.onToggleAudioMode,
     required this.onTogglePlayback,
+    required this.onRestartPlayback,
     required this.onSkipSong,
   });
 
@@ -446,135 +453,77 @@ class _HomeToolbar extends StatelessWidget {
   final VoidCallback onSettingsPressed;
   final VoidCallback onToggleAudioMode;
   final VoidCallback onTogglePlayback;
+  final VoidCallback onRestartPlayback;
   final VoidCallback onSkipSong;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (BuildContext context, Widget? child) {
-        final List<Widget> actions = <Widget>[
-          const _ToolbarPill(label: '搜索', enabled: false),
-          _ToolbarPill(label: '已点$queueCount', onPressed: onQueuePressed),
-          _ToolbarPill(
-            label: audioModeToggleLabel(controller),
-            onPressed: controller.hasMedia ? onToggleAudioMode : null,
+    return Container(
+      constraints: BoxConstraints(minHeight: compact ? 0 : 40),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0x14FFFFFF),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x66120023),
+            blurRadius: 20,
+            offset: Offset(0, 8),
           ),
-          _ToolbarPill(
-            label: '切歌',
-            onPressed: controller.hasMedia || queueCount > 0
-                ? onSkipSong
-                : null,
-          ),
-          _ToolbarPill(
-            label: controller.isPlaying ? '暂停' : '播放',
-            onPressed: controller.hasMedia ? onTogglePlayback : null,
-          ),
-          _ToolbarPill(label: '设置', onPressed: onSettingsPressed),
-        ];
-
-        return Container(
-          constraints: BoxConstraints(minHeight: compact ? 0 : 40),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0x14FFFFFF),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color(0x66120023),
-                blurRadius: 20,
-                offset: Offset(0, 8),
-              ),
-            ],
-          ),
-          child: compact
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      '我爱KTV',
-                      style: TextStyle(
-                        color: Color(0xFFFFD85E),
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        alignment: WrapAlignment.end,
-                        children: actions,
-                      ),
-                    ),
-                  ],
-                )
-              : Row(
-                  children: <Widget>[
-                    const Text(
-                      '我爱KTV',
-                      style: TextStyle(
-                        color: Color(0xFFFFD85E),
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          alignment: WrapAlignment.end,
-                          children: actions,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-        );
-      },
-    );
-  }
-}
-
-class _ToolbarPill extends StatelessWidget {
-  const _ToolbarPill({
-    required this.label,
-    this.onPressed,
-    this.enabled = true,
-  });
-
-  final String label;
-  final VoidCallback? onPressed;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isEnabled = enabled && onPressed != null;
-    return Material(
-      color: isEnabled ? const Color(0x1AFFFFFF) : const Color(0x0DFFFFFF),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: isEnabled ? onPressed : null,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: isEnabled
-                  ? const Color(0xFFFFF7FF)
-                  : const Color(0xFFA99ABF),
-            ),
-          ),
-        ),
+        ],
       ),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  '我爱KTV',
+                  style: TextStyle(
+                    color: Color(0xFFFFD85E),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SongBookActionRow(
+                  controller: controller,
+                  queueCount: queueCount,
+                  compact: true,
+                  onQueuePressed: onQueuePressed,
+                  onSettingsPressed: onSettingsPressed,
+                  onToggleAudioMode: onToggleAudioMode,
+                  onTogglePlayback: onTogglePlayback,
+                  onRestartPlayback: onRestartPlayback,
+                  onSkipSong: onSkipSong,
+                ),
+              ],
+            )
+          : Row(
+              children: <Widget>[
+                const Text(
+                  '我爱KTV',
+                  style: TextStyle(
+                    color: Color(0xFFFFD85E),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SongBookActionRow(
+                    controller: controller,
+                    queueCount: queueCount,
+                    compact: false,
+                    onQueuePressed: onQueuePressed,
+                    onSettingsPressed: onSettingsPressed,
+                    onToggleAudioMode: onToggleAudioMode,
+                    onTogglePlayback: onTogglePlayback,
+                    onRestartPlayback: onRestartPlayback,
+                    onSkipSong: onSkipSong,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
