@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
+import '../../../core/presentation/center_overlay_toast.dart';
 import '../../media_library/data/baidu_pan/baidu_pan_models.dart';
 import '../application/baidu_pan_settings_controller.dart';
 import '../data/qr_image_save_data_source.dart';
@@ -375,9 +380,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                           onPressed: _isSavingQrImage
                               ? null
                               : () async {
-                                  await _saveCurrentQrCode(
-                                    widget.controller.deviceCodeSession!,
-                                  );
+                                  await _saveCurrentQrCode();
                                 },
                           icon: Icon(
                             _isSavingQrImage
@@ -418,8 +421,9 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                                 if (!context.mounted) {
                                   return;
                                 }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('百度网盘已退出登录')),
+                                CenterOverlayToast.showSuccess(
+                                  context,
+                                  message: '已退出登录',
                                 );
                               },
                         icon: const Icon(Icons.logout_rounded),
@@ -457,10 +461,9 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                                       );
                                       return;
                                     }
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('百度网盘目录已保存，登录后可扫描'),
-                                      ),
+                                    CenterOverlayToast.showSuccess(
+                                      context,
+                                      message: '目录已保存',
                                     );
                                   },
                             style: FilledButton.styleFrom(
@@ -525,7 +528,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
     );
   }
 
-  Future<void> _saveCurrentQrCode(BaiduPanDeviceCodeSession session) async {
+  Future<void> _saveCurrentQrCode() async {
     if (_isSavingQrImage) {
       return;
     }
@@ -535,16 +538,20 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
     try {
       final String fileName =
           'baidu_pan_qr_${DateTime.now().millisecondsSinceEpoch}.png';
-      await _qrImageSaveDataSource.saveQrImage(
-        imageUrl: session.qrcodeUrl,
+      final BaiduPanDeviceCodeSession? session = widget.controller
+          .deviceCodeSession;
+      if (session == null) {
+        throw StateError('二维码会话不存在，请先刷新二维码');
+      }
+      final Uint8List bytes = await _readCurrentQrCodeBytes(session.qrcodeUrl);
+      await _qrImageSaveDataSource.saveQrImageBytes(
+        bytes: bytes,
         fileName: fileName,
       );
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('二维码已保存到手机')));
+      CenterOverlayToast.showSuccess(context, message: '已保存');
     } catch (error) {
       if (!mounted) {
         return;
@@ -559,6 +566,38 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
         });
       }
     }
+  }
+
+  Future<Uint8List> _readCurrentQrCodeBytes(String imageUrl) async {
+    final ImageConfiguration configuration = createLocalImageConfiguration(
+      context,
+    );
+    final ImageStream stream = NetworkImage(imageUrl).resolve(configuration);
+    final ui.Image image = await _waitForImage(stream);
+    final ByteData? byteData = await image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    if (byteData == null) {
+      throw StateError('无法导出二维码图片');
+    }
+    return byteData.buffer.asUint8List();
+  }
+
+  Future<ui.Image> _waitForImage(ImageStream stream) {
+    final Completer<ui.Image> completer = Completer<ui.Image>();
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (ImageInfo info, bool synchronousCall) {
+        stream.removeListener(listener);
+        completer.complete(info.image);
+      },
+      onError: (Object error, StackTrace? stackTrace) {
+        stream.removeListener(listener);
+        completer.completeError(error, stackTrace);
+      },
+    );
+    stream.addListener(listener);
+    return completer.future;
   }
 }
 
