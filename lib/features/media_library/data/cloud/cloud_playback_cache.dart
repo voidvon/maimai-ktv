@@ -9,18 +9,40 @@ class CloudDownloadCancelledException implements Exception {
   String toString() => 'CloudDownloadCancelledException: $message';
 }
 
+class CloudDownloadPausedException implements Exception {
+  const CloudDownloadPausedException([this.message = '下载已暂停']);
+
+  final String message;
+
+  @override
+  String toString() => 'CloudDownloadPausedException: $message';
+}
+
 class CloudDownloadCancellationToken {
   bool _isCancelled = false;
+  bool _isPaused = false;
 
   bool get isCancelled => _isCancelled;
+  bool get isPaused => _isPaused;
+
+  void pause() {
+    if (_isCancelled) {
+      return;
+    }
+    _isPaused = true;
+  }
 
   void cancel() {
     _isCancelled = true;
+    _isPaused = false;
   }
 
   void throwIfCancelled() {
     if (_isCancelled) {
       throw const CloudDownloadCancelledException();
+    }
+    if (_isPaused) {
+      throw const CloudDownloadPausedException();
     }
   }
 }

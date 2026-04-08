@@ -109,6 +109,60 @@ void main() {
     expect(records.single.title, isEmpty);
     expect(records.single.artist, isEmpty);
   });
+
+  test('downloadSong resumes local copy from existing temp file', () async {
+    final Directory sourceDirectory = await Directory.systemTemp.createTemp(
+      'baidu-pan-resume-source-',
+    );
+    final Directory targetDirectory = await Directory.systemTemp.createTemp(
+      'baidu-pan-resume-target-',
+    );
+    final Directory storeDirectory = await Directory.systemTemp.createTemp(
+      'baidu-pan-resume-store-',
+    );
+    addTearDown(() async {
+      if (await sourceDirectory.exists()) {
+        await sourceDirectory.delete(recursive: true);
+      }
+      if (await targetDirectory.exists()) {
+        await targetDirectory.delete(recursive: true);
+      }
+      if (await storeDirectory.exists()) {
+        await storeDirectory.delete(recursive: true);
+      }
+    });
+
+    final File cachedFile = File('${sourceDirectory.path}/cached_song.mp4');
+    await cachedFile.writeAsString('video-payload', flush: true);
+    final File partialFile = File(
+      '${targetDirectory.path}/周杰伦 - 夜曲.mp4.download',
+    );
+    await partialFile.writeAsString('video-', flush: true);
+    final File indexFile = File('${storeDirectory.path}/downloaded_songs.json');
+
+    final BaiduPanSongDownloadService service = BaiduPanSongDownloadService(
+      playbackCache: _FakeBaiduPanPlaybackCache(cachedFile.path),
+      downloadIndexFileProvider: () async => indexFile,
+    );
+    final Song song = Song(
+      songId: buildAggregateSongId(title: '夜曲', artist: '周杰伦'),
+      sourceId: 'baidu_pan',
+      sourceSongId: 'fsid-resume',
+      title: '夜曲',
+      artist: '周杰伦',
+      languages: const <String>['国语'],
+      searchIndex: 'yequ zhoujielun',
+      mediaPath: '',
+    );
+
+    final BaiduPanDownloadResult result = await service.downloadSong(
+      song: song,
+      preferredDirectory: targetDirectory.path,
+    );
+
+    expect(await File(result.savedPath).readAsString(), 'video-payload');
+    expect(await partialFile.exists(), isFalse);
+  });
 }
 
 class _FakeBaiduPanPlaybackCache implements BaiduPanPlaybackCache {

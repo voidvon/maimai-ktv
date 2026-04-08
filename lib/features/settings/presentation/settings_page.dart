@@ -8,6 +8,7 @@ import '../../../core/presentation/center_overlay_toast.dart';
 import '../../ktv/application/download_manager_models.dart';
 import '../../ktv/application/ktv_controller.dart';
 import '../../media_library/data/baidu_pan/baidu_pan_models.dart';
+import '../../media_library/data/cloud/cloud_playback_cache.dart';
 import '../application/baidu_pan_settings_controller.dart';
 import '../data/qr_image_save_data_source.dart';
 import '../application/settings_controller.dart';
@@ -83,7 +84,7 @@ class SettingsPage extends StatelessWidget {
                         _SettingsEntryCard(
                           title: '下载管理',
                           subtitle: downloadingCount > 0
-                              ? '正在下载 $downloadingCount 首，已下载 $downloadedCount 首'
+                              ? '未完成 $downloadingCount 首，已下载 $downloadedCount 首'
                               : downloadedCount > 0
                               ? '已下载 $downloadedCount 首歌曲'
                               : '查看下载中和已下载的歌曲列表',
@@ -174,6 +175,18 @@ class _DownloadManagerPage extends StatelessWidget {
 
   final KtvController controller;
 
+  String _buildDownloadTaskFooter(DownloadingSongItem item) {
+    final String statusLabel = switch (item.status) {
+      DownloadTaskStatus.downloading => '下载中',
+      DownloadTaskStatus.paused => '已暂停',
+      DownloadTaskStatus.failed => '失败',
+    };
+    final String errorSuffix = item.errorMessage?.trim().isNotEmpty ?? false
+        ? ' · ${item.displayErrorMessage}'
+        : '';
+    return '$statusLabel · ${item.phaseLabel} · ${item.progressPercent}%$errorSuffix';
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -192,7 +205,7 @@ class _DownloadManagerPage extends StatelessWidget {
               backgroundColor: Colors.transparent,
               bottom: TabBar(
                 tabs: <Widget>[
-                  Tab(text: '下载中 (${downloadingSongs.length})'),
+                  Tab(text: '未完成 (${downloadingSongs.length})'),
                   Tab(text: '已下载 (${downloadedSongs.length})'),
                 ],
               ),
@@ -200,28 +213,91 @@ class _DownloadManagerPage extends StatelessWidget {
             body: TabBarView(
               children: <Widget>[
                 _DownloadListView(
-                  emptyMessage: '当前没有正在下载的歌曲。',
+                  emptyMessage: '当前没有未完成的下载任务。',
                   children: downloadingSongs
                       .map(
                         (DownloadingSongItem item) => _DownloadListItem(
                           title: '${item.displayArtist}-${item.title}',
                           subtitle: '',
                           sourceLabel: item.sourceLabel,
-                          trailing: IconButton(
-                            onPressed: () {
-                              controller.cancelDownload(
-                                sourceId: item.sourceId,
-                                sourceSongId: item.sourceSongId,
-                              );
-                            },
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: Colors.white,
-                            ),
-                            tooltip: '取消下载',
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              if (item.canResume)
+                                IconButton(
+                                  onPressed: () async {
+                                    try {
+                                      await controller.resumeDownload(
+                                        sourceId: item.sourceId,
+                                        sourceSongId: item.sourceSongId,
+                                      );
+                                      if (!context.mounted) {
+                                        return;
+                                      }
+                                      CenterOverlayToast.showSuccess(
+                                        context,
+                                        message: '下载完成',
+                                      );
+                                    } catch (error) {
+                                      if (!context.mounted) {
+                                        return;
+                                      }
+                                      if (error
+                                              is CloudDownloadPausedException ||
+                                          error
+                                              is CloudDownloadCancelledException) {
+                                        return;
+                                      }
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            buildDownloadErrorSummary(
+                                              error.toString(),
+                                              fallback: '恢复下载失败',
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.play_arrow_rounded,
+                                    color: Colors.white,
+                                  ),
+                                  tooltip: '继续下载',
+                                ),
+                              if (item.canPause)
+                                IconButton(
+                                  onPressed: () {
+                                    controller.pauseDownload(
+                                      sourceId: item.sourceId,
+                                      sourceSongId: item.sourceSongId,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.pause_rounded,
+                                    color: Colors.white,
+                                  ),
+                                  tooltip: '暂停下载',
+                                ),
+                              IconButton(
+                                onPressed: () {
+                                  controller.cancelDownload(
+                                    sourceId: item.sourceId,
+                                    sourceSongId: item.sourceSongId,
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.white,
+                                ),
+                                tooltip: '取消下载',
+                              ),
+                            ],
                           ),
-                          footer:
-                              '${item.phaseLabel} · ${item.progressPercent}%',
+                          footer: _buildDownloadTaskFooter(item),
                           progress: item.progress,
                         ),
                       )

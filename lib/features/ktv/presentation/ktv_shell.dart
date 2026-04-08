@@ -16,6 +16,7 @@ import '../../media_library/data/cloud/cloud_song_download_service.dart';
 import '../../settings/application/baidu_pan_settings_controller.dart';
 import '../../settings/application/settings_controller.dart';
 import '../../settings/presentation/settings_page.dart';
+import '../application/download_manager_models.dart';
 import '../application/ktv_controller.dart';
 import 'home_page.dart';
 import 'ktv_preview_coordinator.dart';
@@ -34,9 +35,23 @@ class KtvShell extends StatefulWidget {
 }
 
 class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
+  static const Duration _backgroundRetryInitialDelay = Duration(
+    milliseconds: 1200,
+  );
+  static const Duration _backgroundRetryInterval = Duration(milliseconds: 1800);
+  static const int _backgroundRetryMaxAttempts = 2;
+  static const Duration _backgroundErrorSuppressBuffer = Duration(seconds: 2);
+
   late final KtvController _controller;
   late final KtvSearchCoordinator _searchCoordinator;
   late final KtvPreviewCoordinator _previewCoordinator;
+  AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
+  final Set<String> _backgroundInterruptedDownloadKeys = <String>{};
+  final Map<String, int> _backgroundRetryAttempts = <String, int>{};
+  final Map<String, DateTime> _suppressedDownloadErrorsUntil =
+      <String, DateTime>{};
+  int _backgroundRetrySession = 0;
+  bool _didShowBackgroundAuthNotice = false;
 
   @override
   void initState() {
@@ -69,10 +84,30 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
+    _appLifecycleState = state;
+    _pruneExpiredSuppressedDownloadErrors();
+    if (_isBackgroundLifecycle(state)) {
+      _backgroundRetrySession += 1;
+      _didShowBackgroundAuthNotice = false;
+      final Set<String> downloadKeys = _controller.downloadingSongs
+          .where((DownloadingSongItem item) => item.isDownloading)
+          .map((DownloadingSongItem item) {
+            final String key = _buildDownloadKeyForTask(item);
+            _backgroundRetryAttempts.putIfAbsent(key, () => 0);
+            return key;
+          })
+          .toSet();
+      _backgroundInterruptedDownloadKeys.addAll(downloadKeys);
+      _markSuppressedDownloadErrors(downloadKeys);
       unawaited(_controller.stopPlayback());
+      return;
+    }
+    if (state == AppLifecycleState.resumed &&
+        _backgroundInterruptedDownloadKeys.isNotEmpty) {
+      final int session = ++_backgroundRetrySession;
+      _didShowBackgroundAuthNotice = false;
+      _markSuppressedDownloadErrors(_backgroundInterruptedDownloadKeys);
+      unawaited(_retryInterruptedDownloads(session));
     }
   }
 
@@ -255,6 +290,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
   }
 
   Future<void> _downloadSong(Song song) async {
+    final String downloadKey = _controller.buildDownloadKeyForSong(song);
     try {
       final CloudSongDownloadResult result = await _controller
           .downloadSongToLocal(song);
@@ -276,9 +312,162 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         CenterOverlayToast.showSuccess(context, message: '已取消');
         return;
       }
+      if (error is CloudDownloadPausedException) {
+        CenterOverlayToast.showSuccess(context, message: '已暂停');
+        return;
+      }
+      if (_shouldSuppressDownloadError(downloadKey)) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            buildDownloadErrorSummary(error.toString(), fallback: '下载失败'),
+          ),
+        ),
+      );
+    }
+  }
+
+  bool _isBackgroundLifecycle(AppLifecycleState state) {
+    return state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached;
+  }
+
+  String _buildDownloadKeyForTask(DownloadingSongItem item) {
+    return _controller.buildDownloadKeyForSong(item.toSong());
+  }
+
+  bool _shouldSuppressDownloadError(String downloadKey) {
+    _pruneExpiredSuppressedDownloadErrors();
+    return _isBackgroundLifecycle(_appLifecycleState) ||
+        _backgroundInterruptedDownloadKeys.contains(downloadKey) ||
+        (_suppressedDownloadErrorsUntil[downloadKey]?.isAfter(DateTime.now()) ??
+            false);
+  }
+
+  Future<void> _retryInterruptedDownloads(int session) async {
+    await Future<void>.delayed(_backgroundRetryInitialDelay);
+    while (mounted &&
+        session == _backgroundRetrySession &&
+        _appLifecycleState == AppLifecycleState.resumed &&
+        _backgroundInterruptedDownloadKeys.isNotEmpty) {
+      bool shouldRetryAgain = false;
+      final List<String> pendingRetryKeys = _backgroundInterruptedDownloadKeys
+          .toList(growable: false);
+      for (final String key in pendingRetryKeys) {
+        if (!mounted ||
+            session != _backgroundRetrySession ||
+            _appLifecycleState != AppLifecycleState.resumed) {
+          return;
+        }
+        final DownloadingSongItem? task = _findDownloadTaskByKey(key);
+        if (task == null) {
+          _clearBackgroundRetryState(key);
+          continue;
+        }
+        if (task.isDownloading) {
+          shouldRetryAgain = true;
+          continue;
+        }
+        if (!task.canResume) {
+          _clearBackgroundRetryState(key);
+          continue;
+        }
+        if (task.isFailed && !task.isAutoRetryableFailure) {
+          _showBackgroundFailureNoticeIfNeeded(task);
+          _clearBackgroundRetryState(key);
+          continue;
+        }
+        final int attempts = _backgroundRetryAttempts[key] ?? 0;
+        if (attempts >= _backgroundRetryMaxAttempts) {
+          _clearBackgroundRetryState(key);
+          continue;
+        }
+        _backgroundRetryAttempts[key] = attempts + 1;
+        try {
+          final CloudSongDownloadResult result = await _controller
+              .resumeDownload(
+                sourceId: task.sourceId,
+                sourceSongId: task.sourceSongId,
+              );
+          _clearBackgroundRetryState(key);
+          if (mounted) {
+            final String fileName = path.basename(result.savedPath);
+            final String label = result.usedPreferredDirectory
+                ? '已下载到本地目录：$fileName'
+                : '已下载到应用目录：$fileName';
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(label)));
+          }
+        } catch (_) {
+          final DownloadingSongItem? refreshedTask = _findDownloadTaskByKey(
+            key,
+          );
+          final int nextAttempts = _backgroundRetryAttempts[key] ?? 0;
+          if (refreshedTask != null &&
+              refreshedTask.canResume &&
+              nextAttempts < _backgroundRetryMaxAttempts) {
+            shouldRetryAgain = true;
+            continue;
+          }
+          _clearBackgroundRetryState(key);
+        }
+      }
+      if (!shouldRetryAgain) {
+        return;
+      }
+      await Future<void>.delayed(_backgroundRetryInterval);
+    }
+  }
+
+  DownloadingSongItem? _findDownloadTaskByKey(String key) {
+    for (final DownloadingSongItem item in _controller.downloadingSongs) {
+      if (_buildDownloadKeyForTask(item) == key) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  void _clearBackgroundRetryState(String key) {
+    _backgroundInterruptedDownloadKeys.remove(key);
+    _backgroundRetryAttempts.remove(key);
+  }
+
+  void _markSuppressedDownloadErrors(Iterable<String> keys) {
+    final DateTime until = DateTime.now().add(
+      _backgroundRetryInitialDelay +
+          (_backgroundRetryInterval * _backgroundRetryMaxAttempts) +
+          _backgroundErrorSuppressBuffer,
+    );
+    for (final String key in keys) {
+      _suppressedDownloadErrorsUntil[key] = until;
+    }
+  }
+
+  void _pruneExpiredSuppressedDownloadErrors() {
+    final DateTime now = DateTime.now();
+    _suppressedDownloadErrorsUntil.removeWhere(
+      (_, DateTime until) => !until.isAfter(now),
+    );
+  }
+
+  void _showBackgroundFailureNoticeIfNeeded(DownloadingSongItem task) {
+    if (!mounted) {
+      return;
+    }
+    if (task.isAuthorizationFailure) {
+      if (_didShowBackgroundAuthNotice) {
+        return;
+      }
+      _didShowBackgroundAuthNotice = true;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('下载失败：$error')));
+      ).showSnackBar(const SnackBar(content: Text('百度网盘登录已失效，请重新登录后再继续下载')));
     }
   }
 

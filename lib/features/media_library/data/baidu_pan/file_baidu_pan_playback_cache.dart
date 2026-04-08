@@ -51,11 +51,6 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
       if (entity is! File) {
         continue;
       }
-      final String name = path.basename(entity.path);
-      if (name.endsWith('.part')) {
-        await entity.delete();
-        continue;
-      }
       final DateTime lastModified = await entity.lastModified();
       if (lastModified.isBefore(expireBefore)) {
         await entity.delete();
@@ -136,10 +131,6 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
       );
     }
 
-    if (await tempFile.exists()) {
-      await tempFile.delete();
-    }
-
     try {
       await _fileDownloader(
         uri: _appendAccessToken(dlink, accessToken),
@@ -152,10 +143,14 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
         await targetFile.delete();
       }
       await tempFile.rename(targetFile.path);
-    } catch (_) {
+    } on CloudDownloadCancelledException {
       if (await tempFile.exists()) {
         await tempFile.delete();
       }
+      rethrow;
+    } on CloudDownloadPausedException {
+      rethrow;
+    } catch (_) {
       rethrow;
     }
 
@@ -253,19 +248,38 @@ class FileBaiduPanPlaybackCache implements BaiduPanPlaybackCache {
   }) async {
     final HttpClient client = HttpClient();
     try {
+      await targetFile.parent.create(recursive: true);
+      int receivedBytes = 0;
+      if (await targetFile.exists()) {
+        receivedBytes = await targetFile.length();
+      }
       final HttpClientRequest request = await client.getUrl(uri);
       request.followRedirects = true;
       request.maxRedirects = 5;
       request.headers.set(HttpHeaders.userAgentHeader, 'pan.baidu.com');
+      if (receivedBytes > 0) {
+        request.headers.set(HttpHeaders.rangeHeader, 'bytes=$receivedBytes-');
+      }
       final HttpClientResponse response = await request.close();
-      if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode != HttpStatus.ok &&
+          response.statusCode != HttpStatus.partialContent) {
         throw HttpException('百度网盘下载失败: ${response.statusCode}', uri: uri);
       }
-      await targetFile.parent.create(recursive: true);
-      final IOSink sink = targetFile.openWrite();
-      final int totalBytes = response.contentLength;
-      int receivedBytes = 0;
+      final bool isPartial = response.statusCode == HttpStatus.partialContent;
+      if (!isPartial && receivedBytes > 0) {
+        await targetFile.delete();
+        receivedBytes = 0;
+      }
+      final IOSink sink = targetFile.openWrite(
+        mode: receivedBytes > 0 ? FileMode.writeOnlyAppend : FileMode.write,
+      );
+      final int totalBytes = response.contentLength > 0
+          ? response.contentLength + receivedBytes
+          : response.contentLength;
       try {
+        if (totalBytes > 0) {
+          onProgress?.call(receivedBytes / totalBytes);
+        }
         await for (final List<int> chunk in response) {
           cancellationToken?.throwIfCancelled();
           sink.add(chunk);

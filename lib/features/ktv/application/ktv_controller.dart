@@ -12,6 +12,7 @@ import '../../media_library/data/local_song_source_adapter.dart';
 import '../../media_library/data/media_library_repository.dart';
 import '../../song_profile/data/song_profile_repository.dart';
 import 'download_manager_models.dart';
+import 'download_task_store.dart';
 import 'library_session.dart';
 import 'navigation_history.dart';
 import 'playback_queue_manager.dart';
@@ -29,6 +30,7 @@ class KtvController extends ChangeNotifier {
     PlayableSongResolver? playableSongResolver,
     BaiduPanSongDownloadService? baiduPanSongDownloadService,
     Map<String, CloudSongDownloadService>? songDownloadServices,
+    DownloadTaskStore? downloadTaskStore,
   }) : _mediaLibraryRepository =
            mediaLibraryRepository ?? MediaLibraryRepository(),
        _songProfileRepository =
@@ -40,7 +42,8 @@ class KtvController extends ChangeNotifier {
          playableSongResolver: playableSongResolver,
          baiduPanSongDownloadService: baiduPanSongDownloadService,
          songDownloadServices: songDownloadServices,
-       ) {
+       ),
+       _downloadTaskStore = downloadTaskStore ?? DownloadTaskStore() {
     _aggregatedLibraryRepository =
         aggregatedLibraryRepository ??
         DefaultAggregatedLibraryRepository(
@@ -89,6 +92,7 @@ class KtvController extends ChangeNotifier {
   final PlayerController playerController;
   final PlayableSongResolver _playableSongResolver;
   final Map<String, CloudSongDownloadService> _songDownloadServices;
+  final DownloadTaskStore _downloadTaskStore;
   late final PlaybackQueueManager _playbackQueueManager = PlaybackQueueManager(
     playerController: playerController,
     playableSongResolver: _playableSongResolver,
@@ -106,9 +110,8 @@ class KtvController extends ChangeNotifier {
   KtvState _state = const KtvState();
   bool _didInitialize = false;
   Timer? _pendingSearchRefresh;
-  final Set<String> _downloadingSongIds = <String>{};
   final Set<String> _downloadedSongKeys = <String>{};
-  final Map<String, DownloadingSongItem> _downloadingSongsByKey =
+  final Map<String, DownloadingSongItem> _downloadTasksByKey =
       <String, DownloadingSongItem>{};
   final Map<String, DownloadedSongItem> _downloadedSongsByKey =
       <String, DownloadedSongItem>{};
@@ -139,18 +142,22 @@ class KtvController extends ChangeNotifier {
       List<Artist>.unmodifiable(_state.libraryPageArtists);
   List<String> get favoriteSongIds =>
       List<String>.unmodifiable(_state.libraryFavoriteSongIds);
-  Set<String> get downloadingSongIds =>
-      Set<String>.unmodifiable(_downloadingSongIds);
+  Set<String> get downloadingSongIds => Set<String>.unmodifiable(
+    _downloadTasksByKey.values
+        .map((DownloadingSongItem item) => item.songId)
+        .toSet(),
+  );
   Set<String> get downloadedSongKeys =>
       Set<String>.unmodifiable(_downloadedSongKeys);
   Set<String> get downloadableSourceIds =>
       Set<String>.unmodifiable(_songDownloadServices.keys.toSet());
   List<DownloadingSongItem> get downloadingSongs {
-    final List<DownloadingSongItem> items = _downloadingSongsByKey.values
-        .toList(growable: false);
+    final List<DownloadingSongItem> items = _downloadTasksByKey.values.toList(
+      growable: false,
+    );
     items.sort(
       (DownloadingSongItem a, DownloadingSongItem b) =>
-          b.startedAtMillis.compareTo(a.startedAtMillis),
+          b.updatedAtMillis.compareTo(a.updatedAtMillis),
     );
     return items;
   }
@@ -188,6 +195,7 @@ class KtvController extends ChangeNotifier {
     if (_songDownloadServices.isNotEmpty) {
       _downloadedSongKeys.clear();
       _downloadedSongsByKey.clear();
+      _downloadTasksByKey.clear();
       for (final CloudSongDownloadService service
           in _songDownloadServices.values) {
         final List<CloudDownloadedSongRecord> records = await service
@@ -200,6 +208,35 @@ class KtvController extends ChangeNotifier {
           _downloadedSongKeys.add(key);
           _downloadedSongsByKey[key] = DownloadedSongItem.fromRecord(record);
         }
+      }
+      final List<DownloadingSongItem> storedTasks = await _downloadTaskStore
+          .loadTasks();
+      bool shouldPersistTasks = false;
+      for (final DownloadingSongItem task in storedTasks) {
+        final String key = _buildDownloadKey(
+          sourceId: task.sourceId,
+          sourceSongId: task.sourceSongId,
+        );
+        if (!_songDownloadServices.containsKey(task.sourceId) ||
+            _downloadedSongKeys.contains(key)) {
+          shouldPersistTasks = true;
+          continue;
+        }
+        final DownloadingSongItem normalizedTask = task.copyWith(
+          updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
+          status: DownloadTaskStatus.paused,
+          phaseLabel: task.isDownloading ? '已暂停，等待继续' : task.phaseLabel,
+          clearErrorMessage: task.isDownloading,
+        );
+        if (normalizedTask.status != task.status ||
+            normalizedTask.phaseLabel != task.phaseLabel ||
+            normalizedTask.errorMessage != task.errorMessage) {
+          shouldPersistTasks = true;
+        }
+        _downloadTasksByKey[key] = normalizedTask;
+      }
+      if (shouldPersistTasks) {
+        await _persistDownloadTasks();
       }
       notifyListeners();
     }
@@ -326,16 +363,78 @@ class KtvController extends ChangeNotifier {
   }
 
   Future<CloudSongDownloadResult> downloadSongToLocal(Song song) async {
+    final String downloadKey = _buildDownloadKey(
+      sourceId: song.sourceId,
+      sourceSongId: song.sourceSongId,
+    );
+    final DownloadingSongItem? existingTask = _downloadTasksByKey[downloadKey];
+    if (existingTask != null) {
+      if (existingTask.isDownloading) {
+        throw StateError('这首歌曲正在下载中');
+      }
+      return resumeDownload(
+        sourceId: song.sourceId,
+        sourceSongId: song.sourceSongId,
+        song: song,
+      );
+    }
+
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final String? preferredDirectory = _state.scanDirectoryPath;
+    final DownloadingSongItem task = DownloadingSongItem(
+      songId: song.songId,
+      sourceId: song.sourceId,
+      sourceSongId: song.sourceSongId,
+      title: song.title,
+      artist: song.artist,
+      startedAtMillis: now,
+      updatedAtMillis: now,
+      preferredDirectory: preferredDirectory,
+    );
+    _downloadTasksByKey[downloadKey] = task;
+    await _persistDownloadTasks();
+    notifyListeners();
+    return _runDownload(task: task, song: song);
+  }
+
+  Future<CloudSongDownloadResult> resumeDownload({
+    required String sourceId,
+    required String sourceSongId,
+    Song? song,
+  }) async {
+    final String downloadKey = _buildDownloadKey(
+      sourceId: sourceId,
+      sourceSongId: sourceSongId,
+    );
+    final DownloadingSongItem? existingTask = _downloadTasksByKey[downloadKey];
+    if (existingTask == null) {
+      throw StateError('未找到可恢复的下载任务');
+    }
+    if (existingTask.isDownloading) {
+      throw StateError('这首歌曲正在下载中');
+    }
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final DownloadingSongItem nextTask = existingTask.copyWith(
+      updatedAtMillis: now,
+      status: DownloadTaskStatus.downloading,
+      phaseLabel: existingTask.progress >= 0.8 ? '继续保存到本地' : '继续下载',
+      clearErrorMessage: true,
+    );
+    _downloadTasksByKey[downloadKey] = nextTask;
+    await _persistDownloadTasks();
+    notifyListeners();
+    return _runDownload(task: nextTask, song: song ?? existingTask.toSong());
+  }
+
+  Future<CloudSongDownloadResult> _runDownload({
+    required DownloadingSongItem task,
+    required Song song,
+  }) async {
     final CloudSongDownloadService? downloader =
         _songDownloadServices[song.sourceId];
     if (downloader == null) {
       throw StateError('${song.sourceId} 下载服务未启用');
     }
-    if (_downloadingSongIds.contains(song.songId)) {
-      throw StateError('这首歌曲正在下载中');
-    }
-
-    _downloadingSongIds.add(song.songId);
     final String downloadKey = _buildDownloadKey(
       sourceId: song.sourceId,
       sourceSongId: song.sourceSongId,
@@ -343,31 +442,29 @@ class KtvController extends ChangeNotifier {
     final CloudDownloadCancellationToken cancellationToken =
         CloudDownloadCancellationToken();
     _downloadCancellationTokens[downloadKey] = cancellationToken;
-    _downloadingSongsByKey[downloadKey] = DownloadingSongItem(
-      songId: song.songId,
-      sourceId: song.sourceId,
-      sourceSongId: song.sourceSongId,
-      title: song.title,
-      artist: song.artist,
-      startedAtMillis: DateTime.now().millisecondsSinceEpoch,
-    );
-    notifyListeners();
     try {
-      final String? preferredDirectory = _state.scanDirectoryPath;
+      final String? preferredDirectory =
+          task.preferredDirectory ?? _state.scanDirectoryPath;
       final CloudSongDownloadResult result = await downloader.downloadSong(
         song: song,
         preferredDirectory: preferredDirectory,
         cancellationToken: cancellationToken,
         onProgress: (CloudDownloadProgress progress) {
-          final DownloadingSongItem? current =
-              _downloadingSongsByKey[downloadKey];
+          final DownloadingSongItem? current = _downloadTasksByKey[downloadKey];
           if (current == null) {
             return;
           }
-          _downloadingSongsByKey[downloadKey] = current.copyWith(
+          final DownloadingSongItem nextTask = current.copyWith(
+            updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
+            status: DownloadTaskStatus.downloading,
             progress: progress.value,
             phaseLabel: progress.phaseLabel,
+            clearErrorMessage: true,
           );
+          _downloadTasksByKey[downloadKey] = nextTask;
+          if (_shouldPersistProgressUpdate(previous: current, next: nextTask)) {
+            unawaited(_persistDownloadTasks());
+          }
           notifyListeners();
         },
       );
@@ -387,14 +484,52 @@ class KtvController extends ChangeNotifier {
         savedPath: result.savedPath,
         savedAtMillis: DateTime.now().millisecondsSinceEpoch,
       );
+      _downloadTasksByKey.remove(downloadKey);
+      await _persistDownloadTasks();
       notifyListeners();
       return result;
-    } finally {
-      _downloadingSongIds.remove(song.songId);
-      _downloadingSongsByKey.remove(downloadKey);
-      _downloadCancellationTokens.remove(downloadKey);
+    } on CloudDownloadPausedException {
+      final DownloadingSongItem? current = _downloadTasksByKey[downloadKey];
+      if (current != null) {
+        _downloadTasksByKey[downloadKey] = current.copyWith(
+          updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
+          status: DownloadTaskStatus.paused,
+          phaseLabel: current.progress >= 0.8 ? '已暂停，等待继续' : '缓存已暂停',
+          clearErrorMessage: true,
+        );
+        await _persistDownloadTasks();
+      }
       notifyListeners();
+      rethrow;
+    } on CloudDownloadCancelledException {
+      _downloadTasksByKey.remove(downloadKey);
+      await _persistDownloadTasks();
+      notifyListeners();
+      rethrow;
+    } catch (error) {
+      final DownloadingSongItem? current = _downloadTasksByKey[downloadKey];
+      if (current != null) {
+        _downloadTasksByKey[downloadKey] = current.copyWith(
+          updatedAtMillis: DateTime.now().millisecondsSinceEpoch,
+          status: DownloadTaskStatus.failed,
+          phaseLabel: '下载失败，点击继续重试',
+          errorMessage: error.toString(),
+        );
+        await _persistDownloadTasks();
+      }
+      notifyListeners();
+      rethrow;
+    } finally {
+      _downloadCancellationTokens.remove(downloadKey);
     }
+  }
+
+  void pauseDownload({required String sourceId, required String sourceSongId}) {
+    final String downloadKey = _buildDownloadKey(
+      sourceId: sourceId,
+      sourceSongId: sourceSongId,
+    );
+    _downloadCancellationTokens[downloadKey]?.pause();
   }
 
   void cancelDownload({
@@ -405,7 +540,27 @@ class KtvController extends ChangeNotifier {
       sourceId: sourceId,
       sourceSongId: sourceSongId,
     );
-    _downloadCancellationTokens[downloadKey]?.cancel();
+    final CloudDownloadCancellationToken? token =
+        _downloadCancellationTokens[downloadKey];
+    if (token != null) {
+      token.cancel();
+      return;
+    }
+    final DownloadingSongItem? task = _downloadTasksByKey.remove(downloadKey);
+    if (task != null) {
+      final CloudSongDownloadService? downloader =
+          _songDownloadServices[task.sourceId];
+      if (downloader != null) {
+        unawaited(
+          downloader.deletePartialDownload(
+            song: task.toSong(),
+            preferredDirectory: task.preferredDirectory,
+          ),
+        );
+      }
+      unawaited(_persistDownloadTasks());
+      notifyListeners();
+    }
   }
 
   Future<void> deleteDownloadedSong({
@@ -559,6 +714,22 @@ class KtvController extends ChangeNotifier {
     required String sourceSongId,
   }) {
     return '$sourceId::${sourceSongId.trim()}';
+  }
+
+  bool _shouldPersistProgressUpdate({
+    required DownloadingSongItem previous,
+    required DownloadingSongItem next,
+  }) {
+    if (previous.phaseLabel != next.phaseLabel) {
+      return true;
+    }
+    return (next.progress - previous.progress).abs() >= 0.05;
+  }
+
+  Future<void> _persistDownloadTasks() {
+    return _downloadTaskStore.saveTasks(
+      _downloadTasksByKey.values.toList(growable: false),
+    );
   }
 
   @override

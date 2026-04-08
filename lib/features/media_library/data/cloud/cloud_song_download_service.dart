@@ -160,14 +160,15 @@ class CloudSongDownloadService {
     final _ResolvedTargetDirectory target = await _resolveTargetDirectory(
       preferredDirectory,
     );
-    final String destinationPath = await _buildUniqueDestinationPath(
-      directory: target.directory,
-      song: song,
-      sourceFile: sourceFile,
-    );
+    final _ResolvedDestinationFiles destination =
+        await _resolveDestinationFiles(
+          directory: target.directory,
+          song: song,
+          sourceFile: sourceFile,
+        );
     await _copyFileWithProgress(
       sourceFile: sourceFile,
-      destinationFile: File(destinationPath),
+      destinationFile: destination.tempFile,
       onProgress: (double progress) {
         onProgress?.call(
           CloudDownloadProgress(
@@ -178,19 +179,23 @@ class CloudSongDownloadService {
       },
       cancellationToken: cancellationToken,
     );
+    if (await destination.finalFile.exists()) {
+      await destination.finalFile.delete();
+    }
+    await destination.tempFile.rename(destination.finalFile.path);
     await _recordDownloadedSong(
       _DownloadIndexEntry(
         sourceSongId: song.sourceSongId,
         title: song.title,
         artist: song.artist,
-        savedPath: destinationPath,
+        savedPath: destination.finalFile.path,
         savedAtMillis: DateTime.now().millisecondsSinceEpoch,
       ),
     );
     onProgress?.call(const CloudDownloadProgress(phaseLabel: '下载完成', value: 1));
 
     return CloudSongDownloadResult(
-      savedPath: destinationPath,
+      savedPath: destination.finalFile.path,
       usedPreferredDirectory: target.usedPreferredDirectory,
     );
   }
@@ -237,7 +242,39 @@ class CloudSongDownloadService {
     await _saveDownloadIndex(index);
   }
 
-  Future<String> _buildUniqueDestinationPath({
+  Future<void> deletePartialDownload({
+    required Song song,
+    String? preferredDirectory,
+  }) async {
+    final _ResolvedTargetDirectory target = await _resolveTargetDirectory(
+      preferredDirectory,
+    );
+    final String fileStem = _sanitizeFileName(
+      '${song.artist} - ${song.title}'.trim(),
+    );
+    if (!await target.directory.exists()) {
+      return;
+    }
+    await for (final FileSystemEntity entity in target.directory.list()) {
+      if (entity is! File) {
+        continue;
+      }
+      final String name = path.basename(entity.path);
+      if (!name.endsWith('.download')) {
+        continue;
+      }
+      final String normalizedName = name.substring(
+        0,
+        name.length - '.download'.length,
+      );
+      if (normalizedName == fileStem ||
+          normalizedName.startsWith('$fileStem (')) {
+        await entity.delete();
+      }
+    }
+  }
+
+  Future<_ResolvedDestinationFiles> _resolveDestinationFiles({
     required Directory directory,
     required Song song,
     required File sourceFile,
@@ -249,16 +286,22 @@ class CloudSongDownloadService {
       '${song.artist} - ${song.title}'.trim(),
     );
 
-    String candidatePath = path.join(directory.path, '$fileStem$extension');
-    int suffix = 1;
-    while (await File(candidatePath).exists()) {
-      candidatePath = path.join(
+    int suffix = 0;
+    while (true) {
+      final String candidatePath = path.join(
         directory.path,
-        '$fileStem ($suffix)$extension',
+        suffix == 0 ? '$fileStem$extension' : '$fileStem ($suffix)$extension',
       );
+      final File finalFile = File(candidatePath);
+      final File tempFile = File('${finalFile.path}.download');
+      if (await tempFile.exists() || !await finalFile.exists()) {
+        return _ResolvedDestinationFiles(
+          finalFile: finalFile,
+          tempFile: tempFile,
+        );
+      }
       suffix += 1;
     }
-    return candidatePath;
   }
 
   Future<void> _copyFileWithProgress({
@@ -268,15 +311,23 @@ class CloudSongDownloadService {
     CloudDownloadCancellationToken? cancellationToken,
   }) async {
     await destinationFile.parent.create(recursive: true);
-    if (await destinationFile.exists()) {
-      await destinationFile.delete();
-    }
     final int totalBytes = await sourceFile.length();
-    final Stream<List<int>> stream = sourceFile.openRead();
-    final IOSink sink = destinationFile.openWrite();
     int writtenBytes = 0;
-    bool shouldDelete = false;
+    if (await destinationFile.exists()) {
+      writtenBytes = await destinationFile.length();
+      if (writtenBytes > totalBytes) {
+        await destinationFile.delete();
+        writtenBytes = 0;
+      }
+    }
+    final Stream<List<int>> stream = sourceFile.openRead(writtenBytes);
+    final IOSink sink = destinationFile.openWrite(
+      mode: FileMode.writeOnlyAppend,
+    );
     try {
+      if (totalBytes > 0) {
+        onProgress?.call(writtenBytes / totalBytes);
+      }
       await for (final List<int> chunk in stream) {
         cancellationToken?.throwIfCancelled();
         sink.add(chunk);
@@ -285,14 +336,15 @@ class CloudSongDownloadService {
           onProgress?.call(writtenBytes / totalBytes);
         }
       }
-    } catch (_) {
-      shouldDelete = true;
+    } on CloudDownloadCancelledException {
+      if (await destinationFile.exists()) {
+        await destinationFile.delete();
+      }
+      rethrow;
+    } on CloudDownloadPausedException {
       rethrow;
     } finally {
       await sink.close();
-      if (shouldDelete && await destinationFile.exists()) {
-        await destinationFile.delete();
-      }
     }
   }
 
@@ -416,4 +468,14 @@ class _ResolvedTargetDirectory {
 
   final Directory directory;
   final bool usedPreferredDirectory;
+}
+
+class _ResolvedDestinationFiles {
+  const _ResolvedDestinationFiles({
+    required this.finalFile,
+    required this.tempFile,
+  });
+
+  final File finalFile;
+  final File tempFile;
 }
