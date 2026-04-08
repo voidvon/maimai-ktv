@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Publisher"
+  short_description: "Write AI release notes and publish versioned releases"
+  default_prompt: "Use $release-publisher to draft the next release notes, choose the next prerelease version, and publish the release."
