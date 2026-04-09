@@ -33,7 +33,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  ktv2: 4266ebac4e6abefc57fa8de9d4c2025e6ce50246
+  ktv2: 139fdac507edf8afc42ffd56465f421d1a710e83
   sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0
   VLCKit: 4f2c462daaab6de88b93ab7609bdefbada557a4d
 
