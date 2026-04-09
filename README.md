@@ -6,7 +6,7 @@
 
 下图展示了麦麦KTV在“按歌名点歌”场景下的大屏界面。左侧保留视频预览和拼音首字母快捷检索区，右侧集中展示分类筛选、歌曲列表和播放控制，适合横屏电视、投屏设备或包厢点歌机使用。
 
-![麦麦KTV 歌名点歌界面截图](docs/images/song-search-screen.svg)
+![麦麦KTV 歌名点歌界面截图](docs/images/song-search-screen.jpg)
 
 ## 产品定位
 
