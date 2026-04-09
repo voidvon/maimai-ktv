@@ -22,7 +22,7 @@
   当前控制器只知道“请求歌曲”和“打开媒体”，还没有远端资源解析层
 - [lib/features/ktv/application/playback_queue_manager.dart](/Users/yytest/Documents/projects/ktv/lib/features/ktv/application/playback_queue_manager.dart)
   现在直接把 `song.mediaPath` 传给播放器
-- [packages/ktv2/lib/models/media_source.dart](/Users/yytest/Documents/projects/ktv/packages/ktv2/lib/models/media_source.dart)
+- [ktv-player/lib/models/media_source.dart](https://github.com/voidvon/ktv-player/blob/main/lib/models/media_source.dart)
   播放器输入是简单的本地路径字符串模型
 - [lib/features/media_library/data/media_index_store.dart](/Users/yytest/Documents/projects/ktv/lib/features/media_library/data/media_index_store.dart)
   已经具备“来源曲目表 + 聚合曲目表 + 来源同步状态表”的结构，适合承接远端数据源

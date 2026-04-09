@@ -1,5 +1,5 @@
 name: ktv2_example
-description: "KTV application with a local ktv2 player package."
+description: "KTV application using the external ktv2 player package."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -31,7 +31,9 @@ dependencies:
   flutter:
     sdk: flutter
   ktv2:
-    path: packages/ktv2
+    git:
+      url: https://github.com/voidvon/ktv-player.git
+      ref: main
   file_selector: ^1.1.0
   lpinyin: ^2.0.3
   path: ^1.9.1

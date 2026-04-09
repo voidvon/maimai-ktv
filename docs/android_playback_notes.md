@@ -1,14 +1,14 @@
 # Android 播放链路说明
 
-这份文档只针对 `/Volumes/DATA/Space/ktv2` 当前这套播放器实现，目的是避免后续再次踩到“选文件闪退”“release 能装但不能播”“有声无画”这类回归。
+这份文档只针对 `voidvon/ktv-player` 当前这套播放器实现，目的是避免后续再次踩到“选文件闪退”“release 能装但不能播”“有声无画”这类回归。
 
 ## 1. 当前播放器结构
 
 - 示例 UI 入口：`lib/main.dart`
-- Android 播放控制器：`packages/ktv2/lib/player/android_native_player_controller.dart`
-- Dart 与原生通信：`packages/ktv2/lib/player/platform_channel_player_controller.dart`
+- Android 播放控制器：`voidvon/ktv-player/lib/player/android_native_player_controller.dart`
+- Dart 与原生通信：`voidvon/ktv-player/lib/player/platform_channel_player_controller.dart`
 - Android 示例文件选择：`android/app/src/main/kotlin/com/ktv/player/ktv2_example/MainActivity.kt`
-- Android 原生播放器宿主：`packages/ktv2/android/src/main/kotlin/com/ktv/player/ktv2/NativeKtvPlayerHost.kt`
+- Android 原生播放器宿主：`voidvon/ktv-player/android/src/main/kotlin/com/ktv/player/ktv2/NativeKtvPlayerHost.kt`
 - 播放内核：`org.videolan.android:libvlc-all`
 
 当前模式是：
@@ -60,8 +60,8 @@ Android 文件选择器返回的通常是 `content://...`。
 
 相关文件：
 
-- `packages/ktv2/android/src/main/c/native_vlc_bridge.c`
-- `packages/ktv2/android/src/main/c/CMakeLists.txt`
+- `voidvon/ktv-player/android/src/main/c/native_vlc_bridge.c`
+- `voidvon/ktv-player/android/src/main/c/CMakeLists.txt`
 
 如果 JNI 库加载失败，单音轨原唱/伴唱能力会退化。
 

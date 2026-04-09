@@ -1,1 +1,0 @@
-enum AudioOutputMode { original, accompaniment }

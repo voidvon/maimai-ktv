@@ -219,9 +219,11 @@ packages:
   ktv2:
     dependency: "direct main"
     description:
-      path: "packages/ktv2"
-      relative: true
-    source: path
+      path: "."
+      ref: main
+      resolved-ref: eb831742e95eb2df9924987cc9a1417f8a30db94
+      url: "https://github.com/voidvon/ktv-player.git"
+    source: git
     version: "1.0.0+1"
   leak_tracker:
     dependency: transitive
