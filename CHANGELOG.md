@@ -8,6 +8,21 @@ The format is intentionally simple:
 - Focus on what users can perceive.
 - Avoid implementation details unless they affect usage.
 
+## [v1.0.0-alpha.2] - 2026-04-09
+
+### Added
+
+- First macOS desktop release package published through GitHub Releases.
+- Android prerelease artifacts now include both split-per-ABI APKs and a universal APK for easier installation on different devices.
+
+### Changed
+
+- Alpha distribution metadata now aligns the app package version, release tag, and uploaded assets for the current prerelease build.
+
+### Notes
+
+- This is an alpha prerelease intended for testing and validation.
+
 ## [v1.0.0-alpha.1] - 2026-04-08
 
 ### Added
