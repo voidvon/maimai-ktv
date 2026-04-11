@@ -73,6 +73,22 @@ void main() {
     expect(playerController.lastOpenedSource?.path, '/cache/resolved.mp4');
     expect(playerController.lastOpenedSource?.displayName, '缓存版第一首');
   });
+
+  test('skipCurrentSong keeps current playback when no next song exists', () async {
+    final _FakePlayerController playerController = _FakePlayerController();
+    final PlaybackQueueManager manager = PlaybackQueueManager(
+      playerController: playerController,
+    );
+    final Song first = _song('第一首');
+
+    final List<Song> queue = await manager.requestSong(const <Song>[], first);
+    final List<Song> remainingQueue = await manager.skipCurrentSong(queue);
+
+    expect(remainingQueue, <Song>[first]);
+    expect(playerController.lastOpenedSource?.displayName, '第一首');
+    expect(playerController.hasMedia, isTrue);
+    expect(playerController.stopPlaybackCallCount, 0);
+  });
 }
 
 Song _song(String title) {
@@ -93,6 +109,7 @@ Song _song(String title) {
 class _FakePlayerController extends PlayerController {
   PlayerState _state = const PlayerState();
   MediaSource? lastOpenedSource;
+  int stopPlaybackCallCount = 0;
 
   @override
   PlayerState get state => _state;
@@ -148,6 +165,19 @@ class _FakePlayerController extends PlayerController {
       isPlaying: !_state.isPlaying,
       playbackDuration: _state.playbackDuration,
       playbackPosition: _state.playbackPosition,
+    );
+    notifyListeners();
+  }
+
+  @override
+  Future<void> stopPlayback() async {
+    stopPlaybackCallCount += 1;
+    _state = PlayerState(
+      audioOutputMode: _state.audioOutputMode,
+      currentMediaPath: null,
+      isPlaying: false,
+      playbackDuration: Duration.zero,
+      playbackPosition: Duration.zero,
     );
     notifyListeners();
   }

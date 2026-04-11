@@ -46,7 +46,7 @@ void main() {
   ) async {
     await tester.pumpWidget(const KtvApp());
 
-    expect(find.text('我爱KTV'), findsOneWidget);
+    expect(find.text('麦麦KTV'), findsOneWidget);
     expect(find.text('歌名'), findsOneWidget);
     expect(find.text('设置'), findsAtLeastNWidgets(1));
     expect(find.text('首页预览区'), findsNothing);
@@ -766,6 +766,46 @@ void main() {
     final Rect nameRect = tester.getRect(find.text(artist.name));
     expect(nameRect.top, greaterThan(avatarRect.bottom));
   });
+
+  testWidgets(
+    'cloud songs show status icon instead of clickable download button',
+    (WidgetTester tester) async {
+      final Song song = Song(
+        songId: buildAggregateSongId(title: '云端歌曲', artist: '云端歌手'),
+        sourceId: 'baidu_pan',
+        sourceSongId: 'fsid-cloud-icon',
+        title: '云端歌曲',
+        artist: '云端歌手',
+        languages: const <String>['国语'],
+        searchIndex: 'cloud song',
+        mediaPath: '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 320,
+                height: 64,
+                child: SongTile(
+                  song: song,
+                  isCurrent: false,
+                  isQueued: false,
+                  isFavorite: false,
+                  showCloudStatus: true,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.cloud_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.download_rounded), findsNothing);
+    },
+  );
 
   testWidgets('phone-height song grid uses bottom space to fit one more row', (
     WidgetTester tester,

@@ -199,6 +199,13 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         _controller.queuedSongs.isEmpty) {
       return;
     }
+    final int requiredQueueLength = _controller.playerController.hasMedia
+        ? 2
+        : 1;
+    if (_controller.queuedSongs.length < requiredQueueLength) {
+      CenterOverlayToast.showError(context, message: '暂无下一首');
+      return;
+    }
     unawaited(_controller.skipCurrentSong());
   }
 
@@ -282,7 +289,28 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
   }
 
   Future<void> _requestSong(Song song) async {
-    await _controller.requestSong(song);
+    switch (_controller.resolveSongSelectionAction(song)) {
+      case SongSelectionAction.queue:
+        await _controller.requestSong(song);
+        return;
+      case SongSelectionAction.startDownload:
+        unawaited(_downloadSong(song));
+        if (mounted) {
+          CenterOverlayToast.showSuccess(context, message: '已加入下载列表');
+        }
+        return;
+      case SongSelectionAction.resumeDownload:
+        unawaited(_downloadSong(song));
+        if (mounted) {
+          CenterOverlayToast.showSuccess(context, message: '已恢复下载');
+        }
+        return;
+      case SongSelectionAction.downloading:
+        if (mounted) {
+          CenterOverlayToast.showSuccess(context, message: '正在下载');
+        }
+        return;
+    }
   }
 
   Future<void> _toggleFavorite(Song song) async {

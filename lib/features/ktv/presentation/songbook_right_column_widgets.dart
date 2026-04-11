@@ -157,10 +157,9 @@ class SongTile extends StatelessWidget {
     required this.isCurrent,
     required this.isQueued,
     required this.isFavorite,
-    this.showDownloadAction = false,
+    this.showCloudStatus = false,
     this.isDownloading = false,
     this.onToggleFavorite,
-    this.onDownload,
     this.onTap,
   });
 
@@ -168,10 +167,9 @@ class SongTile extends StatelessWidget {
   final bool isCurrent;
   final bool isQueued;
   final bool isFavorite;
-  final bool showDownloadAction;
+  final bool showCloudStatus;
   final bool isDownloading;
   final VoidCallback? onToggleFavorite;
-  final VoidCallback? onDownload;
   final VoidCallback? onTap;
 
   @override
@@ -256,34 +254,18 @@ class SongTile extends StatelessWidget {
                     ),
                   ),
                   SizedBox(width: trailingGap),
-                  if (showDownloadAction) ...<Widget>[
-                    Material(
-                      color: const Color(0x12FFFFFF),
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: onDownload,
-                        child: SizedBox(
-                          width: actionSize,
-                          height: actionSize,
-                          child: isDownloading
-                              ? Padding(
-                                  padding: EdgeInsets.all(
-                                    useCompactLayout ? 5 : 6,
-                                  ),
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 1.8,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Color(0xCCFFF7FF),
-                                    ),
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.download_rounded,
-                                  size: actionIconSize,
-                                  color: const Color(0xB8F3DAFF),
-                                ),
-                        ),
+                  if (showCloudStatus) ...<Widget>[
+                    SizedBox(
+                      width: actionSize,
+                      height: actionSize,
+                      child: Icon(
+                        isDownloading
+                            ? Icons.cloud_sync_rounded
+                            : Icons.cloud_rounded,
+                        size: actionIconSize,
+                        color: isDownloading
+                            ? const Color(0xFFFFD85E)
+                            : const Color(0xB8F3DAFF),
                       ),
                     ),
                     SizedBox(width: trailingGap),

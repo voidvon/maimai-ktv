@@ -249,14 +249,11 @@ void main() {
   });
 
   test('aggregated song book can load without local directory', () async {
-    final Song remoteSong = Song(
-      songId: buildAggregateSongId(title: '远程歌曲', artist: '云端歌手'),
-      sourceId: '115',
-      sourceSongId: '115-song-1',
+    final Song remoteSong = _remoteSong(
       title: '远程歌曲',
       artist: '云端歌手',
-      languages: const <String>['国语'],
-      searchIndex: '远程歌曲 云端歌手',
+      sourceId: '115',
+      sourceSongId: '115-song-1',
       mediaPath: '115://remote-song',
     );
     final KtvController controller = KtvController(
@@ -277,6 +274,117 @@ void main() {
     expect(controller.libraryTotalCount, 1);
     expect(controller.currentSubtitle, contains('聚合曲库'));
   });
+
+  test(
+    'resolveSongSelectionAction queues local and downloaded songs directly',
+    () async {
+      final Song localSong = _song(title: '本地歌曲', artist: '歌手甲');
+      final Song downloadedRemoteSong = _remoteSong(
+        title: '已下载云端歌曲',
+        artist: '云端歌手',
+        sourceSongId: 'fsid-downloaded',
+      );
+      final KtvController controller = KtvController(
+        mediaLibraryRepository: FakeMediaLibraryRepository(),
+        playerController: FakePlayerController(),
+        songDownloadServices: <String, CloudSongDownloadService>{
+          'baidu_pan': _FakeCloudSongDownloadService(
+            sourceId: 'baidu_pan',
+            downloadedSongs: <CloudDownloadedSongRecord>[
+              CloudDownloadedSongRecord(
+                sourceId: downloadedRemoteSong.sourceId,
+                sourceSongId: downloadedRemoteSong.sourceSongId,
+                title: downloadedRemoteSong.title,
+                artist: downloadedRemoteSong.artist,
+                savedPath: '/tmp/downloaded.mp4',
+                savedAtMillis: 1,
+              ),
+            ],
+          ),
+        },
+        downloadTaskStore: _FakeDownloadTaskStore(),
+      );
+
+      await controller.initialize();
+
+      expect(
+        controller.resolveSongSelectionAction(localSong),
+        SongSelectionAction.queue,
+      );
+      expect(
+        controller.resolveSongSelectionAction(downloadedRemoteSong),
+        SongSelectionAction.queue,
+      );
+    },
+  );
+
+  test(
+    'resolveSongSelectionAction reports download states for cloud songs',
+    () async {
+      final Song remoteSong = _remoteSong(
+        title: '云端歌曲',
+        artist: '云端歌手',
+        sourceSongId: 'fsid-cloud',
+      );
+      final Completer<void> gate = Completer<void>();
+      final KtvController controller = KtvController(
+        mediaLibraryRepository: FakeMediaLibraryRepository(),
+        playerController: FakePlayerController(),
+        songDownloadServices: <String, CloudSongDownloadService>{
+          'baidu_pan': _FakeCloudSongDownloadService(
+            sourceId: 'baidu_pan',
+            onDownloadSong:
+                ({
+                  required Song song,
+                  String? preferredDirectory,
+                  void Function(CloudDownloadProgress progress)? onProgress,
+                  CloudDownloadCancellationToken? cancellationToken,
+                }) async {
+                  onProgress?.call(
+                    const CloudDownloadProgress(
+                      phaseLabel: '缓存云端文件',
+                      value: 0.2,
+                    ),
+                  );
+                  await gate.future;
+                  cancellationToken?.throwIfCancelled();
+                  return const CloudSongDownloadResult(
+                    savedPath: '/tmp/cloud.mp4',
+                    usedPreferredDirectory: false,
+                  );
+                },
+          ),
+        },
+        downloadTaskStore: _FakeDownloadTaskStore(),
+      );
+
+      expect(
+        controller.resolveSongSelectionAction(remoteSong),
+        SongSelectionAction.startDownload,
+      );
+
+      final Future<CloudSongDownloadResult> future = controller
+          .downloadSongToLocal(remoteSong);
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(
+        controller.resolveSongSelectionAction(remoteSong),
+        SongSelectionAction.downloading,
+      );
+
+      controller.pauseDownload(
+        sourceId: remoteSong.sourceId,
+        sourceSongId: remoteSong.sourceSongId,
+      );
+      gate.complete();
+
+      await expectLater(future, throwsA(isA<CloudDownloadPausedException>()));
+      expect(
+        controller.resolveSongSelectionAction(remoteSong),
+        SongSelectionAction.resumeDownload,
+      );
+    },
+  );
 
   test(
     'requestSong keeps current playback and appends new songs to queue',
@@ -715,6 +823,26 @@ Song _song({
     languages: <String>[language],
     searchIndex: '$title $artist'.toLowerCase(),
     mediaPath: mediaPath ?? '/tmp/$title.mp4',
+  );
+}
+
+Song _remoteSong({
+  required String title,
+  required String artist,
+  String sourceId = 'baidu_pan',
+  String? sourceSongId,
+  String language = '国语',
+  String? mediaPath,
+}) {
+  return Song(
+    songId: buildAggregateSongId(title: title, artist: artist),
+    sourceId: sourceId,
+    sourceSongId: sourceSongId ?? '$sourceId::$title::$artist',
+    title: title,
+    artist: artist,
+    languages: <String>[language],
+    searchIndex: '$title $artist'.toLowerCase(),
+    mediaPath: mediaPath ?? '',
   );
 }
 

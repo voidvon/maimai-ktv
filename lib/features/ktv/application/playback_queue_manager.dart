@@ -93,8 +93,7 @@ class PlaybackQueueManager {
     }
 
     if (remainingQueue.isEmpty) {
-      await playerController.stopPlayback();
-      return const <Song>[];
+      return queuedSongs;
     }
 
     final Song nextSong = remainingQueue.first;

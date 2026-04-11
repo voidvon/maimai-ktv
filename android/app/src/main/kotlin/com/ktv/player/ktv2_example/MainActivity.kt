@@ -565,7 +565,7 @@ class MainActivity : FlutterActivity() {
                 put(MediaStore.Images.Media.MIME_TYPE, "image/png")
                 put(
                     MediaStore.Images.Media.RELATIVE_PATH,
-                    "${Environment.DIRECTORY_PICTURES}${File.separator}我爱KTV",
+                    "${Environment.DIRECTORY_PICTURES}${File.separator}麦麦KTV",
                 )
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }

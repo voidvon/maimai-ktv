@@ -28,7 +28,7 @@ class _KtvAppState extends State<KtvApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: '我爱KTV',
+      title: '麦麦KTV',
       theme: base.copyWith(
         scaffoldBackgroundColor: const Color(0xFF070012),
         textTheme: base.textTheme.apply(

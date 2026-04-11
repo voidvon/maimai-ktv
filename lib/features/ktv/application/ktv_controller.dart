@@ -21,6 +21,8 @@ import 'ktv_state.dart';
 
 export 'ktv_state.dart' show KtvRoute, SongBookMode, LibraryScope, KtvState;
 
+enum SongSelectionAction { queue, startDownload, resumeDownload, downloading }
+
 class KtvController extends ChangeNotifier {
   KtvController({
     MediaLibraryRepository? mediaLibraryRepository,
@@ -345,6 +347,20 @@ class KtvController extends ChangeNotifier {
       pageIndex: pageIndex,
       pageSize: pageSize,
     );
+  }
+
+  SongSelectionAction resolveSongSelectionAction(Song song) {
+    if (!supportsDownload(song) || isSongDownloaded(song)) {
+      return SongSelectionAction.queue;
+    }
+    final DownloadingSongItem? task = findDownloadTaskForSong(song);
+    if (task == null) {
+      return SongSelectionAction.startDownload;
+    }
+    if (task.isDownloading) {
+      return SongSelectionAction.downloading;
+    }
+    return SongSelectionAction.resumeDownload;
   }
 
   Future<void> requestSong(Song song) async {
@@ -707,6 +723,18 @@ class KtvController extends ChangeNotifier {
       sourceId: song.sourceId,
       sourceSongId: song.sourceSongId,
     );
+  }
+
+  bool supportsDownload(Song song) {
+    return _songDownloadServices.containsKey(song.sourceId);
+  }
+
+  bool isSongDownloaded(Song song) {
+    return _downloadedSongKeys.contains(buildDownloadKeyForSong(song));
+  }
+
+  DownloadingSongItem? findDownloadTaskForSong(Song song) {
+    return _downloadTasksByKey[buildDownloadKeyForSong(song)];
   }
 
   String _buildDownloadKey({

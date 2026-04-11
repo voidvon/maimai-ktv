@@ -392,7 +392,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
             final bool isQueued = _playback.queuedSongs.contains(song);
             final bool isFavorite = favoriteSongIds.contains(song.songId);
             final bool isDownloaded = _library.isSongDownloaded(song);
-            final bool showDownloadAction =
+            final bool showCloudStatus =
                 _library.supportsDownload(song) && !isDownloaded;
             final bool isDownloading = _library.downloadingSongIds.contains(
               song.songId,
@@ -402,12 +402,9 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
               isCurrent: isCurrent,
               isQueued: isQueued,
               isFavorite: isFavorite,
-              showDownloadAction: showDownloadAction,
+              showCloudStatus: showCloudStatus,
               isDownloading: isDownloading,
               onToggleFavorite: () => _libraryCallbacks.onToggleFavorite(song),
-              onDownload: showDownloadAction && !isDownloading
-                  ? () => _libraryCallbacks.onDownloadSong(song)
-                  : null,
               onTap: isQueued
                   ? null
                   : () => _libraryCallbacks.onRequestSong(song),
