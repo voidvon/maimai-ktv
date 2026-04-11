@@ -8,6 +8,20 @@ The format is intentionally simple:
 - Focus on what users can perceive.
 - Avoid implementation details unless they affect usage.
 
+## [v1.0.0-alpha.3] - 2026-04-11
+
+### Changed
+
+- App name is now unified as `麦麦KTV`, and the app icons across Android, iOS, and macOS have been refreshed for the new brand.
+- Cloud songs now follow a clearer queue flow: tapping an undownloaded song adds it to the bottom of 已点, keeps it out of playback until the download completes, and shows download progress directly in the song list.
+- 已点列表 now uses the same item component as the song list, removes horizontal swipe paging, and keeps downloading songs visible with a thin inline progress bar.
+- Skip, restart, and paused playback behaviors are more consistent, including showing a toast when there is no next playable song and restarting correctly from paused state.
+- Baidu Netdisk download state handling is more consistent, with clearer unavailable-file feedback and fewer false “login expired” prompts.
+
+### Notes
+
+- This is an alpha prerelease intended for testing and validation.
+
 ## [v1.0.0-alpha.2] - 2026-04-09
 
 ### Added
