@@ -42,3 +42,5 @@ This file records the exact branch, commit and release link used for each publis
   - app-arm64-v8a-release.apk
   - app-armeabi-v7a-release.apk
   - app-x86_64-release.apk
+  - maimai-ktv-v1.0.0-alpha.3-android-universal.apk
+  - maimai-ktv-v1.0.0-alpha.3-macos.zip
