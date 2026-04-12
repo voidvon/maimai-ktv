@@ -8,6 +8,19 @@ The format is intentionally simple:
 - Focus on what users can perceive.
 - Avoid implementation details unless they affect usage.
 
+## [v1.0.0-alpha.4] - 2026-04-12
+
+### Changed
+
+- The player now restores the last playback session after relaunch, so unfinished songs can continue from the previous progress more reliably.
+- Queue cleanup after the final song finishes is more consistent, reducing stale playback state after the queue ends.
+- Progress scrubbing is smoother: dragging the progress bar now previews the target position first and only seeks after release.
+- The video preview surface itself now supports horizontal scrubbing in both embedded and fullscreen playback, while keeping tap-to-fullscreen and tap-to-show-controls behaviors intact.
+
+### Notes
+
+- This is an alpha prerelease intended for testing and validation.
+
 ## [v1.0.0-alpha.3] - 2026-04-11
 
 ### Changed
