@@ -973,6 +973,68 @@ void main() {
   });
 
   testWidgets(
+    'dragging non-fullscreen preview seeks without entering fullscreen',
+    (WidgetTester tester) async {
+      final _TestPlayerController controller = _TestPlayerController();
+      int enterFullscreenCount = 0;
+      controller.setProgress(
+        position: const Duration(seconds: 30),
+        duration: const Duration(minutes: 2),
+        mediaPath: '/tmp/sample.mp4',
+      );
+
+      await tester.pumpWidget(
+        _PreviewViewportTestApp(
+          controller: controller,
+          isFullscreen: false,
+          onEnterFullscreen: () {
+            enterFullscreenCount += 1;
+          },
+        ),
+      );
+
+      await tester.drag(
+        find.byKey(const ValueKey<String>('preview-tap-target')),
+        const Offset(60, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(enterFullscreenCount, 0);
+      expect(controller.lastSeekProgress, isNotNull);
+      expect(controller.lastSeekProgress!, greaterThan(0.25));
+      expect(controller.lastSeekProgress!, lessThan(1.0));
+    },
+  );
+
+  testWidgets('dragging fullscreen preview seeks and reveals controls', (
+    WidgetTester tester,
+  ) async {
+    final _TestPlayerController controller = _TestPlayerController();
+    controller.setProgress(
+      position: const Duration(seconds: 30),
+      duration: const Duration(minutes: 2),
+      mediaPath: '/tmp/sample.mp4',
+    );
+
+    await tester.pumpWidget(
+      _PreviewViewportTestApp(controller: controller, isFullscreen: true),
+    );
+
+    expect(find.text('返回点歌'), findsNothing);
+
+    await tester.drag(
+      find.byKey(const ValueKey<String>('fullscreen-preview-gesture-target')),
+      const Offset(60, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(controller.lastSeekProgress, isNotNull);
+    expect(controller.lastSeekProgress!, greaterThan(0.25));
+    expect(controller.lastSeekProgress!, lessThan(1.0));
+    expect(find.text('返回点歌'), findsOneWidget);
+  });
+
+  testWidgets(
     'player progress track rebuilds when controller progress changes',
     (WidgetTester tester) async {
       final _TestPlayerController controller = _TestPlayerController();
@@ -1116,4 +1178,40 @@ class _TestPlayerController extends PlayerController {
 
   @override
   Future<void> togglePlayback() async {}
+}
+
+class _PreviewViewportTestApp extends StatelessWidget {
+  const _PreviewViewportTestApp({
+    required this.controller,
+    required this.isFullscreen,
+    this.onEnterFullscreen,
+  });
+
+  final PlayerController controller;
+  final bool isFullscreen;
+  final VoidCallback? onEnterFullscreen;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Stack(
+          children: <Widget>[
+            PreviewViewportHost(
+              controller: controller,
+              previewSurface: const ColoredBox(color: Colors.black),
+              rect: const Rect.fromLTWH(0, 0, 300, 200),
+              isFullscreen: isFullscreen,
+              onEnterFullscreen: onEnterFullscreen ?? () {},
+              onBackToSongBook: () {},
+              onToggleAudioMode: () {},
+              onTogglePlayback: () {},
+              onRestartPlayback: () {},
+              onSkipSong: () {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

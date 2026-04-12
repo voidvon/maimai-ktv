@@ -26,6 +26,7 @@ class PlayerProgressTrack extends StatefulWidget {
     required this.controller,
     required this.thickness,
     required this.barHeight,
+    this.previewProgress,
     this.trackShape,
     this.activeTrackColor = const Color(0xFFFF4D8D),
     this.inactiveTrackColor = const Color(0x33FFFFFF),
@@ -36,6 +37,7 @@ class PlayerProgressTrack extends StatefulWidget {
   final PlayerController controller;
   final double thickness;
   final double barHeight;
+  final double? previewProgress;
   final SliderTrackShape? trackShape;
   final Color activeTrackColor;
   final Color inactiveTrackColor;
@@ -89,7 +91,9 @@ class _PlayerProgressTrackState extends State<PlayerProgressTrack> {
             widget.controller.hasMedia &&
             widget.controller.playbackDuration > Duration.zero;
         final double displayedProgress = hasMedia
-            ? (_previewProgress ?? widget.controller.playbackProgress)
+            ? (widget.previewProgress ??
+                  _previewProgress ??
+                  widget.controller.playbackProgress)
             : 0;
         return SizedBox(
           height: widget.barHeight,
@@ -188,6 +192,9 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
 
   bool _showControls = false;
   bool _canToggleControls = false;
+  double? _previewProgress;
+  bool _isScrubbing = false;
+  int _scrubInteractionId = 0;
 
   @override
   void initState() {
@@ -216,6 +223,89 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
     widget.onBackToSongBook();
   }
 
+  bool get _hasSeekableMedia =>
+      widget.controller.hasMedia &&
+      widget.controller.playbackDuration > Duration.zero;
+
+  double get _displayedProgress =>
+      (_previewProgress ?? widget.controller.playbackProgress)
+          .clamp(0.0, 1.0)
+          .toDouble();
+
+  Duration get _displayedPosition => _hasSeekableMedia
+      ? _positionForProgress(
+          widget.controller.playbackDuration,
+          _displayedProgress,
+        )
+      : widget.controller.playbackPosition;
+
+  void _handlePreviewTap() {
+    widget.onEnterFullscreen();
+  }
+
+  void _handleFullscreenTap() {
+    _toggleControlsVisibility();
+  }
+
+  void _handleScrubStart(DragStartDetails details) {
+    if (!_hasSeekableMedia) {
+      return;
+    }
+    _scrubInteractionId += 1;
+    setState(() {
+      _isScrubbing = true;
+      _previewProgress = widget.controller.playbackProgress;
+      if (widget.isFullscreen) {
+        _showControls = true;
+      }
+    });
+  }
+
+  void _handleScrubUpdate(DragUpdateDetails details) {
+    if (!_isScrubbing || widget.rect.width <= 0) {
+      return;
+    }
+    final double delta = details.primaryDelta ?? details.delta.dx;
+    setState(() {
+      _previewProgress =
+          ((_previewProgress ?? widget.controller.playbackProgress) +
+                  (delta / widget.rect.width))
+              .clamp(0.0, 1.0)
+              .toDouble();
+    });
+  }
+
+  Future<void> _handleScrubComplete() async {
+    if (!_isScrubbing) {
+      return;
+    }
+    final double progress =
+        (_previewProgress ?? widget.controller.playbackProgress)
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final int interactionId = _scrubInteractionId;
+    setState(() {
+      _isScrubbing = false;
+    });
+    await widget.controller.seekToProgress(progress);
+    if (!mounted || _isScrubbing || interactionId != _scrubInteractionId) {
+      return;
+    }
+    setState(() {
+      _previewProgress = null;
+    });
+  }
+
+  void _handleScrubCancel() {
+    if (!_isScrubbing) {
+      return;
+    }
+    setState(() {
+      _isScrubbing = false;
+      _previewProgress = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final BorderRadius borderRadius = widget.isFullscreen
@@ -235,14 +325,17 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
             widget.previewSurface,
             if (!widget.isFullscreen) ...<Widget>[
               Positioned.fill(
-                bottom: _nonFullscreenProgressControlHeight,
                 child: Material(
                   color: Colors.transparent,
-                  child: InkWell(
+                  child: GestureDetector(
                     key: const ValueKey<String>('preview-tap-target'),
-                    onTap: widget.onEnterFullscreen,
-                    splashColor: const Color(0x22FFFFFF),
-                    highlightColor: Colors.transparent,
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _handlePreviewTap,
+                    onHorizontalDragStart: _handleScrubStart,
+                    onHorizontalDragUpdate: _handleScrubUpdate,
+                    onHorizontalDragEnd: (_) => _handleScrubComplete(),
+                    onHorizontalDragCancel: _handleScrubCancel,
+                    child: const SizedBox.expand(),
                   ),
                 ),
               ),
@@ -252,6 +345,7 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                 bottom: 0,
                 child: PlayerProgressTrack(
                   controller: widget.controller,
+                  previewProgress: _previewProgress,
                   thickness: 2,
                   barHeight: _nonFullscreenProgressControlHeight,
                   trackShape: const _BottomAlignedSliderTrackShape(),
@@ -264,8 +358,15 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
             ] else ...<Widget>[
               Positioned.fill(
                 child: GestureDetector(
+                  key: const ValueKey<String>(
+                    'fullscreen-preview-gesture-target',
+                  ),
                   behavior: HitTestBehavior.opaque,
-                  onTap: _toggleControlsVisibility,
+                  onTap: _handleFullscreenTap,
+                  onHorizontalDragStart: _handleScrubStart,
+                  onHorizontalDragUpdate: _handleScrubUpdate,
+                  onHorizontalDragEnd: (_) => _handleScrubComplete(),
+                  onHorizontalDragCancel: _handleScrubCancel,
                 ),
               ),
               Positioned.fill(
@@ -376,6 +477,7 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                                         children: <Widget>[
                                           PlayerProgressTrack(
                                             controller: widget.controller,
+                                            previewProgress: _previewProgress,
                                             thickness: 4,
                                             barHeight: 18,
                                           ),
@@ -387,9 +489,7 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                                               children: <Widget>[
                                                 Text(
                                                   formatPlaybackDuration(
-                                                    widget
-                                                        .controller
-                                                        .playbackPosition,
+                                                    _displayedPosition,
                                                   ),
                                                   style: const TextStyle(
                                                     fontSize: 11,
@@ -431,6 +531,16 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
       ),
     );
   }
+}
+
+Duration _positionForProgress(Duration duration, double progress) {
+  final int durationMs = duration.inMilliseconds;
+  if (durationMs <= 0) {
+    return Duration.zero;
+  }
+  return Duration(
+    milliseconds: (durationMs * progress.clamp(0.0, 1.0)).round(),
+  );
 }
 
 class FullscreenToolbarButton extends StatelessWidget {
