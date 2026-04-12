@@ -2,6 +2,21 @@
 
 This file records the exact branch, commit and release link used for each published package.
 
+## v1.0.0-alpha.4
+- Date: 2026-04-12
+- Title: 麦麦KTV v1.0.0-alpha.4
+- Repo: voidvon/maimai-ktv
+- Branch: main
+- Commit: c50790a (c50790a15e4a6c10fa89e0356c86972f9842d404)
+- Dirty Worktree: no
+- Release: https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.4
+- Assets:
+  - maimai-ktv-v1.0.0-alpha.4-android-arm64-v8a.apk
+  - maimai-ktv-v1.0.0-alpha.4-android-armeabi-v7a.apk
+  - maimai-ktv-v1.0.0-alpha.4-android-universal.apk
+  - maimai-ktv-v1.0.0-alpha.4-android-x86_64.apk
+  - maimai-ktv-v1.0.0-alpha.4-macos.zip
+
 ## v1.0.0-alpha.1
 - Date: 2026-04-08
 - Title: KTV Android v1.0.0-alpha.1
