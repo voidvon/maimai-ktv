@@ -9,6 +9,7 @@ import 'package:ktv2_example/features/ktv/presentation/songbook_contracts.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_page.dart';
 import 'package:ktv2_example/features/ktv/presentation/songbook_right_column_widgets.dart';
 import 'package:ktv2_example/features/ktv/presentation/shared_widgets.dart';
+import 'package:ktv2_example/features/player/presentation/player_progress_bar.dart';
 import 'package:ktv2_example/main.dart';
 
 void main() {
@@ -1006,7 +1007,7 @@ void main() {
     },
   );
 
-  testWidgets('player progress track forwards seek changes', (
+  testWidgets('player progress track defers seek until drag ends', (
     WidgetTester tester,
   ) async {
     final _TestPlayerController controller = _TestPlayerController();
@@ -1033,10 +1034,49 @@ void main() {
 
     final Slider slider = tester.widget<Slider>(find.byType(Slider));
     expect(slider.onChanged, isNotNull);
+    expect(slider.onChangeEnd, isNotNull);
 
     slider.onChanged!(0.5);
+    await tester.pump();
+
+    expect(controller.lastSeekProgress, isNull);
+
+    slider.onChangeEnd!(0.5);
+    await tester.pump();
 
     expect(controller.lastSeekProgress, 0.5);
+  });
+
+  testWidgets('player progress bar previews dragged position before seek', (
+    WidgetTester tester,
+  ) async {
+    final _TestPlayerController controller = _TestPlayerController();
+    controller.setProgress(
+      position: const Duration(seconds: 10),
+      duration: const Duration(minutes: 2),
+      mediaPath: '/tmp/sample.mp4',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: PlayerProgressBar(controller: controller)),
+      ),
+    );
+
+    expect(find.text('00:10'), findsOneWidget);
+
+    final Slider slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChangeStart?.call(0.75);
+    slider.onChanged!(0.75);
+    await tester.pump();
+
+    expect(find.text('01:30'), findsOneWidget);
+    expect(controller.lastSeekProgress, isNull);
+
+    slider.onChangeEnd!(0.75);
+    await tester.pump();
+
+    expect(controller.lastSeekProgress, 0.75);
   });
 }
 

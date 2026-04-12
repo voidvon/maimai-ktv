@@ -20,7 +20,7 @@ class GradientShell extends StatelessWidget {
   }
 }
 
-class PlayerProgressTrack extends StatelessWidget {
+class PlayerProgressTrack extends StatefulWidget {
   const PlayerProgressTrack({
     super.key,
     required this.controller,
@@ -43,14 +43,56 @@ class PlayerProgressTrack extends StatelessWidget {
   final Color overlayColor;
 
   @override
+  State<PlayerProgressTrack> createState() => _PlayerProgressTrackState();
+}
+
+class _PlayerProgressTrackState extends State<PlayerProgressTrack> {
+  double? _previewProgress;
+  bool _isDragging = false;
+  int _interactionId = 0;
+
+  void _handlePreviewStart(double progress) {
+    _interactionId += 1;
+    setState(() {
+      _isDragging = true;
+      _previewProgress = progress;
+    });
+  }
+
+  void _handlePreviewChanged(double progress) {
+    setState(() {
+      _previewProgress = progress;
+    });
+  }
+
+  Future<void> _handlePreviewEnd(double progress) async {
+    final int interactionId = _interactionId;
+    setState(() {
+      _isDragging = false;
+      _previewProgress = progress;
+    });
+    await widget.controller.seekToProgress(progress);
+    if (!mounted || _isDragging || interactionId != _interactionId) {
+      return;
+    }
+    setState(() {
+      _previewProgress = null;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: controller,
+      animation: widget.controller,
       builder: (BuildContext context, Widget? child) {
         final bool hasMedia =
-            controller.hasMedia && controller.playbackDuration > Duration.zero;
+            widget.controller.hasMedia &&
+            widget.controller.playbackDuration > Duration.zero;
+        final double displayedProgress = hasMedia
+            ? (_previewProgress ?? widget.controller.playbackProgress)
+            : 0;
         return SizedBox(
-          height: barHeight,
+          height: widget.barHeight,
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
               if (!constraints.hasBoundedWidth || constraints.maxWidth <= 0) {
@@ -58,22 +100,24 @@ class PlayerProgressTrack extends StatelessWidget {
               }
               return SliderTheme(
                 data: SliderTheme.of(context).copyWith(
-                  trackHeight: thickness,
-                  trackShape: trackShape,
+                  trackHeight: widget.thickness,
+                  trackShape: widget.trackShape,
                   thumbShape: const RoundSliderThumbShape(
                     enabledThumbRadius: 0,
                   ),
                   overlayShape: const RoundSliderOverlayShape(
                     overlayRadius: 12,
                   ),
-                  activeTrackColor: activeTrackColor,
-                  inactiveTrackColor: inactiveTrackColor,
-                  disabledInactiveTrackColor: disabledInactiveTrackColor,
-                  overlayColor: overlayColor,
+                  activeTrackColor: widget.activeTrackColor,
+                  inactiveTrackColor: widget.inactiveTrackColor,
+                  disabledInactiveTrackColor: widget.disabledInactiveTrackColor,
+                  overlayColor: widget.overlayColor,
                 ),
                 child: Slider(
-                  value: hasMedia ? controller.playbackProgress : 0,
-                  onChanged: hasMedia ? controller.seekToProgress : null,
+                  value: displayedProgress,
+                  onChangeStart: hasMedia ? _handlePreviewStart : null,
+                  onChanged: hasMedia ? _handlePreviewChanged : null,
+                  onChangeEnd: hasMedia ? _handlePreviewEnd : null,
                 ),
               );
             },
