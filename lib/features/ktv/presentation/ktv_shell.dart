@@ -41,6 +41,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
   late final KtvSearchCoordinator _searchCoordinator;
   late final KtvPreviewCoordinator _previewCoordinator;
   AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
+  bool _shouldRestorePlaybackAfterBackground = false;
   final Set<String> _backgroundInterruptedDownloadKeys = <String>{};
   final Map<String, DateTime> _suppressedDownloadErrorsUntil =
       <String, DateTime>{};
@@ -81,6 +82,8 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
     _pruneExpiredSuppressedDownloadErrors();
     if (_isBackgroundLifecycle(state) &&
         !_isBackgroundLifecycle(previousState)) {
+      final bool shouldStopPlayback = _controller.playerController.isPlaying;
+      _shouldRestorePlaybackAfterBackground = shouldStopPlayback;
       final Set<String> downloadKeys = _controller.downloadingSongs
           .where((DownloadingSongItem item) => item.isDownloading)
           .map((DownloadingSongItem item) {
@@ -106,7 +109,11 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
     }
     if (state == AppLifecycleState.resumed &&
         _isBackgroundLifecycle(previousState)) {
-      unawaited(_controller.restorePlaybackSessionIfNeeded(force: true));
+      final bool shouldRestorePlayback = _shouldRestorePlaybackAfterBackground;
+      _shouldRestorePlaybackAfterBackground = false;
+      if (shouldRestorePlayback) {
+        unawaited(_controller.restorePlaybackSessionIfNeeded(force: true));
+      }
     }
   }
 
@@ -357,8 +364,9 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
   }
 
   Future<void> _handleAppMovedToBackground() async {
-    await _controller.persistPlaybackSession();
-    await _controller.stopPlayback();
+    await _controller.preparePlaybackForBackground(
+      shouldStopPlayback: _shouldRestorePlaybackAfterBackground,
+    );
   }
 
   bool _isBackgroundLifecycle(AppLifecycleState state) {

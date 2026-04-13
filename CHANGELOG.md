@@ -8,6 +8,16 @@ The format is intentionally simple:
 - Focus on what users can perceive.
 - Avoid implementation details unless they affect usage.
 
+## [v1.0.0-alpha.6] - 2026-04-13
+
+### Changed
+
+- Playback now preserves the previous paused state after minimizing and returning to the app, instead of resuming automatically.
+
+### Notes
+
+- This is an alpha prerelease intended for testing and validation.
+
 ## [v1.0.0-alpha.5] - 2026-04-13
 
 ### Added

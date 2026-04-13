@@ -558,6 +558,57 @@ void main() {
     expect(playerController.playbackPosition, Duration.zero);
   });
 
+  test(
+    'preparePlaybackForBackground keeps paused playback state without rewinding',
+    () async {
+      final FakePlayerController playerController = FakePlayerController();
+      final _FakePlaybackSessionStore sessionStore =
+          _FakePlaybackSessionStore();
+      final KtvController controller = KtvController(
+        mediaLibraryRepository: FakeMediaLibraryRepository(),
+        playerController: playerController,
+        playbackSessionStore: sessionStore,
+      );
+
+      await controller.requestSong(_song(title: '后来', artist: '刘若英'));
+      await playerController.seekToProgress(0.5);
+      await playerController.togglePlayback();
+
+      await controller.preparePlaybackForBackground(shouldStopPlayback: false);
+
+      expect(playerController.isPlaying, isFalse);
+      expect(playerController.playbackPosition, const Duration(minutes: 2));
+      expect(sessionStore.session, isNotNull);
+      expect(sessionStore.session!.wasPlaying, isFalse);
+      expect(sessionStore.session!.playbackProgress, 0.5);
+    },
+  );
+
+  test(
+    'preparePlaybackForBackground stops active playback after saving session',
+    () async {
+      final FakePlayerController playerController = FakePlayerController();
+      final _FakePlaybackSessionStore sessionStore =
+          _FakePlaybackSessionStore();
+      final KtvController controller = KtvController(
+        mediaLibraryRepository: FakeMediaLibraryRepository(),
+        playerController: playerController,
+        playbackSessionStore: sessionStore,
+      );
+
+      await controller.requestSong(_song(title: '夜空中最亮的星', artist: '逃跑计划'));
+      await playerController.seekToProgress(0.5);
+
+      await controller.preparePlaybackForBackground(shouldStopPlayback: true);
+
+      expect(playerController.isPlaying, isFalse);
+      expect(playerController.playbackPosition, Duration.zero);
+      expect(sessionStore.session, isNotNull);
+      expect(sessionStore.session!.wasPlaying, isTrue);
+      expect(sessionStore.session!.playbackProgress, 0.5);
+    },
+  );
+
   test('initialize restores playing playback session', () async {
     final Song current = _song(title: '夜空中最亮的星', artist: '逃跑计划');
     final Song next = _song(title: '稻香', artist: '周杰伦');

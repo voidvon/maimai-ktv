@@ -725,6 +725,16 @@ class KtvController extends ChangeNotifier {
     return _playbackQueueManager.stopPlayback();
   }
 
+  Future<void> preparePlaybackForBackground({
+    required bool shouldStopPlayback,
+  }) async {
+    await persistPlaybackSession();
+    if (!shouldStopPlayback) {
+      return;
+    }
+    await stopPlayback();
+  }
+
   Future<void> clearQueueAndPlayback() async {
     _setState(_state.copyWith(queuedSongs: const <Song>[]));
     await _playbackSessionStore.clearSession();
