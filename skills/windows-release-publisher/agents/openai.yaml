@@ -1,0 +1,4 @@
+interface:
+  display_name: "Windows Release Publisher"
+  short_description: "Build Windows ZIPs and upload GitHub releases"
+  default_prompt: "Use $windows-release-publisher to package a Windows x64 build and upload it to the latest GitHub release."
