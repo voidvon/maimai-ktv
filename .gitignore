@@ -45,6 +45,7 @@ migrate_working_dir/
 **/windows/flutter/ephemeral/
 **/macos/Flutter/ephemeral/
 **/macos/Pods/
+dist/
 
 # Symbolication related
 app.*.symbols
