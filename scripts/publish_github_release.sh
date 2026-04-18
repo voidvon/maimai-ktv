@@ -25,6 +25,7 @@ Options:
   --generate-notes         Let GitHub generate release notes automatically.
   --no-split-per-abi       Build a universal APK instead of split-per-abi APKs.
   --skip-build             Upload existing asset without running flutter build.
+  --dry-run                Resolve assets & print release command without publishing.
   --skip-auth-check        Skip `gh auth status` validation.
   -h, --help               Show this help message.
 
@@ -158,6 +159,7 @@ GENERATE_NOTES=0
 DRAFT=0
 PRERELEASE=0
 USE_SPLIT_PER_ABI=1
+DRY_RUN=0
 RELEASE_HISTORY_FILE="${DEFAULT_RELEASE_HISTORY_FILE}"
 declare -a ASSET_PATHS=()
 
@@ -213,6 +215,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-build)
       SHOULD_BUILD=0
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
       shift
       ;;
     --skip-auth-check)
@@ -273,7 +279,7 @@ if [[ -z "${TITLE}" ]]; then
   TITLE="KTV Android ${TAG}"
 fi
 
-if [[ ${SHOULD_CHECK_AUTH} -eq 1 ]]; then
+if [[ ${SHOULD_CHECK_AUTH} -eq 1 && ${DRY_RUN} -eq 0 ]]; then
   echo "Checking GitHub authentication..."
   gh auth status >/dev/null
 fi
@@ -341,6 +347,24 @@ else
   else
     gh_args+=(--notes "Android release package for ${TAG}.")
   fi
+fi
+
+if [[ ${DRY_RUN} -eq 1 ]]; then
+  echo "Dry run only. Release will not be published."
+  echo "Repo: ${REPO}"
+  echo "Tag: ${TAG}"
+  echo "Title: ${TITLE}"
+  echo "Assets:"
+  for asset_path in "${ASSET_PATHS[@]}"; do
+    echo "  - ${asset_path}"
+  done
+  echo "Command:"
+  printf '  gh'
+  for arg in "${gh_args[@]}"; do
+    printf ' %q' "${arg}"
+  done
+  printf '\n'
+  exit 0
 fi
 
 echo "Publishing release ${TAG} to ${REPO}..."
