@@ -6,12 +6,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DEFAULT_RELEASE_HISTORY_FILE="${ROOT_DIR}/docs/release-history.md"
 
-DEFAULT_SPLIT_ASSET_RELATIVE_PATHS=(
-  "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
-  "build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk"
-  "build/app/outputs/flutter-apk/app-x86_64-release.apk"
-)
-
 usage() {
   cat <<'EOF'
 Usage:
@@ -55,6 +49,28 @@ require_command() {
 
 read_pubspec_version() {
   awk -F': *' '/^version:/ {print $2; exit}' "${ROOT_DIR}/pubspec.yaml"
+}
+
+sanitize_version() {
+  printf '%s' "$1" | tr '+/' '--' | tr -cd '[:alnum:]._-'
+}
+
+default_android_asset_paths() {
+  local version="$1"
+  local split_per_abi="$2"
+  local safe_version
+  safe_version="$(sanitize_version "${version}")"
+  local dist_dir="${ROOT_DIR}/dist/android"
+
+  if [[ "${split_per_abi}" -eq 1 ]]; then
+    printf '%s\n' \
+      "${dist_dir}/maimai-ktv-${safe_version}-android-arm64-v8a.apk" \
+      "${dist_dir}/maimai-ktv-${safe_version}-android-armeabi-v7a.apk" \
+      "${dist_dir}/maimai-ktv-${safe_version}-android-x86_64.apk"
+    return
+  fi
+
+  printf '%s\n' "${dist_dir}/maimai-ktv-${safe_version}-android-universal.apk"
 }
 
 current_branch() {
@@ -263,24 +279,20 @@ if [[ ${SHOULD_CHECK_AUTH} -eq 1 ]]; then
 fi
 
 if [[ ${#ASSET_PATHS[@]} -eq 0 ]]; then
-  if [[ ${USE_SPLIT_PER_ABI} -eq 1 ]]; then
-    for relative_path in "${DEFAULT_SPLIT_ASSET_RELATIVE_PATHS[@]}"; do
-      ASSET_PATHS+=("${ROOT_DIR}/${relative_path}")
-    done
-  else
-    ASSET_PATHS+=("${ROOT_DIR}/build/app/outputs/flutter-apk/app-release.apk")
-  fi
+  while IFS= read -r asset_path; do
+    ASSET_PATHS+=("${asset_path}")
+  done < <(default_android_asset_paths "${VERSION}" "${USE_SPLIT_PER_ABI}")
 fi
 
 if [[ ${SHOULD_BUILD} -eq 1 ]]; then
   echo "Building Android release APK..."
+  build_args=()
+  if [[ ${USE_SPLIT_PER_ABI} -eq 0 ]]; then
+    build_args+=(--no-split-per-abi)
+  fi
   (
     cd "${ROOT_DIR}"
-    if [[ ${USE_SPLIT_PER_ABI} -eq 1 ]]; then
-      flutter build apk --release --split-per-abi
-    else
-      flutter build apk --release
-    fi
+    scripts/build_android_apk.sh "${build_args[@]}"
   )
 fi
 
