@@ -8,6 +8,22 @@ The format is intentionally simple:
 - Focus on what users can perceive.
 - Avoid implementation details unless they affect usage.
 
+## [v1.0.0-alpha.7] - 2026-04-19
+
+### Added
+
+- First Windows desktop release package published through GitHub Releases.
+
+### Changed
+
+- iOS local media import is more reliable, including better handling for imported `.dat` files and directory scans.
+- iOS playback now uses the MobileVLCKit backend, improving compatibility with the current player integration.
+- Landscape playback layouts and KTV shell transitions are more stable, reducing preview and control inconsistencies while singing.
+
+### Notes
+
+- This is an alpha prerelease intended for testing and validation.
+
 ## [v1.0.0-alpha.6] - 2026-04-13
 
 ### Changed
