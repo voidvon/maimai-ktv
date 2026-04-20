@@ -13,7 +13,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  VITEPRESS_CUSTOM_DOMAIN: 'maimai.tangbure.cc'
+  VITEPRESS_CUSTOM_DOMAIN: 'maimai.0122.vip'
 
 permissions:
   contents: read
