@@ -49,6 +49,19 @@ function Get-ProjectVersion {
   return $versionLine.Matches[0].Groups[1].Value.Trim()
 }
 
+function Get-DisplayVersion {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Version
+  )
+
+  if ($Version.Contains('+')) {
+    return $Version.Split('+')[0]
+  }
+
+  return $Version
+}
+
 function Get-VisualStudioGeneratorInfo {
   $vswherePath = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
   if (Test-Path $vswherePath) {
@@ -136,6 +149,35 @@ function Clear-SharedFlutterWindowsOutputs {
   }
 }
 
+function Compress-DirectoryToZip {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$SourceDirectory,
+    [Parameter(Mandatory = $true)]
+    [string]$DestinationPath
+  )
+
+  if (Test-Path $DestinationPath) {
+    Remove-Item -Force $DestinationPath
+  }
+
+  $tarCommand = Get-Command tar.exe -ErrorAction SilentlyContinue
+  if ($null -ne $tarCommand) {
+    Invoke-Step -FilePath $tarCommand.Source -Arguments @(
+      '-a',
+      '-c',
+      '-f',
+      $DestinationPath,
+      '-C',
+      $SourceDirectory,
+      '.'
+    )
+    return
+  }
+
+  Compress-Archive -Path (Join-Path $SourceDirectory '*') -DestinationPath $DestinationPath -CompressionLevel Optimal
+}
+
 if ($env:OS -ne 'Windows_NT') {
   throw 'This script must run on a Windows host.'
 }
@@ -143,6 +185,7 @@ if ($env:OS -ne 'Windows_NT') {
 $repoRoot = Resolve-RepoRoot
 $pubspecPath = Join-Path $repoRoot 'pubspec.yaml'
 $version = Get-ProjectVersion -PubspecPath $pubspecPath
+$displayVersion = Get-DisplayVersion -Version $version
 $generatorInfo = Get-VisualStudioGeneratorInfo
 $generator = $generatorInfo.Generator
 $modeLower = $Mode.ToLowerInvariant()
@@ -160,7 +203,7 @@ if (-not $SkipPubGet) {
 foreach ($archConfig in $architectures) {
   $buildDir = Join-Path $repoRoot ("build\windows\{0}" -f $archConfig.Name)
   $outputDir = Join-Path $buildDir ("runner\{0}" -f $Mode)
-  $zipPath = Join-Path $distRoot ("ktv2_example-{0}-windows-{1}.zip" -f $version, $archConfig.Name)
+  $zipPath = Join-Path $distRoot ("maimai-ktv-v{0}-windows-{1}.zip" -f $displayVersion, $archConfig.Name)
 
   if ($Clean -and (Test-Path $buildDir)) {
     Remove-Item -Recurse -Force $buildDir
@@ -214,10 +257,7 @@ foreach ($archConfig in $architectures) {
   }
 
   if (-not $SkipZip) {
-    if (Test-Path $zipPath) {
-      Remove-Item -Force $zipPath
-    }
-    Compress-Archive -Path (Join-Path $outputDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+    Compress-DirectoryToZip -SourceDirectory $outputDir -DestinationPath $zipPath
     Write-Host "Created archive: $zipPath" -ForegroundColor Green
   } else {
     Write-Host "Build output: $outputDir" -ForegroundColor Green

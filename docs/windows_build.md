@@ -34,8 +34,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1 -Arch arm64
 
 默认输出：
 
-- `dist/windows/ktv2_example-<version>-windows-x64.zip`
-- `dist/windows/ktv2_example-<version>-windows-arm64.zip`
+- `dist/windows/maimai-ktv-v<version>-windows-x64.zip`
+- `dist/windows/maimai-ktv-v<version>-windows-arm64.zip`
+
+脚本会优先使用系统自带的 `tar.exe` 生成 ZIP，避免 `Compress-Archive` 在 VLC 目录较大时明显变慢。
 
 ## 可选参数
 
@@ -63,3 +65,34 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1 -Arch all -
 压缩包位于：
 
 - `dist/windows/`
+
+## Windows 一键发布
+
+如果你是在 Windows 主机上把桌面包上传到自建下载源，并同步更新 `docs/public/latest.json`，优先使用：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1
+```
+
+默认行为：
+
+- 读取仓库根目录的 `.release.env.local`
+- 如未传 `-SkipBuild`，先调用 `scripts/build_windows.ps1`
+- 把 ZIP 上传到 `<UPLOAD_TARGET>/v<display-version>`
+- 把公开下载地址写成 `<DOWNLOAD_BASE_URL>/v<display-version>/<filename>`
+- 更新 `docs/public/latest.json` 的 `platforms.windows`
+
+常用变体：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild -DryRun
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild -CommitManifest
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild -CommitManifest -Push
+```
+
+注意：
+
+- 默认只会改本地 `docs/public/latest.json`
+- 传 `-CommitManifest` 时，脚本会只提交 `docs/public/latest.json`
+- 传 `-CommitManifest -Push` 时，脚本会把这个提交推到默认的 `origin/main`

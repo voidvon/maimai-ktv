@@ -187,7 +187,35 @@ scripts/publish_github_release.sh \
 
 ## Windows 发版
 
-当前脚本不会自动构建 Windows，需要先准备好产物。
+在 Windows 主机上，优先使用专用脚本 `scripts/publish_windows_release.ps1`，不要默认走 `rsync` 风格的 Linux 发布链路。
+
+推荐命令：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1
+```
+
+默认行为：
+
+- 必要时先调用 `scripts/build_windows.ps1`
+- 通过 OpenSSH 的 `ssh.exe` / `scp.exe` 上传 ZIP
+- 自动处理临时 SSH 私钥文件 ACL
+- 自动计算 SHA256
+- 自动更新 `docs/public/latest.json` 的 `platforms.windows`
+
+如需先检查参数解析结果：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild -DryRun
+```
+
+如需把 `docs/public/latest.json` 一并提交并推到 `origin/main`：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild -CommitManifest -Push
+```
+
+当前通用 shell 脚本不会自动构建 Windows，需要先准备好产物。
 
 如果当前仍然发布 ZIP：
 
@@ -196,7 +224,7 @@ scripts/publish_github_release.sh \
   --repo voidvon/maimai-ktv \
   --platform windows \
   --skip-build \
-  --asset dist/windows/ktv2_example-1.0.0-alpha.9-windows-x64.zip
+  --asset dist/windows/maimai-ktv-v1.0.0-alpha.9-windows-x64.zip
 ```
 
 行为：
@@ -238,7 +266,7 @@ scripts/publish_github_release.sh \
   --repo voidvon/maimai-ktv \
   --platform windows \
   --skip-build \
-  --asset dist/windows/maimai-ktv-1.0.0-alpha.9-windows-x64.zip \
+  --asset dist/windows/maimai-ktv-v1.0.0-alpha.9-windows-x64.zip \
   --upload-target deploy@example.com:/data/downloads/maimai-ktv/releases/v1.0.0-alpha.9 \
   --download-base-url https://download.example.com/maimai-ktv/releases/v1.0.0-alpha.9 \
   --skip-github-assets

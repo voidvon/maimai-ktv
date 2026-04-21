@@ -8,9 +8,6 @@ hero:
     src: ./images/desktop-screen.png
     alt: 麦麦KTV 桌面端横屏点歌界面
   actions:
-    - theme: brand
-      text: 立即下载
-      link: '#downloads'
     - theme: alt
       text: 发布记录
       link: /release-history

@@ -1,84 +1,83 @@
 ---
 name: windows-release-publisher
-description: Build Flutter Windows desktop release ZIPs and upload the x64 artifact to an existing GitHub Release with normalized asset naming. Use when Codex needs to package a Windows desktop app from a repo that already contains Windows Flutter support, produce an x64 ZIP from local build output, or attach that ZIP to the latest or specified GitHub release without committing build artifacts.
+description: Build Flutter Windows desktop release ZIPs and publish them from a Windows host. Use when Codex needs to package a Windows desktop app, upload the x64 ZIP to a self-hosted download server over SSH/SCP, update docs/public/latest.json for the Windows channel, or refresh the VitePress download entry. Prefer this skill over the generic shell release flow when working on Windows because it avoids rsync-specific steps and handles temporary SSH key ACLs.
 ---
 
 # Windows Release Publisher
 
 ## Overview
 
-Package a Flutter Windows desktop app into a release ZIP, normalize the asset name for GitHub Releases, and upload the x64 artifact to an existing release.
+Package a Flutter Windows desktop app into a release ZIP, upload the x64 artifact to the configured download server, and update the Windows entry in `docs/public/latest.json`.
 
 ## Workflow
 
 1. Confirm the repo already contains Windows desktop support and a usable packaging entry point.
-2. Prefer a repo-provided build script if one exists. For Flutter Windows repos, look for `scripts/build_windows.ps1` before inventing new commands.
+2. Prefer the repo-provided scripts:
+   - `scripts/build_windows.ps1` for packaging
+   - `scripts/publish_windows_release.ps1` for build/upload/manifest update on Windows
 3. Build only the needed target. Default to `x64` unless the user explicitly asks for another architecture.
 4. Keep build artifacts out of Git by verifying `dist/`, `build/`, and `.dart_tool/` are ignored.
-5. Upload only the intended release artifact. If the user asks for the latest existing release, resolve the latest published tag first rather than creating a new release.
+5. Upload only the intended release artifact, and update only `platforms.windows` in `docs/public/latest.json`.
 
 ## Packaging
 
-For repos with a Windows packaging script:
+Prefer the repository packaging script:
 
 ```powershell
-$env:Path = 'C:\Users\yytest\flutter\bin;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;' + $env:Path
 powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1 -Arch x64 -Mode Release
 ```
 
 Expected output pattern:
 
 ```text
-dist/windows/ktv2_example-<version>-windows-x64.zip
+dist/windows/maimai-ktv-v<version>-windows-x64.zip
 ```
 
-If the repository uses a different naming pattern, preserve the build output and normalize only the uploaded GitHub asset name.
+The build script now prefers `tar.exe` for ZIP creation on Windows because `Compress-Archive` is too slow for the VLC-heavy release directory.
 
-## Naming
+## Server Publish
 
-Prefer a release asset name that matches the repository's existing release naming scheme instead of the raw local filename.
+For the current repository, prefer the dedicated publish script:
 
-For the `voidvon/maimai-ktv` repository, use:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1
+```
+
+Default behavior:
+
+- reads `.release.env.local`
+- builds `x64` unless `-SkipBuild` is passed
+- uploads the ZIP to `<UPLOAD_TARGET>/v<display-version>`
+- derives the public download URL from `<DOWNLOAD_BASE_URL>/v<display-version>/<filename>`
+- writes the Windows channel entry into `docs/public/latest.json`
+- prints the final SHA256 and public URL
+- can optionally create a commit that contains only `docs/public/latest.json`
+- can optionally push that manifest commit to `origin/main`
+
+Useful variants:
 
 ```text
-maimai-ktv-v<version-without-build-metadata>-windows-x64.zip
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild -DryRun
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild -CommitManifest
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -SkipBuild -CommitManifest -Push
+powershell -ExecutionPolicy Bypass -File .\scripts\publish_windows_release.ps1 -Arch arm64 -SkipBuild
 ```
 
-Examples:
-
-- Local build output: `ktv2_example-1.0.0-alpha.6+6-windows-x64.zip`
-- Release asset name: `maimai-ktv-v1.0.0-alpha.6-windows-x64.zip`
-
-Strip Flutter build metadata after `+` when deriving the GitHub asset version.
-
-## Release Upload
-
-Prefer `gh release upload` over raw upload API calls for large files on Windows.
-
-Use [scripts/publish_windows_x64_release.ps1](scripts/publish_windows_x64_release.ps1) when:
-
-- the asset already exists locally,
-- the release already exists on GitHub,
-- a `GH_TOKEN` or explicit token is available,
-- the task is to upload or replace the Windows x64 ZIP only.
-
-Default behavior of the script:
-
-- resolves the latest release tag when `-Tag` is omitted,
-- derives the normalized asset name from the ZIP filename,
-- removes an older asset with the same normalized name,
-- uploads the replacement asset with `gh release upload`.
+If the user only wants to refresh the hosted ZIP and local manifest, this PowerShell flow is the default. Do not route the task through `scripts/publish_github_release.sh` on Windows unless the user explicitly needs the GitHub Release asset path.
 
 ## Checks
 
-Before uploading:
+Before publishing:
 
 1. Confirm the local ZIP exists.
-2. Confirm the target release exists.
-3. Confirm the final uploaded asset name matches the repo's release naming pattern.
+2. Confirm `.release.env.local` contains `UPLOAD_TARGET`, `DOWNLOAD_BASE_URL`, and `SSH_PRIVATE_KEY`.
+3. Confirm the final public URL matches the repo's release naming pattern.
 
-After uploading:
+After publishing:
 
-1. Query the release asset list again.
-2. Confirm the Windows x64 asset is present once.
-3. Return the final browser download URL.
+1. Query the remote version directory again.
+2. Confirm `docs/public/latest.json` now contains `platforms.windows`.
+3. Return the final browser download URL and SHA256.
+4. If the user passed `-CommitManifest -Push`, confirm that the manifest commit went to `origin/main`.
+5. Otherwise remind the user that VitePress goes live only after `docs/public/latest.json` is committed and pushed.

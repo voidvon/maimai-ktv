@@ -64,6 +64,22 @@
         "url": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.7/maimai-ktv-v1.0.0-alpha.7-ios-unsigned.ipa",
         "sha256": "510b0fcaa07e07cdbd3c5c1d5b203bbcc2ff42244ef53bc3f3c6a15561420ecd"
       }
+    },
+    "windows": {
+      "version": "1.0.0-alpha.7",
+      "buildNumber": 7,
+      "publishedAt": "2026-04-22T03:52:48Z",
+      "required": false,
+      "notes": [
+        "补齐 Windows x64 桌面测试包分发，文档站首页和内部更新入口都可以直接拿到当前安装包。",
+        "当前版本已支持 Android、macOS、Windows x64 与 iOS 测试分发。",
+        "这是一个 Alpha 预发布版本，主要用于测试与验证。"
+      ],
+      "download": {
+        "mode": "external",
+        "url": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.7/maimai-ktv-v1.0.0-alpha.7-windows-x64.zip",
+        "sha256": "D635372342BA0226EC4C5AF31BF1F7C9FD3B9A6780C92EDE5C4910CCEF58BDCA"
+      }
     }
   }
 }
