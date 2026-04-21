@@ -22,7 +22,7 @@ class MediaLibraryDataSource {
   }) async {
     final Directory directory = Directory(rootPath);
     if (!await directory.exists()) {
-      throw FileSystemException('濯掍綋搴撶洰褰曚笉瀛樺湪', rootPath);
+      throw FileSystemException('媒体库目录不存在', rootPath);
     }
 
     final List<LibrarySong> songs = <LibrarySong>[];
@@ -169,7 +169,7 @@ class LibrarySong {
     required this.modifiedAtMillis,
     required this.sourceFingerprint,
     required this.extension,
-    this.languages = const <String>['鍏跺畠'],
+    this.languages = const <String>['其他'],
     this.tags = const <String>[],
   });
 
@@ -224,4 +224,3 @@ String _buildPinyinInitials(String source) {
   ).toLowerCase();
   return initials.replaceAll(RegExp(r'[^a-z0-9]'), '');
 }
-

@@ -51,9 +51,9 @@ class MainFlutterWindow: NSWindow {
       }
 
       let openPanel = NSOpenPanel()
-      openPanel.title = "閫夋嫨濯掍綋鐩綍"
-      openPanel.message = "璇烽€夋嫨瑕佹壂鎻忕殑姝屾洸鐩綍"
-      openPanel.prompt = "閫夋嫨鐩綍"
+      openPanel.title = "选择媒体目录"
+      openPanel.message = "请选择要扫描的歌曲目录"
+      openPanel.prompt = "选择目录"
       openPanel.canChooseFiles = false
       openPanel.canChooseDirectories = true
       openPanel.allowsMultipleSelection = false
@@ -80,4 +80,3 @@ class MainFlutterWindow: NSWindow {
     }
   }
 }
-

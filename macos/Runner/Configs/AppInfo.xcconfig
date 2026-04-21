@@ -5,11 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = 楹﹂害KTV
+PRODUCT_NAME = 麦麦KTV
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = com.app0122.maimai.app
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright 漏 2026 楹﹂害KTV. All rights reserved.
-
+PRODUCT_COPYRIGHT = Copyright © 2026 麦麦KTV. All rights reserved.
