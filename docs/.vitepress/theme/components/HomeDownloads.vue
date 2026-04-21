@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed } from 'vue'
+import manifestData from '../../../public/latest.json'
 
 type InstallMode = 'external' | 'apk' | 'appinstaller' | 'sparkle'
 
@@ -42,9 +43,7 @@ interface PlatformCard {
   links: DownloadLink[]
 }
 
-const manifest = ref<ManifestPayload | null>(null)
-const isLoading = ref(true)
-const errorMessage = ref('')
+const manifest = manifestData as ManifestPayload
 
 const platformLabels: Record<string, string> = {
   android: 'Android',
@@ -106,7 +105,7 @@ const resolveDownloadLinks = (
 }
 
 const cards = computed<PlatformCard[]>(() => {
-  const platforms = manifest.value?.platforms ?? {}
+  const platforms = manifest.platforms ?? {}
 
   return ['android', 'ios', 'macos', 'windows']
     .flatMap((platformKey) => {
@@ -129,28 +128,6 @@ const cards = computed<PlatformCard[]>(() => {
       ]
     })
 })
-
-onMounted(async () => {
-  try {
-    const response = await fetch('/latest.json', {
-      headers: {
-        Accept: 'application/json'
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error(`latest.json 请求失败: ${response.status}`)
-    }
-
-    const payload = (await response.json()) as ManifestPayload
-    manifest.value = payload
-  } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : '下载清单读取失败'
-  } finally {
-    isLoading.value = false
-  }
-})
 </script>
 
 <template>
@@ -160,13 +137,7 @@ onMounted(async () => {
       <h2>按平台直接下载安装包</h2>
     </div>
 
-    <div v-if="isLoading" class="home-downloads__status">
-      正在读取下载清单...
-    </div>
-    <div v-else-if="errorMessage" class="home-downloads__status home-downloads__status--error">
-      {{ errorMessage }}
-    </div>
-    <div v-else-if="cards.length === 0" class="home-downloads__status">
+    <div v-if="cards.length === 0" class="home-downloads__status">
       当前还没有可展示的下载平台。
     </div>
     <div v-else class="home-downloads__grid">
@@ -176,10 +147,7 @@ onMounted(async () => {
         class="home-downloads__card"
       >
         <div class="home-downloads__card-head">
-          <div>
-            <p class="home-downloads__platform">{{ card.name }}</p>
-            <h3>{{ card.version }}</h3>
-          </div>
+          <p class="home-downloads__platform">{{ card.name }}</p>
         </div>
         <div class="home-downloads__links">
           <a
@@ -239,11 +207,6 @@ onMounted(async () => {
   color: var(--vp-c-text-2);
 }
 
-.home-downloads__status--error {
-  color: #b42318;
-  background: rgba(254, 228, 226, 0.8);
-}
-
 .home-downloads__grid {
   display: grid;
   gap: 18px;
@@ -258,16 +221,7 @@ onMounted(async () => {
 }
 
 .home-downloads__card-head {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.home-downloads__card-head h3 {
-  margin: 4px 0 0;
-  font-size: 24px;
-  line-height: 1.1;
+  margin-bottom: 14px;
 }
 
 .home-downloads__platform {
