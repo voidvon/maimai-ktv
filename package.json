@@ -9,5 +9,9 @@
   },
   "devDependencies": {
     "vitepress": "2.0.0-alpha.17"
+  },
+  "dependencies": {
+    "bowser": "^2.14.1",
+    "qrcode": "^1.5.4"
   }
 }

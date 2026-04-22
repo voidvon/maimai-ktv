@@ -1,91 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import '../assets/iconfont/iconfont.css'
-import manifestData from '../../../public/latest.json'
+import {
+  detectClientPlatform,
+  getPlatformCards,
+  platformIconClasses,
+  type PlatformCard,
+  type PlatformKey
+} from './downloads'
+import { openDownloadModal } from './download-modal-state'
 
-type InstallMode = 'external' | 'apk' | 'appinstaller' | 'sparkle'
-
-interface AndroidVariant {
-  abi: string
-  url: string
-}
-
-interface DownloadEntry {
-  mode: InstallMode
-  url?: string
-  feedUrl?: string
-  fallbackUrl?: string
-  variants?: AndroidVariant[]
-}
-
-interface PlatformEntry {
-  download: DownloadEntry
-}
-
-interface ManifestPayload {
-  platforms?: Record<string, PlatformEntry>
-}
-
-interface PlatformCard {
-  key: string
-  name: string
-  href: string
-}
-
-const manifest = manifestData as ManifestPayload
-
-const platformLabels: Record<string, string> = {
-  ios: 'iOS',
-  android: 'Android',
-  macos: 'macOS',
-  windows: 'Windows'
-}
-
-const platformIconClasses: Record<string, string> = {
-  ios: 'icon-ios',
-  android: 'icon-android',
-  macos: 'icon-iconMac',
-  windows: 'icon-windows'
-}
-
-const resolvePrimaryLink = (
-  platformKey: string,
-  download: DownloadEntry
-): string | null => {
-  if (platformKey === 'android') {
-    if (download.fallbackUrl) {
-      return download.fallbackUrl
-    }
-
-    return download.variants?.find((variant) => variant.url)?.url ?? null
-  }
-
-  return download.feedUrl ?? download.url ?? null
-}
+const recommendedPlatform = ref<PlatformKey | null>(null)
 
 const cards = computed<PlatformCard[]>(() => {
-  const platforms = manifest.platforms ?? {}
+  return getPlatformCards()
+})
 
-  return ['ios', 'android', 'macos', 'windows']
-    .flatMap((platformKey) => {
-      const entry = platforms[platformKey]
-      if (!entry?.download) {
-        return []
-      }
-
-      const href = resolvePrimaryLink(platformKey, entry.download)
-      if (!href) {
-        return []
-      }
-
-      return [
-        {
-          key: platformKey,
-          name: platformLabels[platformKey] ?? platformKey,
-          href
-        }
-      ]
-    })
+onMounted(() => {
+  recommendedPlatform.value = detectClientPlatform()
 })
 </script>
 
@@ -95,14 +27,23 @@ const cards = computed<PlatformCard[]>(() => {
       当前还没有可展示的下载平台。
     </div>
     <div v-else class="home-downloads__grid">
-      <a
+      <button
         v-for="card in cards"
         :key="card.key"
+        type="button"
         class="home-downloads__card"
-        :href="card.href"
-        target="_blank"
-        rel="noreferrer"
+        :class="{
+          'home-downloads__card--recommended':
+            recommendedPlatform === card.key
+        }"
+        @click="openDownloadModal(card.key)"
       >
+        <span
+          v-if="recommendedPlatform === card.key"
+          class="home-downloads__badge"
+        >
+          当前设备
+        </span>
         <div class="home-downloads__icon">
           <i
             class="iconfont home-downloads__icon-glyph"
@@ -111,7 +52,7 @@ const cards = computed<PlatformCard[]>(() => {
           />
         </div>
         <span class="home-downloads__platform">{{ card.name }}</span>
-      </a>
+      </button>
     </div>
   </section>
 </template>
@@ -147,6 +88,7 @@ const cards = computed<PlatformCard[]>(() => {
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.82);
   text-decoration: none;
+  font: inherit;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -160,6 +102,8 @@ const cards = computed<PlatformCard[]>(() => {
     box-shadow 0.36s ease,
     background-color 0.24s ease,
     border-color 0.24s ease;
+  position: relative;
+  cursor: pointer;
 }
 
 .home-downloads__card:hover,
@@ -168,6 +112,26 @@ const cards = computed<PlatformCard[]>(() => {
   background: rgba(255, 122, 24, 0.13);
   transform: translate3d(0, -6px, 0);
   box-shadow: 0 14px 28px rgba(255, 122, 24, 0.12);
+  outline: none;
+}
+
+.home-downloads__card--recommended {
+  border-color: rgba(255, 122, 24, 0.34);
+  background: rgba(255, 122, 24, 0.15);
+  box-shadow: 0 14px 28px rgba(255, 122, 24, 0.14);
+}
+
+.home-downloads__badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--vp-c-brand-1);
+  color: white;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 600;
 }
 
 .home-downloads__icon {
@@ -196,6 +160,11 @@ const cards = computed<PlatformCard[]>(() => {
 .dark .home-downloads__card {
   background: rgba(27, 20, 31, 0.92);
   border-color: rgba(255, 122, 24, 0.14);
+}
+
+.dark .home-downloads__card--recommended {
+  border-color: rgba(255, 122, 24, 0.34);
+  background: rgba(255, 122, 24, 0.2);
 }
 
 @media (max-width: 640px) {
