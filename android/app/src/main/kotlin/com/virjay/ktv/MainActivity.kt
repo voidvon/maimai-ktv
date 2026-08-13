@@ -1,4 +1,4 @@
-package com.app0122.maimai.app
+package com.virjay.ktv
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
