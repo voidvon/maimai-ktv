@@ -28,12 +28,17 @@ void main() {
   const MethodChannel methodChannel = MethodChannel('ktv/native_player');
   const MethodChannel eventChannel = MethodChannel('ktv/native_player_events');
   final List<MethodCall> methodCalls = <MethodCall>[];
+  var failPitchShift = false;
 
   setUp(() {
     methodCalls.clear();
+    failPitchShift = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(methodChannel, (MethodCall call) async {
           methodCalls.add(call);
+          if (call.method == 'setPitchShift' && failPitchShift) {
+            throw PlatformException(code: 'pitch_failed');
+          }
           if (call.method == 'open') {
             return <String, Object?>{
               'isPlaying': false,
@@ -103,6 +108,23 @@ void main() {
       pitchCall.arguments,
       containsPair('semitones', PlayerController.maxPitchShiftSemitones),
     );
+
+    controller.dispose();
+  });
+
+  test('pitch shift rolls back when the platform rejects it', () async {
+    final controller = _TestPlatformChannelPlayerController();
+
+    await controller.openMedia(
+      const MediaSource(path: '/tmp/demo.mp4', displayName: 'demo'),
+    );
+    await controller.setPitchShiftSemitones(1);
+    failPitchShift = true;
+
+    await controller.setPitchShiftSemitones(2);
+
+    expect(controller.pitchShiftSemitones, 1);
+    expect(controller.playbackError, contains('变调失败'));
 
     controller.dispose();
   });

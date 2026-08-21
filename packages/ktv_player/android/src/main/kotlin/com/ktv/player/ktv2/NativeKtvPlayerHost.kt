@@ -41,6 +41,10 @@ class NativeKtvPlayerHost(
         const val nativeSingleTrackRoutingEnabled = true
         const val minPitchShiftSemitones = -6
         const val maxPitchShiftSemitones = 6
+        const val pitchAppliedToPlayer = 1 shl 0
+        const val pitchAppliedToAudioOutput = 1 shl 1
+        const val pitchReapplyDelayMs = 120L
+        const val maxPitchReapplyAttempts = 12
 
         val libVlcBridgeLoaded =
             if (!nativeSingleTrackRoutingEnabled) {
@@ -106,6 +110,7 @@ class NativeKtvPlayerHost(
     private var volumeBeforeAudioOutputSwitchMute = 100
     private var pendingAudioOutputModeApplyRunnable: Runnable? = null
     private var pendingAudioOutputSwitchUnmuteRunnable: Runnable? = null
+    private var pendingPitchShiftReapplyRunnable: Runnable? = null
     private var pendingPlaybackRequest: PendingPlaybackRequest? = null
     private var pendingAttachStateListener: View.OnAttachStateChangeListener? = null
     private var pendingLayoutChangeListener: View.OnLayoutChangeListener? = null
@@ -145,9 +150,10 @@ class NativeKtvPlayerHost(
 
     private val player: MediaPlayer
         get() =
-            mediaPlayer ?: MediaPlayer(libVlc).also {
-                it.setEventListener(this)
-                mediaPlayer = it
+            mediaPlayer ?: MediaPlayer(libVlc).also { createdPlayer ->
+                mediaPlayer = createdPlayer
+                createdPlayer.setEventListener(this)
+                configureStereoPcmOutput(createdPlayer, "player:create")
             }
 
     private val playerOrNull: MediaPlayer?
@@ -157,6 +163,30 @@ class NativeKtvPlayerHost(
         playerInstance: Long,
         channel: Int,
     ): Boolean
+
+    private external fun nativeSetPitchShift(
+        playerInstance: Long,
+        semitones: Float,
+    ): Int
+
+    private fun applyPitchShiftToPlayer(
+        player: MediaPlayer,
+        semitones: Int,
+    ): Int {
+        if (!libVlcBridgeLoaded || player.instance == 0L) {
+            return 0
+        }
+        return nativeSetPitchShift(player.instance, semitones.toFloat())
+    }
+
+    private fun configureStereoPcmOutput(
+        player: MediaPlayer,
+        reason: String,
+    ): Boolean {
+        val applied = player.setAudioOutputDevice("stereo")
+        Log.i(tag, "configure PCM audio output reason=$reason applied=$applied")
+        return applied
+    }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         try {
@@ -246,6 +276,7 @@ class NativeKtvPlayerHost(
                     playbackError = null
                     updateSelectedAudioTrackInfo()
                     applyRequestedAudioOutputModeIfPending()
+                    reapplyPitchShiftAfterAudioOutputChange("event:Playing")
                     videoLayout?.let { attachPlayerViews(it, reason = "event:Playing") }
                 }
                 MediaPlayer.Event.Paused -> {
@@ -284,6 +315,14 @@ class NativeKtvPlayerHost(
                 -> {
                     updateSelectedAudioTrackInfo()
                     applyRequestedAudioOutputModeIfPending()
+                    if (
+                        eventType == MediaPlayer.Event.ESSelected ||
+                        eventType == MediaPlayer.Event.MediaChanged
+                    ) {
+                        reapplyPitchShiftAfterAudioOutputChange(
+                            "event:${eventName(eventType)}",
+                        )
+                    }
                 }
             }
             if (
@@ -310,22 +349,28 @@ class NativeKtvPlayerHost(
 
     fun dispose() {
         mainHandler.removeCallbacks(positionUpdateRunnable)
-        cancelPendingAudioOutputModeApply()
-        cancelPendingAudioOutputSwitchUnmute()
-        restoreVolumeAfterAudioOutputSwitchMasking()
         eventChannel.setStreamHandler(null)
         methodChannel.setMethodCallHandler(null)
         clearPendingAttachStateListener()
         clearPendingLayoutChangeListener()
         keepScreenOnRequested = false
         videoLayout?.let { applyKeepScreenOnState(it, false) }
+        releasePlaybackBackend()
+        videoLayout = null
+    }
+
+    private fun releasePlaybackBackend() {
+        cancelPendingAudioOutputModeApply()
+        cancelPendingAudioOutputSwitchUnmute()
+        cancelPendingPitchShiftReapply()
+        restoreVolumeAfterAudioOutputSwitchMasking()
         val player = playerOrNull
+        player?.setEventListener(null)
         if (player?.getVLCVout()?.areViewsAttached() == true) {
             player.detachViews()
         }
         lastAttachedLayoutWidth = 0
         lastAttachedLayoutHeight = 0
-        videoLayout = null
         player?.stop()
         player?.release()
         mediaPlayer = null
@@ -512,7 +557,11 @@ class NativeKtvPlayerHost(
         ensurePlayablePath(path)
         currentMediaPath = path
         requestedAudioOutputMode = mode
-        pitchShiftSemitones = normalizePitchShift(pitchShift)
+        val normalizedPitchShift = normalizePitchShift(pitchShift)
+        if (pitchShiftSemitones != normalizedPitchShift) {
+            pitchShiftSemitones = normalizedPitchShift
+            releasePlaybackBackend()
+        }
         currentPlaybackPath = resolvePlaybackPath(path)
         playbackError = null
         playbackCompleted = false
@@ -560,7 +609,15 @@ class NativeKtvPlayerHost(
         cancelPendingAudioOutputModeApply()
         cancelPendingAudioOutputSwitchUnmute()
         restoreVolumeAfterAudioOutputSwitchMasking()
-        player.stop()
+        val activePlayer = player
+        activePlayer.stop()
+        configureStereoPcmOutput(activePlayer, "openPlaybackMedia:afterStop")
+        if (pitchShiftSemitones != 0) {
+            val applyResult = applyPitchShiftToPlayer(activePlayer, pitchShiftSemitones)
+            check(applyResult and pitchAppliedToPlayer != 0) {
+                "Android libVLC 播放器无法配置变调。"
+            }
+        }
         lastKnownVoutCount = 0
         playbackCompleted = false
         playbackError = null
@@ -571,19 +628,22 @@ class NativeKtvPlayerHost(
 
         val media = buildMedia(path)
         try {
-            player.setMedia(media)
+            activePlayer.setMedia(media)
         } finally {
             media.release()
         }
 
         currentPlaybackPath = path
         keepScreenOnRequested = shouldResume
-        player.play()
+        activePlayer.play()
+        if (pitchShiftSemitones != 0) {
+            schedulePitchShiftReapply("openPlaybackMedia")
+        }
         if (preservePositionMs > 0L) {
-            player.setTime(preservePositionMs.coerceAtLeast(0L))
+            activePlayer.setTime(preservePositionMs.coerceAtLeast(0L))
         }
         if (!shouldResume) {
-            player.pause()
+            activePlayer.pause()
         }
         syncKeepScreenOnState()
         videoLayout?.let { attachPlayerViews(it, reason = "openPlaybackMedia") }
@@ -611,18 +671,44 @@ class NativeKtvPlayerHost(
         if (pitchShiftSemitones == normalized) {
             return
         }
+
+        val path = currentPlaybackPath
+        val preservePositionMs = if (path != null) currentPositionMs else 0L
+        val shouldResume = path != null && (playerOrNull?.isPlaying ?: false)
+        if (path == null) {
+            pitchShiftSemitones = normalized
+            playbackError = null
+            return
+        }
+        Log.i(
+            tag,
+            "set pitch=$normalized positionMs=$preservePositionMs shouldResume=$shouldResume",
+        )
+        val activePlayer = playerOrNull
+        val applyResult =
+            if (activePlayer == null) {
+                0
+            } else {
+                configureStereoPcmOutput(activePlayer, "setPitchShift")
+                applyPitchShiftToPlayer(activePlayer, normalized)
+            }
+        check(applyResult and pitchAppliedToPlayer != 0) {
+            "Android libVLC 播放器无法配置变调。"
+        }
         pitchShiftSemitones = normalized
         playbackError = null
-
-        val path = currentPlaybackPath ?: return
-        val preservePositionMs = currentPositionMs
-        val shouldResume = playerOrNull?.isPlaying ?: false
-        queueOrOpenPlaybackMedia(path, preservePositionMs, shouldResume)
+        val appliedToAudioOutput = applyResult and pitchAppliedToAudioOutput != 0
+        Log.i(
+            tag,
+            "configured pitch=$normalized audioOutputApplied=$appliedToAudioOutput",
+        )
+        schedulePitchShiftReapply("setPitchShift")
     }
 
     private fun clearMedia() {
         cancelPendingAudioOutputModeApply()
         cancelPendingAudioOutputSwitchUnmute()
+        cancelPendingPitchShiftReapply()
         restoreVolumeAfterAudioOutputSwitchMasking()
         pendingPlaybackRequest = null
         keepScreenOnRequested = false
@@ -975,6 +1061,62 @@ class NativeKtvPlayerHost(
         }
     }
 
+    private fun reapplyPitchShiftAfterAudioOutputChange(
+        reason: String,
+        retryAttempt: Int = 0,
+    ) {
+        if (pitchShiftSemitones == 0 || currentPlaybackPath == null) {
+            return
+        }
+        val activePlayer = playerOrNull ?: return
+        val applyResult = applyPitchShiftToPlayer(activePlayer, pitchShiftSemitones)
+        val playerConfigured = applyResult and pitchAppliedToPlayer != 0
+        val audioOutputApplied = applyResult and pitchAppliedToAudioOutput != 0
+        Log.i(
+            tag,
+            "reapply pitch=$pitchShiftSemitones reason=$reason " +
+                "attempt=$retryAttempt playerConfigured=$playerConfigured " +
+                "audioOutputApplied=$audioOutputApplied",
+        )
+        if (!playerConfigured) {
+            playbackError = "Android libVLC 播放器无法配置变调。"
+            return
+        }
+        if (audioOutputApplied) {
+            cancelPendingPitchShiftReapply()
+        } else if (retryAttempt < maxPitchReapplyAttempts) {
+            schedulePitchShiftReapply(reason, retryAttempt + 1)
+        } else {
+            playbackError = "Android libVLC 音频输出未就绪，变调暂未生效。"
+            Log.w(tag, "pitch audio output unavailable after $retryAttempt attempts")
+        }
+    }
+
+    private fun schedulePitchShiftReapply(
+        reason: String,
+        retryAttempt: Int = 1,
+    ) {
+        if (pitchShiftSemitones == 0 || currentPlaybackPath == null) {
+            cancelPendingPitchShiftReapply()
+            return
+        }
+        cancelPendingPitchShiftReapply()
+        val runnable =
+            Runnable {
+                pendingPitchShiftReapplyRunnable = null
+                reapplyPitchShiftAfterAudioOutputChange(reason, retryAttempt)
+            }
+        pendingPitchShiftReapplyRunnable = runnable
+        mainHandler.postDelayed(runnable, pitchReapplyDelayMs)
+    }
+
+    private fun cancelPendingPitchShiftReapply() {
+        pendingPitchShiftReapplyRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            pendingPitchShiftReapplyRunnable = null
+        }
+    }
+
     private fun restoreVolumeAfterAudioOutputSwitchMasking() {
         if (!mutedForAudioOutputSwitch) {
             return
@@ -1016,10 +1158,6 @@ class NativeKtvPlayerHost(
                 Media(libVlc, path)
             }
         applyLowLatencyMediaOptions(media)
-        if (pitchShiftSemitones != 0) {
-            media.addOption(":audio-filter=scaletempo_pitch")
-            media.addOption(":pitch-shift=$pitchShiftSemitones")
-        }
         return media
     }
 
@@ -1036,6 +1174,7 @@ class NativeKtvPlayerHost(
             "--live-caching=$lowLatencyCachingMs",
             "--clock-jitter=0",
             "--clock-synchro=0",
+            "--no-spdif",
         )
     }
 

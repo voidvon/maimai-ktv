@@ -267,6 +267,7 @@ abstract class PlatformChannelPlayerController extends PlayerController {
       return;
     }
 
+    final previousSemitones = _stateStore.pitchShiftSemitones;
     _stateStore.setPitchShiftSemitones(normalizedSemitones);
     notifyListeners();
     if (_stateStore.currentMediaPath == null) {
@@ -281,6 +282,7 @@ abstract class PlatformChannelPlayerController extends PlayerController {
         _applySnapshot(snapshot);
       }
     } catch (error) {
+      _stateStore.setPitchShiftSemitones(previousSemitones);
       _stateStore.setPlaybackError('变调失败：$error');
       notifyListeners();
     }
