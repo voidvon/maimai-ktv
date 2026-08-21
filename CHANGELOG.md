@@ -8,6 +8,24 @@ The format is intentionally simple:
 - Focus on what users can perceive.
 - Avoid implementation details unless they affect usage.
 
+## [v1.0.0-alpha.8] - 2026-08-21
+
+### 新增
+
+- 新增 SMB 3.x 歌曲数据源，支持 SMB 3.0、3.0.2 和 3.1.1，并提供歌曲扫描、缓存播放和断点下载。
+- SMB 设置改为分步向导：连接服务器、按需登录、浏览共享与子目录，用户无需手动填写共享名称。
+- WebDAV 歌曲根目录改为远程目录选择，支持逐级浏览、返回上级、刷新和重试。
+
+### 变更
+
+- SMB 和 WebDAV 的歌曲目录均通过选择器确定，减少手动输入路径造成的配置错误。
+- 暂时隐藏尚未稳定的升调、降调和原调入口，保留底层能力供后续继续调试。
+
+### 说明
+
+- SMB 文件访问仅协商 SMB 3.x，并启用消息签名。
+- 这是一个 Alpha 预发布版本，主要用于测试与验证。
+
 ## [v1.0.0-alpha.7] - 2026-04-19
 
 ### 新增

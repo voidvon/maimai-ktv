@@ -70,7 +70,8 @@ version="$(sed -nE 's/^version:[[:space:]]*(.+)$/\1/p' "$repo_root/pubspec.yaml"
 if [[ -z "$version" ]]; then
   version="unknown"
 fi
-safe_version="$(printf '%s' "$version" | tr '+/' '--' | tr -cd '[:alnum:]._-')"
+display_version="${version%%+*}"
+safe_version="$(printf '%s' "$display_version" | tr '+/' '--' | tr -cd '[:alnum:]._-')"
 artifact_prefix="maimai-ktv-${safe_version}-android"
 
 if [[ $clean -eq 1 ]]; then

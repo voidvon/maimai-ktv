@@ -5,7 +5,7 @@
 # 麦麦KTV
 
 [![Flutter](https://img.shields.io/badge/Flutter-3-02569B.svg?logo=flutter)](https://flutter.dev/)
-[![版本](https://img.shields.io/badge/版本-v1.0.0--alpha.7-orange.svg)](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7)
+[![版本](https://img.shields.io/badge/版本-v1.0.0--alpha.8-orange.svg)](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.8)
 [![平台](https://img.shields.io/badge/平台-Android%20%7C%20macOS%20%7C%20Windows%20%7C%20iOS-555.svg)](#下载安装)
 
 **面向家庭娱乐、大屏播放和 KTV 包厢的视频点歌应用。**
@@ -13,7 +13,7 @@
 [English](README.md) | 简体中文 | [繁體中文](README_TW.md)
 
 <p>
-  <a href="https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7">下载应用</a> ·
+  <a href="https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.8">下载应用</a> ·
   <a href="https://maimai.0122.vip/guide/">使用指南</a> ·
   <a href="CHANGELOG.md">更新记录</a>
 </p>
@@ -49,7 +49,7 @@
 ## 下载安装
 
 麦麦KTV目前是用于测试的 **Alpha 预发布版本**。请从
-[GitHub Releases](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7)
+[GitHub Releases](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.8)
 下载当前安装包。
 
 | 平台 | 安装包 | 说明 |

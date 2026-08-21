@@ -5,7 +5,7 @@
 # Maimai KTV
 
 [![Flutter](https://img.shields.io/badge/Flutter-3-02569B.svg?logo=flutter)](https://flutter.dev/)
-[![Release](https://img.shields.io/badge/release-v1.0.0--alpha.7-orange.svg)](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7)
+[![Release](https://img.shields.io/badge/release-v1.0.0--alpha.8-orange.svg)](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.8)
 [![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20macOS%20%7C%20Windows%20%7C%20iOS-555.svg)](#downloads)
 
 **A video-first karaoke songbook for home entertainment, big screens, and KTV rooms.**
@@ -13,7 +13,7 @@
 English | [简体中文](README_CN.md) | [繁體中文](README_TW.md)
 
 <p>
-  <a href="https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7">Download</a> ·
+  <a href="https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.8">Download</a> ·
   <a href="https://maimai.0122.vip/guide/">User Guide</a> ·
   <a href="CHANGELOG.md">Changelog</a>
 </p>
@@ -59,7 +59,7 @@ leaving the songbook.
 
 Maimai KTV is currently an **Alpha prerelease** intended for testing. Download
 the current packages from
-[GitHub Releases](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7).
+[GitHub Releases](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.8).
 
 | Platform | Package | Notes |
 |---|---|---|

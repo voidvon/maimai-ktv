@@ -713,7 +713,7 @@ if [[ ${#ASSET_PATHS[@]} -eq 0 ]]; then
   if [[ "${PLATFORM}" == "android" ]]; then
     while IFS= read -r asset_path; do
       ASSET_PATHS+=("${asset_path}")
-    done < <(default_android_asset_paths "${VERSION}" "${USE_SPLIT_PER_ABI}")
+    done < <(default_android_asset_paths "${DISPLAY_VERSION}" "${USE_SPLIT_PER_ABI}")
   fi
 fi
 
