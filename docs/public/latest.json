@@ -15,35 +15,37 @@
       }
     },
     "android": {
-      "version": "1.0.0-alpha.7",
-      "buildNumber": 7,
-      "publishedAt": "2026-04-19T17:15:13Z",
+      "version": "1.0.0-alpha.8",
+      "buildNumber": 8,
+      "publishedAt": "2026-08-21T11:49:47Z",
       "required": false,
       "notes": [
-        "横屏播放布局和 KTV 外壳切换更稳定，减少了演唱过程中预览区和控制层状态不一致的问题。",
-        "当前版本已支持 Android、macOS、Windows x64 与 iOS 测试分发。",
-        "仅 Android 支持单音轨 KTV 视频资源，其他平台暂不支持这类资源。",
-        "这是一个 Alpha 预发布版本，主要用于测试与验证。"
+        "- 新增 SMB 3.x 歌曲数据源，支持 SMB 3.0、3.0.2 和 3.1.1，并提供歌曲扫描、缓存播放和断点下载。",
+        "- SMB 设置改为分步向导：连接服务器、按需登录、浏览共享与子目录，无需手动填写共享名称。",
+        "- WebDAV 歌曲根目录改为远程目录选择，支持逐级浏览、返回上级、刷新和重试。",
+        "- SMB 和 WebDAV 的歌曲目录均通过选择器确定，减少手动输入路径造成的配置错误。",
+        "- 暂时隐藏尚未稳定的升调、降调和原调入口。",
+        "- 这是一个 Alpha 预发布版本，主要用于测试与验证。"
       ],
       "download": {
         "mode": "apk",
-        "fallbackUrl": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.7/maimai-ktv-v1.0.0-alpha.7-android-universal.apk",
-        "fallbackSha256": "646622b6f013e6835de3d8e9ee124366ceb3c589220623e2de0f6cba743430e1",
+        "fallbackUrl": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.8/maimai-ktv-1.0.0-alpha.8-android-universal.apk",
+        "fallbackSha256": "24d42cb9c53ccd5774069694b67e72302e7c234673970560d44514f4a83f9771",
         "variants": [
           {
             "abi": "arm64-v8a",
-            "url": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.7/maimai-ktv-v1.0.0-alpha.7-android-arm64-v8a-r1.apk",
-            "sha256": "cbdbf0dd8078905c9135635525cf7d5245d87279f45d207dc4d3b7dde4fe0b89"
+            "url": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.8/maimai-ktv-1.0.0-alpha.8-android-arm64-v8a.apk",
+            "sha256": "1efa0bb84655d3d7c82f721f1c0daa66d49748779f0c58e3c90b33873cec24ed"
           },
           {
             "abi": "armeabi-v7a",
-            "url": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.7/maimai-ktv-v1.0.0-alpha.7-android-armeabi-v7a.apk",
-            "sha256": "1ed9b6164f83cecea977d194100ca51ccee1e8c1451e03371b103654c77500e9"
+            "url": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.8/maimai-ktv-1.0.0-alpha.8-android-armeabi-v7a.apk",
+            "sha256": "ce28391fab64ba2038fb928bae3640f0ae67469720e91e91f5f7621e90c64e01"
           },
           {
             "abi": "x86_64",
-            "url": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.7/maimai-ktv-v1.0.0-alpha.7-android-x86_64.apk",
-            "sha256": "2b1a70c470cb2f65f0f45c7ecd2036f4c117d8b5936d00cea62cf641f5611c92"
+            "url": "https://dl.maimai.0122.vip/releases/v1.0.0-alpha.8/maimai-ktv-1.0.0-alpha.8-android-x86_64.apk",
+            "sha256": "65599fd7d4f6f44fa5b0141ce8a395aac325307b5e3bf7020527c7bbe0de3adf"
           }
         ]
       }
