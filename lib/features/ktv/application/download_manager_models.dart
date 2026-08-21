@@ -11,6 +11,8 @@ String mapDownloadSourceLabel(String sourceId) {
   switch (sourceId) {
     case 'baidu_pan':
       return '百度网盘';
+    case 'webdav':
+      return 'WebDAV';
     case 'local':
       return '本地目录';
     default:

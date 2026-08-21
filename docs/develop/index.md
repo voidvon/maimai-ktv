@@ -6,7 +6,7 @@
 
 - 当前仓库维护 Flutter KTV 主应用。
 - 页面、歌库、文件选择和业务交互都在这里。
-- 播放器 package 已迁移到 `../ktv-player/`。
+- 播放器 package 位于仓库内的 `packages/ktv_player/`。
 
 ## 本地检查
 
@@ -21,7 +21,7 @@ flutter run -d macos
 播放器 package 联动检查：
 
 ```bash
-cd ../ktv-player
+cd packages/ktv_player
 flutter analyze
 flutter test
 ```

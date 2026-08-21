@@ -55,9 +55,6 @@ class CloudSongSource<
     }
 
     final TConfig currentConfig = config!;
-    await _mediaLibraryRepository.mediaIndexStore.clearSourceSongs(
-      sourceType: sourceId,
-    );
     final List<TFile> files = await _remoteDataSource.scanRoot(rootPath);
     final List<SourceSongRecord> songs = files
         .where((TFile file) => !file.isDirectory)
@@ -72,6 +69,10 @@ class CloudSongSource<
         )
         .toList(growable: false);
 
+    // Keep the last successful index when a remote scan fails.
+    await _mediaLibraryRepository.mediaIndexStore.clearSourceSongs(
+      sourceType: sourceId,
+    );
     await _mediaLibraryRepository.mediaIndexStore.replaceSourceSongs(
       sourceType: sourceId,
       sourceRootId: currentConfig.sourceRootId,

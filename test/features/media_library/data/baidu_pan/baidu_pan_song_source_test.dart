@@ -76,6 +76,28 @@ void main() {
       expect(mediaIndexStore.replacedSourceSongs.single.title, '青花瓷');
     },
   );
+
+  test('refresh keeps the previous index when the remote scan fails', () async {
+    final FakeMediaIndexStore mediaIndexStore = FakeMediaIndexStore();
+    final BaiduPanSongSource source = BaiduPanSongSource(
+      mediaLibraryRepository: createTestMediaLibraryRepository(
+        mediaIndexStore: mediaIndexStore,
+      ),
+      sourceConfigStore: _FakeBaiduPanSourceConfigStore(
+        config: const BaiduPanSourceConfig(
+          sourceRootId: 'baidu_pan:/KTV',
+          rootPath: '/KTV',
+          displayName: '百度网盘',
+        ),
+      ),
+      remoteDataSource: _FailingBaiduPanRemoteDataSource(),
+    );
+
+    await expectLater(source.refresh(), throwsA(isA<StateError>()));
+
+    expect(mediaIndexStore.clearedSources, isEmpty);
+    expect(mediaIndexStore.replacedSourceSongs, isEmpty);
+  });
 }
 
 class _FakeBaiduPanSourceConfigStore extends BaiduPanSourceConfigStore {
@@ -116,5 +138,25 @@ class _FakeBaiduPanRemoteDataSource extends BaiduPanRemoteDataSource {
   @override
   Future<BaiduPanRemoteFile> getPlayableFileMeta(String fileId) async {
     return files.firstWhere((file) => file.fsid == fileId);
+  }
+}
+
+class _FailingBaiduPanRemoteDataSource extends BaiduPanRemoteDataSource {
+  @override
+  Future<BaiduPanRemoteFile> getPlayableFileMeta(String fileId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<BaiduPanRemoteFile>> scanRoot(String rootPath) {
+    throw StateError('network unavailable');
+  }
+
+  @override
+  Future<List<BaiduPanRemoteFile>> searchFiles({
+    required String keyword,
+    String? rootPath,
+  }) {
+    throw UnimplementedError();
   }
 }

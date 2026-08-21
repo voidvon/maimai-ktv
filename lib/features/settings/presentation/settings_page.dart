@@ -15,6 +15,7 @@ import '../../update/domain/update_check_result.dart';
 import '../application/baidu_pan_settings_controller.dart';
 import '../data/qr_image_save_data_source.dart';
 import '../application/settings_controller.dart';
+import '../application/webdav_settings_controller.dart';
 
 class SettingsPageResult {
   const SettingsPageResult({
@@ -31,12 +32,14 @@ class SettingsPage extends StatelessWidget {
     super.key,
     required this.controller,
     required this.baiduPanController,
+    required this.webDavController,
     required this.ktvController,
     required this.updateController,
   });
 
   final SettingsController controller;
   final BaiduPanSettingsController baiduPanController;
+  final WebDavSettingsController webDavController;
   final KtvController ktvController;
   final UpdateController updateController;
 
@@ -73,12 +76,14 @@ class SettingsPage extends StatelessWidget {
                   animation: Listenable.merge(<Listenable>[
                     controller,
                     baiduPanController,
+                    webDavController,
                     ktvController,
                     updateController,
                   ]),
                   builder: (BuildContext context, _) {
                     final bool baiduPanReady =
                         baiduPanController.canRefreshRemoteFolder;
+                    final bool webDavReady = webDavController.isConfigured;
                     final String? baiduPanRootPath =
                         baiduPanController.rootPath;
                     final int downloadingCount =
@@ -107,6 +112,34 @@ class SettingsPage extends StatelessWidget {
                                 },
                               ),
                             );
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _SettingsEntryCard(
+                          title: 'WebDAV',
+                          subtitle: webDavController.isLoading
+                              ? '加载中'
+                              : webDavReady
+                              ? '已配置 ${webDavController.rootPath}'
+                              : '未配置',
+                          icon: Icons.cloud_sync_rounded,
+                          onTap: () async {
+                            final SettingsPageResult? result =
+                                await Navigator.of(
+                                  context,
+                                ).push<SettingsPageResult>(
+                                  MaterialPageRoute<SettingsPageResult>(
+                                    builder: (BuildContext context) {
+                                      return _WebDavSettingsPage(
+                                        controller: webDavController,
+                                      );
+                                    },
+                                  ),
+                                );
+                            if (!context.mounted || result == null) {
+                              return;
+                            }
+                            Navigator.of(context).pop(result);
                           },
                         ),
                         const SizedBox(height: 14),
@@ -908,6 +941,259 @@ class _LocalDirectorySettingsPageState
           ),
         );
       },
+    );
+  }
+}
+
+class _WebDavSettingsPage extends StatefulWidget {
+  const _WebDavSettingsPage({required this.controller});
+
+  final WebDavSettingsController controller;
+
+  @override
+  State<_WebDavSettingsPage> createState() => _WebDavSettingsPageState();
+}
+
+class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
+  late final TextEditingController _serverController = TextEditingController(
+    text: widget.controller.serverUrl ?? '',
+  );
+  late final TextEditingController _usernameController = TextEditingController(
+    text: widget.controller.username ?? '',
+  );
+  final TextEditingController _passwordController = TextEditingController();
+  late final TextEditingController _rootController = TextEditingController(
+    text: widget.controller.rootPath ?? '/',
+  );
+  bool _obscurePassword = true;
+
+  @override
+  void dispose() {
+    _serverController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _rootController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (BuildContext context, _) {
+        final bool busy =
+            widget.controller.isLoading ||
+            widget.controller.isSaving ||
+            widget.controller.isTesting;
+        return Scaffold(
+          backgroundColor: const Color(0xFF0A0014),
+          appBar: AppBar(
+            title: const Text('WebDAV'),
+            backgroundColor: Colors.transparent,
+          ),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: <Widget>[
+                    const Text(
+                      '连接支持 WebDAV 的网盘、NAS 或私有云。局域网地址可以使用 HTTP，公网地址必须使用 HTTPS。账号密码仅保存在系统安全存储中。',
+                      style: TextStyle(height: 1.5),
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: _serverController,
+                      enabled: !busy,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        labelText: '服务器地址',
+                        hintText:
+                            'https://dav.example.com/remote.php/dav/files/user',
+                        prefixIcon: Icon(Icons.dns_rounded),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _usernameController,
+                      enabled: !busy,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        labelText: '用户名',
+                        prefixIcon: Icon(Icons.person_outline_rounded),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _passwordController,
+                      enabled: !busy,
+                      obscureText: _obscurePassword,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      decoration: InputDecoration(
+                        labelText: widget.controller.hasPassword
+                            ? '密码（留空则保持不变）'
+                            : '密码',
+                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                        suffixIcon: IconButton(
+                          tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _rootController,
+                      enabled: !busy,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        labelText: '歌曲根目录',
+                        hintText: '/KTV',
+                        prefixIcon: Icon(Icons.folder_open_rounded),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: busy ? null : _testConnection,
+                            icon: widget.controller.isTesting
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.cable_rounded),
+                            label: Text(
+                              widget.controller.isTesting ? '测试中' : '测试连接',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: busy ? null : _saveAndScan,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF6E67),
+                            ),
+                            icon: const Icon(Icons.save_rounded),
+                            label: Text(
+                              widget.controller.isSaving ? '保存中' : '保存并扫描',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (widget.controller.isConfigured) ...<Widget>[
+                      const SizedBox(height: 12),
+                      TextButton.icon(
+                        onPressed: busy ? null : _clearSettings,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('清空 WebDAV 配置'),
+                      ),
+                    ],
+                    if (widget.controller.successMessage != null) ...<Widget>[
+                      const SizedBox(height: 14),
+                      _WebDavStatusMessage(
+                        message: widget.controller.successMessage!,
+                        isError: false,
+                      ),
+                    ],
+                    if (widget.controller.errorMessage != null) ...<Widget>[
+                      const SizedBox(height: 14),
+                      _WebDavStatusMessage(
+                        message: widget.controller.errorMessage!,
+                        isError: true,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _testConnection() async {
+    await widget.controller.testConnection(
+      serverUrl: _serverController.text,
+      username: _usernameController.text,
+      password: _passwordController.text,
+      rootPath: _rootController.text,
+    );
+  }
+
+  Future<void> _saveAndScan() async {
+    final bool saved = await widget.controller.saveSettings(
+      serverUrl: _serverController.text,
+      username: _usernameController.text,
+      password: _passwordController.text,
+      rootPath: _rootController.text,
+    );
+    if (!saved || !mounted) {
+      return;
+    }
+    Navigator.of(
+      context,
+    ).pop(const SettingsPageResult(refreshAggregatedSources: true));
+  }
+
+  Future<void> _clearSettings() async {
+    await widget.controller.clearSettings();
+    if (!mounted) {
+      return;
+    }
+    _serverController.clear();
+    _usernameController.clear();
+    _passwordController.clear();
+    _rootController.text = '/';
+    Navigator.of(
+      context,
+    ).pop(const SettingsPageResult(refreshAggregatedSources: true));
+  }
+}
+
+class _WebDavStatusMessage extends StatelessWidget {
+  const _WebDavStatusMessage({required this.message, required this.isError});
+
+  final String message;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isError ? const Color(0xFFFFF1F1) : const Color(0xFFEAF8F0),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: isError ? const Color(0xFF9C2F2F) : const Color(0xFF176B43),
+          height: 1.5,
+        ),
+      ),
     );
   }
 }

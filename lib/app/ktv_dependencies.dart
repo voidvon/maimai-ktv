@@ -15,6 +15,13 @@ import '../features/media_library/data/baidu_pan/file_baidu_pan_source_config_st
 import '../features/media_library/data/cloud/cloud_playback_cache.dart';
 import '../features/media_library/data/local_song_source_adapter.dart';
 import '../features/media_library/data/media_library_repository.dart';
+import '../features/media_library/data/webdav/file_webdav_playback_cache.dart';
+import '../features/media_library/data/webdav/file_webdav_store.dart';
+import '../features/media_library/data/webdav/webdav_client.dart';
+import '../features/media_library/data/webdav/webdav_credential_store.dart';
+import '../features/media_library/data/webdav/webdav_remote_data_source.dart';
+import '../features/media_library/data/webdav/webdav_song_download_service.dart';
+import '../features/media_library/data/webdav/webdav_song_source.dart';
 import '../features/update/application/app_version_source.dart';
 import '../features/update/application/update_controller.dart';
 import '../features/update/application/update_package_downloader.dart';
@@ -58,23 +65,50 @@ KtvController createKtvController({
     sourceConfigStore: baiduPanSourceConfigStore,
     remoteDataSource: baiduPanRemoteDataSource,
   );
+  final FileWebDavSourceConfigStore webDavConfigStore =
+      FileWebDavSourceConfigStore();
+  final SecureWebDavCredentialStore webDavCredentialStore =
+      SecureWebDavCredentialStore();
+  final WebDavClient webDavClient = WebDavClient(
+    configStore: webDavConfigStore,
+    credentialStore: webDavCredentialStore,
+  );
+  final DefaultWebDavRemoteDataSource webDavRemoteDataSource =
+      DefaultWebDavRemoteDataSource(client: webDavClient);
+  final FileWebDavPlaybackCache webDavPlaybackCache = FileWebDavPlaybackCache(
+    client: webDavClient,
+    remoteDataSource: webDavRemoteDataSource,
+  );
+  final WebDavSongSource webDavSongSource = WebDavSongSource(
+    mediaLibraryRepository: repository,
+    sourceConfigStore: webDavConfigStore,
+    remoteDataSource: webDavRemoteDataSource,
+  );
   return KtvController(
     mediaLibraryRepository: repository,
     aggregatedLibraryRepository: DefaultAggregatedLibraryRepository(
       mediaLibraryRepository: repository,
       localSource: localSongSource,
-      sources: <AggregatedSongSource>[localSongSource, baiduPanSongSource],
+      sources: <AggregatedSongSource>[
+        localSongSource,
+        baiduPanSongSource,
+        webDavSongSource,
+      ],
     ),
     playerController: playerController ?? createPlayerController(),
     baiduPanSongDownloadService: BaiduPanSongDownloadService(
       playbackCache: baiduPanPlaybackCache,
     ),
+    songDownloadServices: <String, WebDavSongDownloadService>{
+      'webdav': WebDavSongDownloadService(playbackCache: webDavPlaybackCache),
+    },
     playableSongResolver:
         playableSongResolver ??
         DefaultPlayableSongResolver(
           baiduPanPlaybackCache: baiduPanPlaybackCache,
           cloudPlaybackCaches: <String, CloudPlaybackCache>{
             'baidu_pan': baiduPanPlaybackCache,
+            'webdav': webDavPlaybackCache,
           },
         ),
   );

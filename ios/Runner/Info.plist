@@ -28,6 +28,13 @@
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>用于将百度网盘登录二维码保存到系统相册，方便使用百度网盘扫码登录。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>用于连接家庭局域网内的 WebDAV 歌曲服务器。</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

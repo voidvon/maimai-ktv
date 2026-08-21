@@ -149,7 +149,7 @@ flutter run -d macos
 
 ```bash
 flutter build apk --release
-cd ../ktv-player && flutter analyze && flutter test
+cd packages/ktv_player && flutter analyze && flutter test
 ```
 
 更多平台构建说明可参考：
