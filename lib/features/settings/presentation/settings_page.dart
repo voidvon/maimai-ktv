@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/localization/locale_controller.dart';
+import '../../../core/localization/localization_extensions.dart';
 import '../../../core/presentation/center_overlay_toast.dart';
 import '../../ktv/application/download_manager_models.dart';
 import '../../ktv/application/ktv_controller.dart';
@@ -35,6 +37,7 @@ class SettingsPage extends StatelessWidget {
     required this.webDavController,
     required this.ktvController,
     required this.updateController,
+    required this.localeController,
   });
 
   final SettingsController controller;
@@ -42,13 +45,14 @@ class SettingsPage extends StatelessWidget {
   final WebDavSettingsController webDavController;
   final KtvController ktvController;
   final UpdateController updateController;
+  final LocaleController localeController;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0014),
       appBar: AppBar(
-        title: const Text('设置'),
+        title: Text(context.l10n.settings),
         backgroundColor: Colors.transparent,
       ),
       body: SafeArea(
@@ -58,14 +62,44 @@ class SettingsPage extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: <Widget>[
-                const Text(
-                  '管理当前点歌库的数据来源。已配置的数据源会用于扫描、检索和展示歌曲列表。',
-                  style: TextStyle(height: 1.5),
+                Text(
+                  context.l10n.settingsDescription,
+                  style: const TextStyle(height: 1.5),
                 ),
                 const SizedBox(height: 18),
-                const Text(
-                  '数据源',
-                  style: TextStyle(
+                Text(
+                  context.l10n.interfaceSection,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                AnimatedBuilder(
+                  animation: localeController,
+                  builder: (BuildContext context, _) {
+                    return _SettingsEntryCard(
+                      title: context.l10n.language,
+                      subtitle: _localeLabel(context, localeController.locale),
+                      icon: Icons.language_rounded,
+                      onTap: () async {
+                        await Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (BuildContext context) =>
+                                _LanguageSettingsPage(
+                                  controller: localeController,
+                                ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  context.l10n.dataSources,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -95,12 +129,17 @@ class SettingsPage extends StatelessWidget {
                     return Column(
                       children: <Widget>[
                         _SettingsEntryCard(
-                          title: '下载管理',
+                          title: context.l10n.downloadManager,
                           subtitle: downloadingCount > 0
-                              ? '未完成 $downloadingCount 首，已下载 $downloadedCount 首'
+                              ? context.l10n.downloadSummary(
+                                  downloadingCount,
+                                  downloadedCount,
+                                )
                               : downloadedCount > 0
-                              ? '已下载 $downloadedCount 首歌曲'
-                              : '查看下载中和已下载的歌曲列表',
+                              ? context.l10n.downloadedSongsCount(
+                                  downloadedCount,
+                                )
+                              : context.l10n.downloadManagerSubtitle,
                           icon: Icons.download_rounded,
                           onTap: () async {
                             await Navigator.of(context).push<void>(
@@ -118,10 +157,12 @@ class SettingsPage extends StatelessWidget {
                         _SettingsEntryCard(
                           title: 'WebDAV',
                           subtitle: webDavController.isLoading
-                              ? '加载中'
+                              ? context.l10n.loading
                               : webDavReady
-                              ? '已配置 ${webDavController.rootPath}'
-                              : '未配置',
+                              ? context.l10n.configuredPath(
+                                  webDavController.rootPath!,
+                                )
+                              : context.l10n.notConfigured,
                           icon: Icons.cloud_sync_rounded,
                           onTap: () async {
                             final SettingsPageResult? result =
@@ -144,10 +185,10 @@ class SettingsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                         _SettingsEntryCard(
-                          title: '本地目录',
+                          title: context.l10n.localDirectory,
                           subtitle: controller.currentDirectoryPath == null
-                              ? '未配置'
-                              : '已配置',
+                              ? context.l10n.notConfigured
+                              : context.l10n.configured,
                           icon: Icons.folder_open_rounded,
                           onTap: () async {
                             final SettingsPageResult? result =
@@ -170,14 +211,14 @@ class SettingsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                         _SettingsEntryCard(
-                          title: '百度网盘',
+                          title: context.l10n.baiduNetdisk,
                           subtitle: baiduPanController.isLoading
-                              ? '加载中'
+                              ? context.l10n.loading
                               : baiduPanReady
-                              ? '已配置 $baiduPanRootPath'
+                              ? context.l10n.configuredPath(baiduPanRootPath!)
                               : (baiduPanRootPath?.trim().isNotEmpty ?? false)
-                              ? '未登录'
-                              : '未配置',
+                              ? context.l10n.notSignedIn
+                              : context.l10n.notConfigured,
                           icon: Icons.cloud_rounded,
                           onTap: () async {
                             final SettingsPageResult? result =
@@ -199,11 +240,11 @@ class SettingsPage extends StatelessWidget {
                           },
                         ),
                         const SizedBox(height: 24),
-                        const Align(
+                        Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            '其他',
-                            style: TextStyle(
+                            context.l10n.other,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -212,7 +253,7 @@ class SettingsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         _SettingsEntryCard(
-                          title: '检查更新',
+                          title: context.l10n.checkForUpdates,
                           subtitle: updateController.summaryText,
                           icon: Icons.system_update_rounded,
                           onTap: () async {
@@ -229,8 +270,8 @@ class SettingsPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                         _SettingsEntryCard(
-                          title: '关于我们',
-                          subtitle: '查看应用简介和开源地址',
+                          title: context.l10n.aboutUs,
+                          subtitle: context.l10n.aboutUsSubtitle,
                           icon: Icons.info_outline_rounded,
                           onTap: () async {
                             await Navigator.of(context).push<void>(
@@ -257,16 +298,133 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
+String _localeLabel(BuildContext context, Locale? locale) {
+  if (locale == null) {
+    return context.l10n.followSystem;
+  }
+  if (locale == LocaleController.traditionalChinese) {
+    return context.l10n.traditionalChinese;
+  }
+  if (locale == LocaleController.english) {
+    return context.l10n.english;
+  }
+  return context.l10n.simplifiedChinese;
+}
+
+class _LanguageSettingsPage extends StatelessWidget {
+  const _LanguageSettingsPage({required this.controller});
+
+  final LocaleController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0014),
+      appBar: AppBar(
+        title: Text(context.l10n.language),
+        backgroundColor: Colors.transparent,
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: AnimatedBuilder(
+              animation: controller,
+              builder: (BuildContext context, _) {
+                return ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: <Widget>[
+                    Text(
+                      context.l10n.languagePageDescription,
+                      style: const TextStyle(height: 1.5),
+                    ),
+                    const SizedBox(height: 16),
+                    _LanguageOption(
+                      label: context.l10n.followSystem,
+                      selected: controller.followsSystem,
+                      onTap: () => unawaited(controller.setLocale(null)),
+                    ),
+                    _LanguageOption(
+                      label: context.l10n.simplifiedChinese,
+                      selected:
+                          controller.locale ==
+                          LocaleController.simplifiedChinese,
+                      onTap: () => unawaited(
+                        controller.setLocale(
+                          LocaleController.simplifiedChinese,
+                        ),
+                      ),
+                    ),
+                    _LanguageOption(
+                      label: context.l10n.traditionalChinese,
+                      selected:
+                          controller.locale ==
+                          LocaleController.traditionalChinese,
+                      onTap: () => unawaited(
+                        controller.setLocale(
+                          LocaleController.traditionalChinese,
+                        ),
+                      ),
+                    ),
+                    _LanguageOption(
+                      label: context.l10n.english,
+                      selected: controller.locale == LocaleController.english,
+                      onTap: () => unawaited(
+                        controller.setLocale(LocaleController.english),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageOption extends StatelessWidget {
+  const _LanguageOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      minTileHeight: 56,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      title: Text(label),
+      trailing: selected
+          ? Icon(
+              Icons.check_rounded,
+              color: Theme.of(context).colorScheme.primary,
+            )
+          : const SizedBox(width: 24),
+      onTap: onTap,
+    );
+  }
+}
+
 class _DownloadManagerPage extends StatelessWidget {
   const _DownloadManagerPage({required this.controller});
 
   final KtvController controller;
 
-  String _buildDownloadTaskFooter(DownloadingSongItem item) {
+  String _buildDownloadTaskFooter(
+    BuildContext context,
+    DownloadingSongItem item,
+  ) {
     final String statusLabel = switch (item.status) {
-      DownloadTaskStatus.downloading => '下载中',
-      DownloadTaskStatus.paused => '已暂停',
-      DownloadTaskStatus.failed => '失败',
+      DownloadTaskStatus.downloading => context.l10n.downloading,
+      DownloadTaskStatus.paused => context.l10n.downloadPaused,
+      DownloadTaskStatus.failed => context.l10n.downloadError,
     };
     final String errorSuffix = item.errorMessage?.trim().isNotEmpty ?? false
         ? ' · ${item.displayErrorMessage}'
@@ -288,19 +446,23 @@ class _DownloadManagerPage extends StatelessWidget {
           child: Scaffold(
             backgroundColor: const Color(0xFF0A0014),
             appBar: AppBar(
-              title: const Text('下载管理'),
+              title: Text(context.l10n.downloadManager),
               backgroundColor: Colors.transparent,
               bottom: TabBar(
                 tabs: <Widget>[
-                  Tab(text: '未完成 (${downloadingSongs.length})'),
-                  Tab(text: '已下载 (${downloadedSongs.length})'),
+                  Tab(
+                    text: context.l10n.pendingDownloadsTab(
+                      downloadingSongs.length,
+                    ),
+                  ),
+                  Tab(text: context.l10n.downloadedTab(downloadedSongs.length)),
                 ],
               ),
             ),
             body: TabBarView(
               children: <Widget>[
                 _DownloadListView(
-                  emptyMessage: '当前没有未完成的下载任务。',
+                  emptyMessage: context.l10n.noPendingDownloads,
                   children: downloadingSongs
                       .map(
                         (DownloadingSongItem item) => _DownloadListItem(
@@ -323,7 +485,7 @@ class _DownloadManagerPage extends StatelessWidget {
                                       }
                                       CenterOverlayToast.showSuccess(
                                         context,
-                                        message: '下载完成',
+                                        message: context.l10n.downloadComplete,
                                       );
                                     } catch (error) {
                                       if (!context.mounted) {
@@ -342,7 +504,8 @@ class _DownloadManagerPage extends StatelessWidget {
                                           content: Text(
                                             buildDownloadErrorSummary(
                                               error.toString(),
-                                              fallback: '恢复下载失败',
+                                              fallback:
+                                                  context.l10n.downloadFailed,
                                             ),
                                           ),
                                         ),
@@ -353,7 +516,7 @@ class _DownloadManagerPage extends StatelessWidget {
                                     Icons.play_arrow_rounded,
                                     color: Colors.white,
                                   ),
-                                  tooltip: '继续下载',
+                                  tooltip: context.l10n.resumeDownload,
                                 ),
                               if (item.canPause)
                                 IconButton(
@@ -367,7 +530,7 @@ class _DownloadManagerPage extends StatelessWidget {
                                     Icons.pause_rounded,
                                     color: Colors.white,
                                   ),
-                                  tooltip: '暂停下载',
+                                  tooltip: context.l10n.pauseDownload,
                                 ),
                               IconButton(
                                 onPressed: () {
@@ -380,18 +543,18 @@ class _DownloadManagerPage extends StatelessWidget {
                                   Icons.close_rounded,
                                   color: Colors.white,
                                 ),
-                                tooltip: '取消下载',
+                                tooltip: context.l10n.cancelDownload,
                               ),
                             ],
                           ),
-                          footer: _buildDownloadTaskFooter(item),
+                          footer: _buildDownloadTaskFooter(context, item),
                           progress: item.progress,
                         ),
                       )
                       .toList(growable: false),
                 ),
                 _DownloadListView(
-                  emptyMessage: '还没有已下载的歌曲。',
+                  emptyMessage: context.l10n.noDownloadedSongs,
                   children: downloadedSongs
                       .map(
                         (DownloadedSongItem item) => _DownloadListItem(
@@ -418,14 +581,14 @@ class _DownloadManagerPage extends StatelessWidget {
                               }
                               CenterOverlayToast.showSuccess(
                                 context,
-                                message: '已删除',
+                                message: context.l10n.deleted,
                               );
                             },
                             icon: const Icon(
                               Icons.delete_outline_rounded,
                               color: Color(0xFFFF9B9B),
                             ),
-                            tooltip: '删除源文件',
+                            tooltip: context.l10n.deleteSourceFile,
                           ),
                           footer: item.savedPath,
                         ),
@@ -449,22 +612,28 @@ class _DownloadManagerPage extends StatelessWidget {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF16081F),
-          title: const Text('删除已下载文件', style: TextStyle(color: Colors.white)),
+          title: Text(
+            context.l10n.deleteDownloadedFile,
+            style: const TextStyle(color: Colors.white),
+          ),
           content: Text(
-            '将删除本地文件：${item.displayTitle}\n来源：${item.sourceLabel}',
+            context.l10n.deleteDownloadedFileMessage(
+              item.displayTitle,
+              item.sourceLabel,
+            ),
             style: const TextStyle(color: Color(0xCCFFFFFF), height: 1.5),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
+              child: Text(context.l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFFF6E67),
               ),
-              child: const Text('删除'),
+              child: Text(context.l10n.delete),
             ),
           ],
         );
@@ -485,7 +654,7 @@ class _AboutPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0A0014),
       appBar: AppBar(
-        title: const Text('关于我们'),
+        title: Text(context.l10n.aboutUs),
         backgroundColor: Colors.transparent,
       ),
       body: SafeArea(
@@ -499,15 +668,18 @@ class _AboutPage extends StatelessWidget {
                   animation: updateController,
                   builder: (BuildContext context, _) {
                     return _InfoCard(
-                      title: '版本信息',
-                      content: _buildAboutVersionText(updateController),
+                      title: context.l10n.versionInformation,
+                      content: _buildAboutVersionText(
+                        context,
+                        updateController,
+                      ),
                     );
                   },
                 ),
                 const SizedBox(height: 14),
-                const _InfoCard(
-                  title: '应用介绍',
-                  content: '麦麦 KTV 是一个简洁的点歌与播放应用，方便在本地或云端曲库中快速找歌、点歌和播放。',
+                _InfoCard(
+                  title: context.l10n.appIntroduction,
+                  content: context.l10n.appDescription,
                 ),
                 const SizedBox(height: 14),
                 Container(
@@ -521,9 +693,9 @@ class _AboutPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      const Text(
-                        '开源地址',
-                        style: TextStyle(
+                      Text(
+                        context.l10n.sourceCodeAddress,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                         ),
@@ -553,7 +725,7 @@ class _AboutPage extends StatelessWidget {
                                 );
                               },
                               icon: const Icon(Icons.open_in_browser_rounded),
-                              label: const Text('查看发布页'),
+                              label: Text(context.l10n.viewReleasePage),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white,
                                 side: const BorderSide(
@@ -577,11 +749,15 @@ class _AboutPage extends StatelessWidget {
                                   return;
                                 }
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('开源地址已复制')),
+                                  SnackBar(
+                                    content: Text(
+                                      context.l10n.sourceCodeCopied,
+                                    ),
+                                  ),
                                 );
                               },
                               icon: const Icon(Icons.copy_rounded),
-                              label: const Text('复制地址'),
+                              label: Text(context.l10n.copyAddress),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.white,
                                 side: const BorderSide(
@@ -607,16 +783,23 @@ class _AboutPage extends StatelessWidget {
     );
   }
 
-  String _buildAboutVersionText(UpdateController controller) {
-    final String currentVersion = controller.currentVersion?.fullValue ?? '读取中';
+  String _buildAboutVersionText(
+    BuildContext context,
+    UpdateController controller,
+  ) {
+    final String currentVersion =
+        controller.currentVersion?.fullValue ?? context.l10n.reading;
     final UpdateCheckResult? result = controller.lastResult;
-    final String latestVersion = result?.updateInfo?.version.fullValue ?? '未检查';
+    final String latestVersion =
+        result?.updateInfo?.version.fullValue ?? context.l10n.notChecked;
     final String lastCheckedAt = controller.lastCheckedAt == null
-        ? '未检查'
+        ? context.l10n.notChecked
         : _formatDateTime(controller.lastCheckedAt!);
-    return '当前版本：$currentVersion\n'
-        '最新版本：$latestVersion\n'
-        '最近检查：$lastCheckedAt';
+    return context.l10n.versionSummary(
+      currentVersion,
+      latestVersion,
+      lastCheckedAt,
+    );
   }
 }
 
@@ -632,18 +815,18 @@ class _UpdatePage extends StatelessWidget {
       builder: (BuildContext context, _) {
         final UpdateCheckResult? result = controller.lastResult;
         final String currentVersion =
-            controller.currentVersion?.fullValue ?? '读取中';
+            controller.currentVersion?.fullValue ?? context.l10n.reading;
         final String latestVersion =
-            result?.updateInfo?.version.fullValue ?? '未检查';
+            result?.updateInfo?.version.fullValue ?? context.l10n.notChecked;
         final String publishedAt = result?.updateInfo?.publishedAt == null
-            ? '未知'
+            ? context.l10n.unknown
             : _formatDateTime(result!.updateInfo!.publishedAt!);
         final List<String> notes =
             result?.updateInfo?.notes ?? const <String>[];
         return Scaffold(
           backgroundColor: const Color(0xFF0A0014),
           appBar: AppBar(
-            title: const Text('检查更新'),
+            title: Text(context.l10n.checkForUpdates),
             backgroundColor: Colors.transparent,
           ),
           body: SafeArea(
@@ -654,8 +837,9 @@ class _UpdatePage extends StatelessWidget {
                   padding: const EdgeInsets.all(24),
                   children: <Widget>[
                     _InfoCard(
-                      title: '当前状态',
+                      title: context.l10n.currentStatus,
                       content: _buildUpdateSummary(
+                        context: context,
                         controller: controller,
                         currentVersion: currentVersion,
                         latestVersion: latestVersion,
@@ -664,8 +848,10 @@ class _UpdatePage extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     _InfoCard(
-                      title: '更新说明',
-                      content: notes.isEmpty ? '暂无更新说明。' : notes.join('\n'),
+                      title: context.l10n.releaseNotes,
+                      content: notes.isEmpty
+                          ? context.l10n.noReleaseNotes
+                          : notes.join('\n'),
                     ),
                     if (controller.actionErrorMessage != null) ...<Widget>[
                       const SizedBox(height: 14),
@@ -699,7 +885,11 @@ class _UpdatePage extends StatelessWidget {
                               backgroundColor: const Color(0xFFFF6E67),
                             ),
                             icon: const Icon(Icons.refresh_rounded),
-                            label: Text(controller.isChecking ? '检查中' : '检查更新'),
+                            label: Text(
+                              controller.isChecking
+                                  ? context.l10n.checking
+                                  : context.l10n.checkForUpdates,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -721,8 +911,8 @@ class _UpdatePage extends StatelessWidget {
                             ),
                             label: Text(
                               result?.isUpdateAvailable ?? false
-                                  ? controller.updateActionLabel
-                                  : '查看发布页',
+                                  ? context.l10n.updateNow
+                                  : context.l10n.viewReleasePage,
                             ),
                           ),
                         ),
@@ -739,6 +929,7 @@ class _UpdatePage extends StatelessWidget {
   }
 
   String _buildUpdateSummary({
+    required BuildContext context,
     required UpdateController controller,
     required String currentVersion,
     required String latestVersion,
@@ -746,19 +937,24 @@ class _UpdatePage extends StatelessWidget {
   }) {
     final UpdateCheckResult? result = controller.lastResult;
     final String statusLabel = switch (result?.state ?? UpdateCheckState.idle) {
-      UpdateCheckState.idle => '尚未检查',
-      UpdateCheckState.unavailable => '当前无法提供在线更新',
-      UpdateCheckState.upToDate => '已经是最新版本',
-      UpdateCheckState.updateAvailable => '发现新版本',
-      UpdateCheckState.failed => '检查失败',
+      UpdateCheckState.idle => context.l10n.updateStatusIdle,
+      UpdateCheckState.unavailable => context.l10n.updateStatusUnavailable,
+      UpdateCheckState.upToDate => context.l10n.updateStatusCurrent,
+      UpdateCheckState.updateAvailable => context.l10n.updateStatusAvailable,
+      UpdateCheckState.failed => context.l10n.updateStatusFailed,
     };
-    final String message = result?.message ?? '可先查看当前版本，再手动检查更新。';
-    return '状态：$statusLabel\n'
-        '当前版本：$currentVersion\n'
-        '最新版本：$latestVersion\n'
-        '发布时间：$publishedAt\n'
-        '最近检查：${controller.lastCheckedAt == null ? '未检查' : _formatDateTime(controller.lastCheckedAt!)}\n'
-        '说明：$message';
+    final String message = result?.message ?? context.l10n.updateInitialMessage;
+    final String lastCheckedAt = controller.lastCheckedAt == null
+        ? context.l10n.notChecked
+        : _formatDateTime(controller.lastCheckedAt!);
+    return context.l10n.updateSummary(
+      statusLabel,
+      currentVersion,
+      latestVersion,
+      publishedAt,
+      lastCheckedAt,
+      message,
+    );
   }
 }
 
@@ -835,24 +1031,28 @@ class _LocalDirectorySettingsPageState
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (BuildContext context, _) {
-        final String pageTitle = _usesImportedLocalLibrary ? '本地文件' : '本地目录';
+        final String pageTitle = _usesImportedLocalLibrary
+            ? context.l10n.localFiles
+            : context.l10n.localDirectory;
         final String introText = _usesImportedLocalLibrary
-            ? 'iPhone 和 iPad 不支持像桌面端那样直接挂载本地目录。请选择要导入到应用内的视频文件，导入后会在应用内建立本地歌库，再次导入会继续追加到当前歌库。'
-            : '配置本地目录后，点歌页会基于这个目录建立扫描范围。重新选择后会覆盖当前使用的本地目录。';
+            ? context.l10n.iosLocalFilesDescription
+            : context.l10n.localDirectoryDescription;
         final String currentPathTitle = _usesImportedLocalLibrary
-            ? '应用内歌库目录'
-            : '当前目录';
+            ? context.l10n.appLibraryDirectory
+            : context.l10n.currentDirectory;
         final String emptyPathText = _usesImportedLocalLibrary
-            ? '当前还没有导入本地视频文件。'
-            : '当前还没有配置本地目录。';
+            ? context.l10n.noImportedVideos
+            : context.l10n.noConfiguredDirectory;
         final IconData actionIcon = _usesImportedLocalLibrary
             ? Icons.file_upload_rounded
             : Icons.folder_open_rounded;
         final String actionLabel = controller.isImportingDirectory
-            ? '导入中'
+            ? context.l10n.importing
             : controller.isSelectingDirectory
-            ? '选择中'
-            : (_usesImportedLocalLibrary ? '导入文件' : '选择目录');
+            ? context.l10n.selecting
+            : (_usesImportedLocalLibrary
+                  ? context.l10n.importFiles
+                  : context.l10n.selectDirectory);
         return Scaffold(
           backgroundColor: const Color(0xFF0A0014),
           appBar: AppBar(
@@ -998,9 +1198,9 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                 child: ListView(
                   padding: const EdgeInsets.all(24),
                   children: <Widget>[
-                    const Text(
-                      '连接支持 WebDAV 的网盘、NAS 或私有云。局域网地址可以使用 HTTP，公网地址必须使用 HTTPS。账号密码仅保存在系统安全存储中。',
-                      style: TextStyle(height: 1.5),
+                    Text(
+                      context.l10n.webDavDescription,
+                      style: const TextStyle(height: 1.5),
                     ),
                     const SizedBox(height: 18),
                     TextField(
@@ -1008,12 +1208,12 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                       enabled: !busy,
                       keyboardType: TextInputType.url,
                       autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: '服务器地址',
+                      decoration: InputDecoration(
+                        labelText: context.l10n.serverAddress,
                         hintText:
                             'https://dav.example.com/remote.php/dav/files/user',
-                        prefixIcon: Icon(Icons.dns_rounded),
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.dns_rounded),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1021,10 +1221,10 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                       controller: _usernameController,
                       enabled: !busy,
                       autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: '用户名',
-                        prefixIcon: Icon(Icons.person_outline_rounded),
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: context.l10n.username,
+                        prefixIcon: const Icon(Icons.person_outline_rounded),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1036,11 +1236,13 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                       enableSuggestions: false,
                       decoration: InputDecoration(
                         labelText: widget.controller.hasPassword
-                            ? '密码（留空则保持不变）'
-                            : '密码',
+                            ? context.l10n.passwordKeepHint
+                            : context.l10n.password,
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: IconButton(
-                          tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                          tooltip: _obscurePassword
+                              ? context.l10n.showPassword
+                              : context.l10n.hidePassword,
                           onPressed: () {
                             setState(() {
                               _obscurePassword = !_obscurePassword;
@@ -1060,11 +1262,11 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                       controller: _rootController,
                       enabled: !busy,
                       autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: '歌曲根目录',
+                      decoration: InputDecoration(
+                        labelText: context.l10n.songRootDirectory,
                         hintText: '/KTV',
-                        prefixIcon: Icon(Icons.folder_open_rounded),
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.folder_open_rounded),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -1082,7 +1284,9 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                                   )
                                 : const Icon(Icons.cable_rounded),
                             label: Text(
-                              widget.controller.isTesting ? '测试中' : '测试连接',
+                              widget.controller.isTesting
+                                  ? context.l10n.testing
+                                  : context.l10n.testConnection,
                             ),
                           ),
                         ),
@@ -1095,7 +1299,9 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                             ),
                             icon: const Icon(Icons.save_rounded),
                             label: Text(
-                              widget.controller.isSaving ? '保存中' : '保存并扫描',
+                              widget.controller.isSaving
+                                  ? context.l10n.saving
+                                  : context.l10n.saveAndScan,
                             ),
                           ),
                         ),
@@ -1106,7 +1312,7 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                       TextButton.icon(
                         onPressed: busy ? null : _clearSettings,
                         icon: const Icon(Icons.delete_outline_rounded),
-                        label: const Text('清空 WebDAV 配置'),
+                        label: Text(context.l10n.clearWebDavConfiguration),
                       ),
                     ],
                     if (widget.controller.successMessage != null) ...<Widget>[
@@ -1244,7 +1450,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
         return Scaffold(
           backgroundColor: const Color(0xFF0A0014),
           appBar: AppBar(
-            title: const Text('百度网盘'),
+            title: Text(context.l10n.baiduNetdisk),
             backgroundColor: Colors.transparent,
           ),
           body: SafeArea(
@@ -1255,28 +1461,28 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                   padding: const EdgeInsets.all(24),
                   children: <Widget>[
                     Text(
-                      '百度网盘开放平台凭证已经内置到应用配置里。用户进入本页后，未登录时会自动拉起扫码登录二维码。登录后只需要配置歌曲根目录。',
-                      style: TextStyle(height: 1.5),
+                      context.l10n.baiduDescription,
+                      style: const TextStyle(height: 1.5),
                     ),
                     const SizedBox(height: 18),
                     _InfoCard(
-                      title: '当前状态',
+                      title: context.l10n.currentStatus,
                       content: widget.controller.isLoading
-                          ? '加载中'
+                          ? context.l10n.loading
                           : canRefreshRemoteFolder
-                          ? '已配置，歌曲根目录：$rootPath'
+                          ? context.l10n.configuredSongRoot(rootPath!)
                           : (rootPath?.trim().isNotEmpty ?? false)
-                          ? '未登录，已保存歌曲根目录：$rootPath'
-                          : '未配置百度网盘数据源',
+                          ? context.l10n.savedRootNotSignedIn(rootPath!)
+                          : context.l10n.baiduNotConfigured,
                     ),
                     const SizedBox(height: 16),
                     _InfoCard(
-                      title: '应用授权配置',
+                      title: context.l10n.appAuthorizationConfiguration,
                       content:
                           'AppID: ${widget.controller.appId}\n'
                           'Redirect URI: ${widget.controller.redirectUri}\n'
                           'Scope: ${widget.controller.scope}\n'
-                          '应用授权配置${widget.controller.isAppConfigured ? '已内置' : '缺失'}',
+                          '${widget.controller.isAppConfigured ? context.l10n.authorizationEmbedded : context.l10n.authorizationMissing}',
                     ),
                     const SizedBox(height: 16),
                     Container(
@@ -1291,8 +1497,10 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            widget.controller.isAuthorized ? '登录已完成' : '扫码登录',
-                            style: TextStyle(
+                            widget.controller.isAuthorized
+                                ? context.l10n.loginComplete
+                                : context.l10n.scanToLogin,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1300,9 +1508,9 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                           const SizedBox(height: 8),
                           Text(
                             widget.controller.isAuthorized
-                                ? '当前百度网盘账号已登录，可以继续配置歌曲根目录并扫描指定文件夹。'
-                                : '进入页面后已自动生成二维码。请直接使用百度 App 扫码授权，授权完成后会自动登录。',
-                            style: TextStyle(
+                                ? context.l10n.baiduAuthorizedDescription
+                                : context.l10n.baiduQrDescription,
+                            style: const TextStyle(
                               color: Color(0xCCFFFFFF),
                               height: 1.5,
                             ),
@@ -1312,13 +1520,16 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                     ),
                     const SizedBox(height: 16),
                     _InfoCard(
-                      title: '登录状态',
+                      title: context.l10n.loginStatus,
                       content: widget.controller.isAuthorized
-                          ? '已登录\n'
-                                '账号：${widget.controller.accountDisplayName ?? '未知账号'}\n'
-                                '容量：${widget.controller.quotaSummary ?? '未知'}\n'
-                                'Token 过期时间：${widget.controller.tokenExpiresAt}'
-                          : '未登录',
+                          ? context.l10n.signedInDetails(
+                              widget.controller.accountDisplayName ??
+                                  context.l10n.unknownAccount,
+                              widget.controller.quotaSummary ??
+                                  context.l10n.unknown,
+                              widget.controller.tokenExpiresAt.toString(),
+                            )
+                          : context.l10n.notSignedIn,
                     ),
                     const SizedBox(height: 16),
                     if (!widget.controller.isAuthorized &&
@@ -1339,7 +1550,11 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                                 ? Icons.downloading_rounded
                                 : Icons.download_rounded,
                           ),
-                          label: Text(_isSavingQrImage ? '保存中' : '保存二维码到手机'),
+                          label: Text(
+                            _isSavingQrImage
+                                ? context.l10n.saving
+                                : context.l10n.saveQrToPhone,
+                          ),
                         ),
                       ],
                       const SizedBox(height: 12),
@@ -1360,8 +1575,8 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                         icon: const Icon(Icons.refresh_rounded),
                         label: Text(
                           widget.controller.isPreparingDeviceLogin
-                              ? '生成中'
-                              : '刷新二维码',
+                              ? context.l10n.generating
+                              : context.l10n.refreshQrCode,
                         ),
                       ),
                     ] else if (widget.controller.isAuthorized) ...<Widget>[
@@ -1375,18 +1590,18 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                                 }
                                 CenterOverlayToast.showSuccess(
                                   context,
-                                  message: '已退出登录',
+                                  message: context.l10n.signedOut,
                                 );
                               },
                         icon: const Icon(Icons.logout_rounded),
-                        label: const Text('退出登录'),
+                        label: Text(context.l10n.signOut),
                       ),
                     ],
                     const SizedBox(height: 16),
                     _SettingsTextField(
                       controller: _rootPathController,
-                      label: '歌曲根目录',
-                      hintText: '例如 /KTV',
+                      label: context.l10n.songRootDirectory,
+                      hintText: context.l10n.rootPathExample,
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -1415,7 +1630,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                                     }
                                     CenterOverlayToast.showSuccess(
                                       context,
-                                      message: '目录已保存',
+                                      message: context.l10n.directorySaved,
                                     );
                                   },
                             style: FilledButton.styleFrom(
@@ -1424,10 +1639,10 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                             icon: const Icon(Icons.save_rounded),
                             label: Text(
                               widget.controller.isSaving
-                                  ? '保存中'
+                                  ? context.l10n.saving
                                   : widget.controller.canRefreshRemoteFolder
-                                  ? '保存并扫描该文件夹'
-                                  : '保存目录',
+                                  ? context.l10n.saveAndScanFolder
+                                  : context.l10n.saveDirectory,
                             ),
                           ),
                         ),
@@ -1448,7 +1663,7 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
                                   );
                                 },
                           icon: const Icon(Icons.delete_outline_rounded),
-                          label: const Text('清空'),
+                          label: Text(context.l10n.clear),
                         ),
                       ],
                     ),
@@ -1503,14 +1718,14 @@ class _BaiduPanSettingsPageState extends State<_BaiduPanSettingsPage> {
       if (!mounted) {
         return;
       }
-      CenterOverlayToast.showSuccess(context, message: '已保存');
+      CenterOverlayToast.showSuccess(context, message: context.l10n.saved);
     } catch (error) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('保存二维码失败：$error')));
+      ).showSnackBar(SnackBar(content: Text(context.l10n.saveQrFailed(error))));
     } finally {
       if (mounted) {
         setState(() {
@@ -1572,9 +1787,12 @@ class _BaiduPanQrCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text(
-            '登录二维码',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          Text(
+            context.l10n.loginQrCode,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 12),
           if (controller.isPreparingDeviceLogin || session == null)
@@ -1600,13 +1818,13 @@ class _BaiduPanQrCard extends StatelessWidget {
                           Object error,
                           StackTrace? stackTrace,
                         ) {
-                          return const SizedBox(
+                          return SizedBox(
                             width: 240,
                             height: 240,
                             child: Center(
                               child: Text(
-                                '二维码加载失败',
-                                style: TextStyle(color: Colors.black54),
+                                context.l10n.qrCodeLoadFailed,
+                                style: const TextStyle(color: Colors.black54),
                               ),
                             ),
                           );
@@ -1617,7 +1835,10 @@ class _BaiduPanQrCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             SelectableText(
-              '用户码：${session.userCode}\n验证页：${session.verificationUrl}',
+              context.l10n.qrCodeDetails(
+                session.userCode,
+                session.verificationUrl,
+              ),
               style: const TextStyle(color: Color(0xCCFFFFFF), height: 1.5),
             ),
           ],
@@ -1760,7 +1981,7 @@ class _DownloadListItem extends StatelessWidget {
                     border: Border.all(color: const Color(0x334D88FF)),
                   ),
                   child: Text(
-                    '来源：$sourceLabel',
+                    context.l10n.sourceLabel(sourceLabel),
                     style: const TextStyle(
                       color: Color(0xFFD8E5FF),
                       fontSize: 12,

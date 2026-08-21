@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
+import '../../../core/localization/localization_extensions.dart';
+
 class PlayerControlBar extends StatelessWidget {
   const PlayerControlBar({
     super.key,
     required this.controller,
     this.onOpenPressed,
     this.isOpening = false,
-    this.openButtonLabel = '选择视频',
-    this.openingButtonLabel = '选择中',
+    this.openButtonLabel,
+    this.openingButtonLabel,
   });
 
   final PlayerController controller;
   final Future<void> Function()? onOpenPressed;
   final bool isOpening;
-  final String openButtonLabel;
-  final String openingButtonLabel;
+  final String? openButtonLabel;
+  final String? openingButtonLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +31,11 @@ class PlayerControlBar extends StatelessWidget {
               FilledButton.icon(
                 onPressed: isOpening ? null : onOpenPressed,
                 icon: const Icon(Icons.folder_open),
-                label: Text(isOpening ? openingButtonLabel : openButtonLabel),
+                label: Text(
+                  isOpening
+                      ? openingButtonLabel ?? context.l10n.selecting
+                      : openButtonLabel ?? context.l10n.selectVideo,
+                ),
               ),
               const SizedBox(width: 12),
             ],
@@ -40,8 +46,8 @@ class PlayerControlBar extends StatelessWidget {
               icon: const Icon(Icons.mic_rounded),
               label: Text(
                 controller.audioOutputMode == AudioOutputMode.accompaniment
-                    ? '原唱'
-                    : '伴唱',
+                    ? context.l10n.originalVocal
+                    : context.l10n.accompaniment,
               ),
             ),
             const SizedBox(width: 12),

@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   ktv2:
     path: packages/ktv_player
   file_selector: ^1.1.0
@@ -41,6 +43,7 @@ dependencies:
   sqflite_common_ffi: ^2.3.6
   url_launcher: ^6.3.2
   flutter_secure_storage: ^10.0.0
+  shared_preferences: ^2.5.3
   xml: ^6.6.1
 
   # The following adds the Cupertino Icons font to your application.
@@ -64,6 +67,8 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+
+  generate: true
 
   config:
     enable-swift-package-manager: false

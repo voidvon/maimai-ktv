@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:maimai_ktv/core/localization/locale_controller.dart';
+import 'package:maimai_ktv/core/localization/locale_preference_store.dart';
 import 'package:maimai_ktv/features/ktv/application/ktv_controller.dart';
 import 'package:maimai_ktv/features/ktv/presentation/home_page.dart';
 import 'package:maimai_ktv/features/ktv/presentation/ktv_shell.dart';
@@ -11,6 +16,7 @@ import 'package:maimai_ktv/features/update/application/update_service.dart';
 import 'package:maimai_ktv/features/update/data/update_manifest_client.dart';
 import 'package:maimai_ktv/features/update/domain/app_update_info.dart';
 import 'package:maimai_ktv/features/update/domain/app_version.dart';
+import 'package:maimai_ktv/l10n/generated/app_localizations.dart';
 
 import 'test_support/ktv_test_doubles.dart';
 
@@ -40,6 +46,40 @@ void main() {
     );
   }
 
+  Widget buildTestApp({
+    required KtvController controller,
+    required UpdateController updateController,
+    LocaleController? localeController,
+  }) {
+    final LocaleController resolvedLocaleController =
+        localeController ??
+        LocaleController(preferenceStore: _MemoryLocalePreferenceStore());
+    if (localeController == null) {
+      unawaited(
+        resolvedLocaleController.setLocale(LocaleController.simplifiedChinese),
+      );
+    }
+    addTearDown(resolvedLocaleController.dispose);
+    return AnimatedBuilder(
+      animation: resolvedLocaleController,
+      builder: (BuildContext context, _) => MaterialApp(
+        locale: resolvedLocaleController.locale,
+        supportedLocales: LocaleController.supportedLocales,
+        localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+        ],
+        home: KtvShell(
+          controller: controller,
+          updateController: updateController,
+          localeController: resolvedLocaleController,
+        ),
+      ),
+    );
+  }
+
   testWidgets('renders the home shell with the main shortcuts', (
     WidgetTester tester,
   ) async {
@@ -49,12 +89,7 @@ void main() {
     addTearDown(updateController.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: KtvShell(
-          controller: controller,
-          updateController: updateController,
-        ),
-      ),
+      buildTestApp(controller: controller, updateController: updateController),
     );
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -73,12 +108,7 @@ void main() {
     addTearDown(updateController.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: KtvShell(
-          controller: controller,
-          updateController: updateController,
-        ),
-      ),
+      buildTestApp(controller: controller, updateController: updateController),
     );
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -87,6 +117,37 @@ void main() {
 
     expect(find.text('主页 / 歌名'), findsOneWidget);
     expect(find.byType(Scrollable), findsWidgets);
+  });
+
+  testWidgets('updates visible labels when the app language changes', (
+    WidgetTester tester,
+  ) async {
+    final KtvController controller = buildController();
+    final UpdateController updateController = buildUpdateController();
+    final LocaleController localeController = LocaleController(
+      preferenceStore: _MemoryLocalePreferenceStore(),
+    );
+    addTearDown(controller.dispose);
+    addTearDown(updateController.dispose);
+
+    await localeController.setLocale(LocaleController.simplifiedChinese);
+    await tester.pumpWidget(
+      buildTestApp(
+        controller: controller,
+        updateController: updateController,
+        localeController: localeController,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('歌名'), findsOneWidget);
+
+    await localeController.setLocale(LocaleController.english);
+    await tester.pump();
+
+    expect(find.text('Karaoke Cinema'), findsOneWidget);
+    expect(find.text('Songs'), findsOneWidget);
+    expect(find.text('Artists'), findsOneWidget);
   });
 
   testWidgets(
@@ -105,11 +166,9 @@ void main() {
       });
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: KtvShell(
-            controller: controller,
-            updateController: updateController,
-          ),
+        buildTestApp(
+          controller: controller,
+          updateController: updateController,
         ),
       );
       await tester.pump(const Duration(milliseconds: 300));
@@ -140,11 +199,9 @@ void main() {
       });
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: KtvShell(
-            controller: controller,
-            updateController: updateController,
-          ),
+        buildTestApp(
+          controller: controller,
+          updateController: updateController,
         ),
       );
       await tester.pump(const Duration(milliseconds: 300));
@@ -182,11 +239,9 @@ void main() {
       });
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: KtvShell(
-            controller: controller,
-            updateController: updateController,
-          ),
+        buildTestApp(
+          controller: controller,
+          updateController: updateController,
         ),
       );
       await tester.pump(const Duration(milliseconds: 300));
@@ -227,4 +282,16 @@ class _FakeUpdatePlatformAdapter implements UpdatePlatformAdapter {
 
   @override
   Future<bool> openUpdate(AppUpdateInfo updateInfo) async => true;
+}
+
+class _MemoryLocalePreferenceStore implements LocalePreferenceStore {
+  String? languageTag;
+
+  @override
+  Future<String?> readLanguageTag() async => languageTag;
+
+  @override
+  Future<void> writeLanguageTag(String? languageTag) async {
+    this.languageTag = languageTag;
+  }
 }

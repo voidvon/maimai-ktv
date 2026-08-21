@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
+import '../../../core/localization/localization_extensions.dart';
 import '../application/ktv_controller.dart';
 import 'home_page.dart';
 import 'ktv_presentation_helpers.dart';
@@ -403,15 +404,21 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                                         child: Row(
                                           children: <Widget>[
                                             FullscreenToolbarButton(
-                                              label: '返回点歌',
+                                              label:
+                                                  context.l10n.backToSongbook,
                                               icon: Icons.arrow_back_rounded,
                                               onPressed: _handleBackToSongBook,
                                             ),
                                             const SizedBox(width: 8),
                                             FullscreenToolbarButton(
-                                              label: audioModeToggleLabel(
-                                                widget.controller,
-                                              ),
+                                              label:
+                                                  widget
+                                                          .controller
+                                                          .audioOutputMode ==
+                                                      AudioOutputMode
+                                                          .accompaniment
+                                                  ? context.l10n.originalVocal
+                                                  : context.l10n.accompaniment,
                                               icon: Icons.mic_rounded,
                                               onPressed:
                                                   widget.controller.hasMedia
@@ -421,8 +428,8 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                                             const SizedBox(width: 8),
                                             FullscreenToolbarButton(
                                               label: widget.controller.isPlaying
-                                                  ? '暂停'
-                                                  : '播放',
+                                                  ? context.l10n.pause
+                                                  : context.l10n.play,
                                               icon: widget.controller.isPlaying
                                                   ? Icons.pause_rounded
                                                   : Icons.play_arrow_rounded,
@@ -432,7 +439,7 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                                             ),
                                             const SizedBox(width: 8),
                                             FullscreenToolbarButton(
-                                              label: '重唱',
+                                              label: context.l10n.replay,
                                               icon: Icons.replay_rounded,
                                               onPressed: hasMedia
                                                   ? widget.onRestartPlayback
@@ -440,7 +447,7 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                                             ),
                                             const SizedBox(width: 8),
                                             FullscreenToolbarButton(
-                                              label: '切歌',
+                                              label: context.l10n.skip,
                                               icon: Icons.skip_next_rounded,
                                               onPressed: hasMedia
                                                   ? widget.onSkipSong

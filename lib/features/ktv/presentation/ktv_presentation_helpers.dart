@@ -1,11 +1,3 @@
-import 'package:ktv2/ktv2.dart';
-
-String audioModeToggleLabel(PlayerController controller) {
-  return controller.audioOutputMode == AudioOutputMode.accompaniment
-      ? '原唱'
-      : '伴唱';
-}
-
 String formatPlaybackDuration(Duration value) {
   final int totalSeconds = value.inSeconds.clamp(0, 86399);
   final int minutes = (totalSeconds ~/ 60) % 60;

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
+import '../../../core/localization/localization_extensions.dart';
 import '../../../core/models/artist.dart';
 import '../../../core/models/song.dart';
 import '../application/download_manager_models.dart';
@@ -318,9 +319,9 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
             return SongTile(
               title: song.title,
               subtitle: isCurrent
-                  ? '${song.artist} · ${song.language} · 当前播放'
+                  ? '${song.artist} · ${song.language} · ${context.l10n.currentPlayback}'
                   : isQueued
-                  ? '${song.artist} · ${song.language} · 已点'
+                  ? '${song.artist} · ${song.language} · ${context.l10n.queued}'
                   : '${song.artist} · ${song.language}',
               highlighted: isCurrent,
               downloadProgress: hasDownloadTask ? downloadProgress : null,
@@ -384,26 +385,28 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
           _navigation.songBookMode != SongBookMode.frequent;
       if (!_library.hasConfiguredDirectory &&
           _navigation.libraryScope == LibraryScope.localOnly) {
-        return const EmptyContentCard(message: '请先在设置里配置本地目录，扫描完成后这里会展示歌曲列表。');
+        return EmptyContentCard(message: context.l10n.noLocalDirectory);
       }
       if (needsAggregatedSourceConfiguration &&
           _library.songs.isEmpty &&
           _library.artists.isEmpty &&
           _library.scanErrorMessage == null) {
-        return const EmptyContentCard(message: '请先在设置里配置数据源，配置完成后这里会展示聚合曲库。');
+        return EmptyContentCard(message: context.l10n.noDataSource);
       }
       _scheduleLibraryPageSizeSync(itemsPerPage);
       if (_library.isScanning &&
           _library.totalCount == 0 &&
           _library.songs.isEmpty) {
-        return const EmptyContentCard(message: '正在扫描本地目录中的歌曲，请稍候。');
+        return EmptyContentCard(message: context.l10n.scanningLocalSongs);
       }
       if (_library.isLoadingPage &&
           _library.totalCount == 0 &&
           _library.songs.isEmpty &&
           _library.artists.isEmpty) {
         return EmptyContentCard(
-          message: isArtistOverview ? '正在加载歌手列表，请稍候。' : '正在加载歌曲列表，请稍候。',
+          message: isArtistOverview
+              ? context.l10n.loadingArtists
+              : context.l10n.loadingSongs,
         );
       }
       if (_library.scanErrorMessage != null) {
@@ -411,9 +414,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
       }
       if (isArtistOverview) {
         if (_library.artists.isEmpty) {
-          return const EmptyContentCard(
-            message: '当前条件下没有可显示的歌手，试试切换语言或清空搜索关键字。',
-          );
+          return EmptyContentCard(message: context.l10n.noMatchingArtists);
         }
         return buildArtistGrid(
           _library.artists,
@@ -425,12 +426,12 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
       if (_library.songs.isEmpty) {
         return EmptyContentCard(
           message: isFavoritesMode
-              ? '当前目录下还没有收藏歌曲，先去本地列表点亮爱心。'
+              ? context.l10n.noFavorites
               : isFrequentMode
-              ? '当前目录下还没有常唱记录，开始播放几首歌后会显示在这里。'
+              ? context.l10n.noFrequentSongs
               : _navigation.selectedArtist == null
-              ? '当前目录下没有扫描到可播放视频文件，请确认目录中包含常见视频格式媒体文件。'
-              : '当前歌手下没有匹配的歌曲，试试切换语言或清空搜索关键字。',
+              ? context.l10n.noPlayableVideos
+              : context.l10n.noArtistSongs,
         );
       }
       return buildLibraryGrid(
@@ -517,10 +518,10 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
       required double tileHeight,
     }) {
       if (_playback.queuedSongs.isEmpty) {
-        return const EmptyContentCard(message: '当前还没有已点歌曲，点歌后会在这里显示。');
+        return EmptyContentCard(message: context.l10n.emptyQueue);
       }
       if (filteredQueueEntries.isEmpty) {
-        return const EmptyContentCard(message: '当前关键字下没有匹配的已点歌曲，试试清空搜索关键字。');
+        return EmptyContentCard(message: context.l10n.noQueueMatches);
       }
       final List<List<QueuedSongEntry>> pages = _paginateItems<QueuedSongEntry>(
         filteredQueueEntries,
@@ -571,7 +572,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
         Row(
           children: <Widget>[
             ActionPill(
-              label: '返回',
+              label: context.l10n.back,
               icon: Icons.arrow_back_ios_new_rounded,
               onPressed: _navigationCallbacks.onBackPressed,
               padding: const EdgeInsets.fromLTRB(8, 5, 14, 5),
@@ -579,7 +580,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                _navigation.breadcrumbLabel,
+                _localizedBreadcrumb(context, _navigation.breadcrumbLabel),
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -616,7 +617,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                               vertical: 3,
                             ),
                             child: Text(
-                              language,
+                              _localizedLanguageLabel(context, language),
                               style: TextStyle(
                                 fontSize: 9,
                                 fontWeight: selected
@@ -813,16 +814,18 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
                 !isPendingDownload && entry.key > (hasCurrentPlayback ? 1 : 0),
             showPinAction: !isPendingDownload,
             subtitle: hasCurrentPlayback && entry.key == 0
-                ? '当前播放'
+                ? context.l10n.currentPlayback
                 : isPendingDownload
                 ? (isDownloading
-                      ? '下载中'
+                      ? context.l10n.downloading
                       : isPausedDownload
-                      ? '已暂停'
+                      ? context.l10n.downloadPaused
                       : isFailedDownload
-                      ? '下载失败'
-                      : '等待下载')
-                : '队列 ${entry.key + (hasCurrentPlayback ? 0 : 1)}',
+                      ? context.l10n.downloadError
+                      : context.l10n.waitingForDownload)
+                : context.l10n.queuePosition(
+                    entry.key + (hasCurrentPlayback ? 0 : 1),
+                  ),
           );
         });
     if (normalizedQuery.isEmpty) {
@@ -835,4 +838,36 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
         )
         .toList(growable: false);
   }
+}
+
+String _localizedLanguageLabel(BuildContext context, String language) {
+  return switch (language) {
+    '全部' => context.l10n.allLanguages,
+    '国语' => context.l10n.mandarin,
+    '粤语' => context.l10n.cantonese,
+    '闽南语' => context.l10n.minNan,
+    '英语' => context.l10n.englishLanguage,
+    '日语' => context.l10n.japanese,
+    '韩语' => context.l10n.korean,
+    '其它' => context.l10n.otherLanguage,
+    _ => language,
+  };
+}
+
+String _localizedBreadcrumb(BuildContext context, String breadcrumb) {
+  return breadcrumb
+      .split(' / ')
+      .map((String segment) {
+        return switch (segment) {
+          '主页' => context.l10n.home,
+          '歌名' => context.l10n.songTitle,
+          '歌星' => context.l10n.artist,
+          '本地' => context.l10n.local,
+          '收藏' => context.l10n.favorites,
+          '常唱' => context.l10n.frequent,
+          '已点' => context.l10n.queued,
+          _ => segment,
+        };
+      })
+      .join(' / ');
 }

@@ -1,136 +1,137 @@
-# 麦麦KTV
+<div align="center">
 
-麦麦KTV是一款面向家庭娱乐、包厢点歌和大屏播放场景的 KTV 点歌应用。它把点歌、排队、播放控制、下载管理和歌库配置整合到同一套界面中，适合电视、投屏设备、桌面端和移动端的 KTV 使用场景。
+<img src="docs/public/app-icon.png" alt="Maimai KTV" width="112">
 
-当前仓库处于 Alpha 阶段，最新预发布版本已经提供 Android、macOS、Windows x64 和 iOS 测试分发包。
+# Maimai KTV
 
-## 界面截图
+[![Flutter](https://img.shields.io/badge/Flutter-3-02569B.svg?logo=flutter)](https://flutter.dev/)
+[![Release](https://img.shields.io/badge/release-v1.0.0--alpha.7-orange.svg)](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20macOS%20%7C%20Windows%20%7C%20iOS-555.svg)](#downloads)
 
-下图展示了麦麦KTV在“按歌名点歌”场景下的大屏界面。左侧保留视频预览和拼音首字母快捷检索区，右侧集中展示分类筛选、歌曲列表和播放控制，适合横屏电视、投屏设备或包厢点歌机使用。
+**A video-first karaoke songbook for home entertainment, big screens, and KTV rooms.**
 
-![麦麦KTV 歌名点歌界面截图](docs/images/song-search-screen.jpg)
+English | [简体中文](README_CN.md) | [繁體中文](README_TW.md)
 
-## 当前版本重点
+<p>
+  <a href="https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7">Download</a> ·
+  <a href="https://maimai.0122.vip/guide/">User Guide</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
 
-- 已支持 Android、macOS、Windows x64 与 iOS 测试分发
-- Windows x64 首个桌面测试包已接入 GitHub Releases
-- iOS 已提供 unsigned IPA 测试包，便于真机安装验证
-- iOS 本地媒体导入更稳定，改进了 `.dat` 文件导入和目录扫描处理
-- iOS 播放已切换到 MobileVLCKit 后端，兼容性更稳定
-- 横屏播放布局与 KTV Shell 切换更稳定，减少预览区和控制层状态不一致
+<img src="docs/images/desktop-screen.png" alt="Maimai KTV song selection screen" width="900">
 
-## 平台支持
+</div>
 
-| 平台 | 当前状态 | 说明 |
-| --- | --- | --- |
-| Android | 已发布 APK | 当前功能最完整；支持本地歌库、百度网盘、原唱/伴唱切换，以及单音轨 KTV 视频资源 |
-| macOS | 已发布桌面包 | 适合桌面和大屏测试使用 |
-| Windows x64 | 已发布桌面包 | 已提供首个 Windows 桌面测试包 |
-| iOS | 已发布 unsigned IPA | 适合真机侧载测试；已支持本地媒体导入和当前播放器链路验证 |
+## Overview
 
-## 重要限制
+Maimai KTV brings song search, the play queue, video playback, vocal switching,
+cloud downloads, and library management into one landscape interface. It is
+designed for TVs, projected displays, desktop computers, tablets, and phones.
 
-- 仅 Android 支持单音轨 KTV 视频资源，其他平台暂不支持这类资源
-- 当前所有平台分发包都属于 Alpha 预发布版本，主要用于测试和验证
-- iOS 当前发布的是 `unsigned IPA`，用于测试交付，不是 App Store 正式分发包
+Bring your own karaoke video library, then browse by song or artist, search by
+Chinese text or Pinyin initials, and manage the whole singing session without
+leaving the songbook.
 
-## 核心功能
+> Maimai KTV does not include songs or provide a media service. You are
+> responsible for supplying and using media that you are authorized to access.
 
-### 多入口点歌
+## Features
 
-首页提供清晰的点歌入口，用户可以按不同习惯快速进入歌库：
+- **Fast song selection** - browse by song, artist, local library, favorites,
+  or frequently played tracks.
+- **Karaoke-friendly search** - search by song title, artist, Chinese text,
+  Pinyin initials, or local filename.
+- **Session controls** - play, pause, skip, restart, seek, enter fullscreen,
+  and switch between original vocals and accompaniment.
+- **Queue management** - see what is playing and what is next, move a song to
+  the top, or remove it from the queue.
+- **Multiple library sources** - scan local folders and connect WebDAV or
+  Baidu Netdisk libraries.
+- **Cloud download manager** - keep cloud songs in the queue while they
+  download, view progress, retry interrupted tasks, and manage downloaded
+  files.
+- **Personal library** - favorite songs and quickly return to frequently
+  played tracks.
+- **Localized interface** - use English, Simplified Chinese, or Traditional
+  Chinese, or follow the system language.
 
-- 按歌名点歌
-- 按歌星点歌
-- 浏览本地歌曲
-- 查看收藏歌曲
-- 查看常唱歌曲
+## Downloads
 
-### 智能搜索体验
+Maimai KTV is currently an **Alpha prerelease** intended for testing. Download
+the current packages from
+[GitHub Releases](https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.7).
 
-应用围绕点歌场景提供快速检索能力，减少翻页和查找成本：
+| Platform | Package | Notes |
+|---|---|---|
+| Android | APK (`arm64-v8a`, `armeabi-v7a`, `x86_64`, and universal) | Recommended; currently the most complete version |
+| macOS | ZIP archive | Extract the archive and open the app |
+| Windows x64 | ZIP archive | Extract the complete archive before launching |
+| iOS | Unsigned IPA | For sideloading and device testing; not an App Store build |
 
-- 支持按歌名搜索
-- 支持按歌手搜索
-- 支持中文和拼音首字母检索
-- 在本地歌曲场景下可按文件名辅助查找
+SHA-256 values for distributed files are published in the
+[update manifest](docs/public/latest.json).
 
-### 播放与控场
+## Getting Started
 
-围绕 KTV 使用过程中的高频操作，应用内提供完整的播放控制能力：
+1. Download and install the package for your device.
+2. Open **Settings** and choose a library source: a local folder, WebDAV, or
+   Baidu Netdisk.
+3. Select or import your karaoke video folder and wait for the scan to finish.
+4. Return to the home screen, find a song, and add it to the queue.
+5. During playback, use **Original**, **Accompaniment**, **Skip**, or
+   **Restart** as needed.
 
-- 播放 / 暂停
-- 切歌
-- 重唱
-- 原唱 / 伴唱切换
-- 当前播放状态展示
-- 大屏预览与全屏播放衔接
-- 横屏播放布局与控制层切换
+Cloud songs are downloaded before playback. Download progress remains visible
+in the song list and queue.
 
-这套控制能力适合包厢多人轮流点歌，也适合家庭场景下由一人统一控场。
+### Organize local files
 
-### 已点队列管理
+Structured filenames make the library easier to search. The recommended format
+is:
 
-点歌后，歌曲会进入统一的已点列表，方便随时查看和调整顺序：
+```text
+Artist-Song title-Language-Tag.ext
+```
 
-- 展示当前播放歌曲
-- 查看后续待播队列
-- 支持将歌曲置顶
-- 支持从队列中移除歌曲
-- 支持在已点列表内继续搜索
-- 下载中的歌曲会保留在列表中并展示进度
+For example:
 
-### 歌库来源
+```text
+Jay Chou-Qi Li Xiang-Mandarin-Pop.mp4
+```
 
-麦麦KTV支持多种歌曲来源，便于在不同使用环境下灵活组建歌库：
+Use `&` between multiple artists. Files that do not follow this format are
+still imported with a fallback title. See the
+[filename rules](docs/sqlite_song_import_rules.md) for details.
 
-- 本地目录歌曲
-- 百度网盘歌曲源
+## Platform Notes
 
-本地与云端歌曲可以纳入同一套点歌流程中，既适合已有本地曲库的场景，也适合按需从云端补充歌曲资源。
+- Android is the primary platform and currently has the broadest feature
+  coverage.
+- Only Android currently supports karaoke videos that store original vocals
+  and accompaniment as separate channels in a single audio track.
+- The iOS package is unsigned and requires your own sideloading/signing method.
+- All packages are prerelease builds. Back up important library metadata and
+  keep your original media files separately.
+- Cloud availability and download speed depend on the connected provider and
+  your account permissions.
 
-### 下载管理
+## Screenshots
 
-针对云端歌曲，应用内提供下载能力与任务管理能力：
+| Desktop and big screen | Phone and tablet |
+|---|---|
+| ![Desktop song selection](docs/images/desktop-screen.png) | ![Mobile song selection](docs/images/mobile-screen.jpg) |
 
-- 支持将云端歌曲下载到本地
-- 可查看未完成下载任务
-- 可查看已下载歌曲列表
-- 支持恢复下载、删除已下载内容等管理操作
-- 下载未完成前，歌曲会保持明确的排队和就绪状态
+## Documentation
 
-### 个性化歌单能力
+| Document | Description |
+|---|---|
+| [User Guide](https://maimai.0122.vip/guide/) | Installation, first launch, and everyday use |
+| [Release History](https://maimai.0122.vip/release-history) | Published versions and packages |
+| [Changelog](CHANGELOG.md) | User-visible changes by version |
+| [Android Build Guide](docs/android_build.md) | Build and package the Android app |
+| [Windows Build Guide](docs/windows_build.md) | Build and package the Windows app |
 
-为了提高复唱效率，应用内提供贴近 KTV 习惯的沉淀方式：
-
-- 收藏歌曲，方便重复点唱
-- 常唱歌曲聚合，快速回到熟悉曲目
-
-## 设置中心
-
-设置页围绕“歌库配置”和“日常使用准备”展开：
-
-- 配置本地歌曲目录
-- 登录并接入百度网盘
-- 设定云端歌曲根目录
-- 查看和管理下载内容
-- 查看关于页面和开源仓库入口
-
-## 典型使用流程
-
-1. 在设置中接入本地目录或百度网盘歌库
-2. 从首页进入歌名、歌星、本地、收藏或常唱入口
-3. 通过搜索快速找到目标歌曲并加入已点列表
-4. 在播放过程中随时切歌、重唱，或切换原唱与伴唱
-5. 对需要保留的云端歌曲执行下载，逐步沉淀为本地资源
-
-## 发布与获取
-
-- GitHub Releases: <https://github.com/voidvon/maimai-ktv/releases>
-- 当前预发布包已包含 Android APK、macOS 桌面包、Windows x64 桌面包和 iOS unsigned IPA
-- 版本变更记录见 [CHANGELOG.md](CHANGELOG.md)
-
-## 开发与验证
+## Development
 
 ```bash
 flutter pub get
@@ -138,28 +139,14 @@ flutter analyze
 flutter test
 ```
 
-按平台运行：
+Run the app with `flutter run -d android` or `flutter run -d macos`. To verify
+the bundled player package separately:
 
 ```bash
-flutter run -d android
-flutter run -d macos
+cd packages/ktv_player
+flutter analyze
+flutter test
 ```
 
-常用构建命令：
-
-```bash
-flutter build apk --release
-cd packages/ktv_player && flutter analyze && flutter test
-```
-
-更多平台构建说明可参考：
-
-- [Android 构建说明](docs/android_build.md)
-- [Windows 构建说明](docs/windows_build.md)
-- [Android 播放链路说明](docs/android_playback_notes.md)
-- [多平台更新策略](docs/app_update_strategy.md)
-- [发版与 latest.json 维护说明](docs/release_publish.md)
-
-## 产品价值
-
-麦麦KTV不是单纯的视频播放器，而是一套围绕“点歌 + 播放 + 下载 + 管理”完整展开的 KTV 使用体验。它希望把找歌更快、排队更清楚、播放更稳定、歌库更好管理这几件事统一起来，让用户更专注于唱歌本身。
+Issues and pull requests are welcome. Please include the affected platform,
+reproduction steps, and relevant logs when reporting playback problems.

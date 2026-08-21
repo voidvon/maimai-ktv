@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
+import '../../../core/localization/localization_extensions.dart';
 import '../../../core/models/artist.dart';
 
 class SongBookActionRow extends StatelessWidget {
@@ -42,7 +43,7 @@ class SongBookActionRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 ActionPill(
-                  label: '已点$queueCount',
+                  label: context.l10n.queuedCount(queueCount),
                   icon: Icons.queue_music_rounded,
                   onPressed: onQueuePressed,
                 ),
@@ -51,14 +52,14 @@ class SongBookActionRow extends StatelessWidget {
                   label:
                       controller.audioOutputMode ==
                           AudioOutputMode.accompaniment
-                      ? '原唱'
-                      : '伴唱',
+                      ? context.l10n.originalVocal
+                      : context.l10n.accompaniment,
                   icon: Icons.mic_rounded,
                   onPressed: controller.hasMedia ? onToggleAudioMode : null,
                 ),
                 const SizedBox(width: 4),
                 ActionPill(
-                  label: '切歌',
+                  label: context.l10n.skip,
                   icon: Icons.skip_next_rounded,
                   onPressed: controller.hasMedia || queueCount > 0
                       ? onSkipSong
@@ -66,7 +67,9 @@ class SongBookActionRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 ActionPill(
-                  label: controller.isPlaying ? '暂停' : '播放',
+                  label: controller.isPlaying
+                      ? context.l10n.pause
+                      : context.l10n.play,
                   icon: controller.isPlaying
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
@@ -74,13 +77,13 @@ class SongBookActionRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 ActionPill(
-                  label: '重唱',
+                  label: context.l10n.replay,
                   icon: Icons.replay_rounded,
                   onPressed: controller.hasMedia ? onRestartPlayback : null,
                 ),
                 const SizedBox(width: 4),
                 ActionPill(
-                  label: '设置',
+                  label: context.l10n.settings,
                   icon: Icons.settings_rounded,
                   onPressed: onSettingsPressed,
                 ),
@@ -531,7 +534,10 @@ class PaginationBar extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         spacing: 8,
         children: <Widget>[
-          _PaginationButton(label: '上一页', onPressed: onPrevious),
+          _PaginationButton(
+            label: context.l10n.previousPage,
+            onPressed: onPrevious,
+          ),
           Text(
             '$currentPage/$totalPages',
             style: const TextStyle(
@@ -540,7 +546,7 @@ class PaginationBar extends StatelessWidget {
               color: Color(0xCCFFF2FF),
             ),
           ),
-          _PaginationButton(label: '下一页', onPressed: onNext),
+          _PaginationButton(label: context.l10n.nextPage, onPressed: onNext),
         ],
       ),
     );

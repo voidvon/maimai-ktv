@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../core/localization/locale_controller.dart';
+import '../../../core/localization/localization_extensions.dart';
 import '../../../core/models/song.dart';
 import '../../../core/presentation/center_overlay_toast.dart';
 import '../../media_library/data/baidu_pan/baidu_pan_app_config.dart';
@@ -35,10 +37,12 @@ class KtvShell extends StatefulWidget {
     super.key,
     required this.controller,
     required this.updateController,
+    required this.localeController,
   });
 
   final KtvController controller;
   final UpdateController updateController;
+  final LocaleController localeController;
 
   @override
   State<KtvShell> createState() => _KtvShellState();
@@ -172,6 +176,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
                 webDavController: webDavController,
                 ktvController: _controller,
                 updateController: widget.updateController,
+                localeController: widget.localeController,
               );
             },
             fullscreenDialog: true,
@@ -234,7 +239,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       return;
     }
     if (!_controller.hasNextPlayableQueuedSong) {
-      CenterOverlayToast.showError(context, message: '暂无下一首');
+      CenterOverlayToast.showError(context, message: context.l10n.noNextSong);
       return;
     }
     unawaited(_controller.skipCurrentSong());
@@ -328,20 +333,29 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         await _controller.enqueuePendingSong(song);
         unawaited(_downloadSong(song));
         if (mounted) {
-          CenterOverlayToast.showSuccess(context, message: '已加入已点');
+          CenterOverlayToast.showSuccess(
+            context,
+            message: context.l10n.addedToQueue,
+          );
         }
         return;
       case SongSelectionAction.resumeDownload:
         await _controller.enqueuePendingSong(song);
         unawaited(_downloadSong(song));
         if (mounted) {
-          CenterOverlayToast.showSuccess(context, message: '已恢复下载');
+          CenterOverlayToast.showSuccess(
+            context,
+            message: context.l10n.downloadResumed,
+          );
         }
         return;
       case SongSelectionAction.downloading:
         await _controller.enqueuePendingSong(song);
         if (mounted) {
-          CenterOverlayToast.showSuccess(context, message: '正在下载');
+          CenterOverlayToast.showSuccess(
+            context,
+            message: context.l10n.downloading,
+          );
         }
         return;
     }
@@ -361,8 +375,8 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       }
       final String fileName = path.basename(result.savedPath);
       final String label = result.usedPreferredDirectory
-          ? '已下载到本地目录：$fileName'
-          : '已下载到应用目录：$fileName';
+          ? context.l10n.downloadedToLocalDirectory(fileName)
+          : context.l10n.downloadedToAppDirectory(fileName);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(label)));
@@ -371,11 +385,14 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         return;
       }
       if (error is CloudDownloadCancelledException) {
-        CenterOverlayToast.showSuccess(context, message: '已取消');
+        CenterOverlayToast.showSuccess(
+          context,
+          message: context.l10n.cancelled,
+        );
         return;
       }
       if (error is CloudDownloadPausedException) {
-        CenterOverlayToast.showSuccess(context, message: '已暂停');
+        CenterOverlayToast.showSuccess(context, message: context.l10n.paused);
         return;
       }
       if (_shouldSuppressDownloadError(downloadKey)) {
@@ -384,7 +401,10 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            buildDownloadErrorSummary(error.toString(), fallback: '下载失败'),
+            buildDownloadErrorSummary(
+              error.toString(),
+              fallback: context.l10n.downloadFailed,
+            ),
           ),
         ),
       );

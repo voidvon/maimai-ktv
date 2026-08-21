@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
+import '../../../core/localization/localization_extensions.dart';
 import '../application/ktv_controller.dart';
 import 'songbook_contracts.dart';
 import 'songbook_right_column.dart';
@@ -129,11 +130,11 @@ class _SongBookLeftColumnState extends State<SongBookLeftColumn> {
         _SongBookSearchField(
           controller: widget.searchController,
           placeholder: widget.route == KtvRoute.queueList
-              ? '搜索已点歌曲 / 歌手'
+              ? context.l10n.searchQueueHint
               : widget.songBookMode == SongBookMode.artists &&
                     widget.selectedArtist == null
-              ? '输入歌手名称'
-              : '输入歌名 / 中文 / 拼音首字母',
+              ? context.l10n.searchArtistHint
+              : context.l10n.searchSongHint,
           enableSystemKeyboard: !widget.showLetterKeyboard,
           onBackspacePressed: widget.onRemoveSearchCharacter,
           onClearPressed: widget.onClearSearch,

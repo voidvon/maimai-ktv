@@ -3,45 +3,46 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:ktv2/ktv2.dart';
 
+import '../../../core/localization/localization_extensions.dart';
 import 'shared_widgets.dart';
 import 'songbook_right_column_widgets.dart';
 
 const List<_HomeShortcut> _homeShortcuts = <_HomeShortcut>[
   _HomeShortcut(
-    label: '排行榜',
+    label: _HomeShortcutLabel.charts,
     icon: Icons.star_rounded,
     colors: <Color>[Color(0xFFFF7C93), Color(0xFFFF5372), Color(0xFFFF9A7A)],
   ),
   _HomeShortcut(
-    label: '歌名',
+    label: _HomeShortcutLabel.songs,
     icon: Icons.music_note_rounded,
     colors: <Color>[Color(0xFFFFD36A), Color(0xFFFFB245), Color(0xFFFF9566)],
     enabled: true,
     action: _HomeShortcutAction.songs,
   ),
   _HomeShortcut(
-    label: '歌星',
+    label: _HomeShortcutLabel.artists,
     icon: Icons.person_rounded,
     colors: <Color>[Color(0xFF9CC9FF), Color(0xFF89B2FF), Color(0xFF9571FF)],
     enabled: true,
     action: _HomeShortcutAction.artists,
   ),
   _HomeShortcut(
-    label: '本地',
+    label: _HomeShortcutLabel.local,
     icon: Icons.library_music_rounded,
     colors: <Color>[Color(0xFF65D8FF), Color(0xFF2E9DFF)],
     enabled: true,
     action: _HomeShortcutAction.local,
   ),
   _HomeShortcut(
-    label: '收藏',
+    label: _HomeShortcutLabel.favorites,
     icon: Icons.favorite_border_rounded,
     colors: <Color>[Color(0xFFF2AAFF), Color(0xFFC46BFF)],
     enabled: true,
     action: _HomeShortcutAction.favorites,
   ),
   _HomeShortcut(
-    label: '常唱',
+    label: _HomeShortcutLabel.frequent,
     icon: Icons.mic_external_on_rounded,
     colors: <Color>[Color(0xFFFFB8A8), Color(0xFFFF8B78)],
     enabled: true,
@@ -193,21 +194,21 @@ class LandscapeHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     const List<_HomeShortcut> previewRowShortcuts = <_HomeShortcut>[
       _HomeShortcut(
-        label: '常唱',
+        label: _HomeShortcutLabel.frequent,
         icon: Icons.mic_external_on_rounded,
         colors: <Color>[Color(0xFFFFB8A8), Color(0xFFFF8B78)],
         enabled: true,
         action: _HomeShortcutAction.frequent,
       ),
       _HomeShortcut(
-        label: '收藏',
+        label: _HomeShortcutLabel.favorites,
         icon: Icons.favorite_border_rounded,
         colors: <Color>[Color(0xFFF2AAFF), Color(0xFFC46BFF)],
         enabled: true,
         action: _HomeShortcutAction.favorites,
       ),
       _HomeShortcut(
-        label: '分类',
+        label: _HomeShortcutLabel.categories,
         icon: Icons.library_music_rounded,
         colors: <Color>[Color(0xFFAF9DFF), Color(0xFF8B6DFF)],
         enabled: true,
@@ -216,7 +217,7 @@ class LandscapeHomePage extends StatelessWidget {
     ];
     const List<_HomeShortcut> sideColumnShortcuts = <_HomeShortcut>[
       _HomeShortcut(
-        label: '排行榜',
+        label: _HomeShortcutLabel.charts,
         icon: Icons.star_rounded,
         colors: <Color>[
           Color(0xFFFF7C93),
@@ -225,7 +226,7 @@ class LandscapeHomePage extends StatelessWidget {
         ],
       ),
       _HomeShortcut(
-        label: '歌名',
+        label: _HomeShortcutLabel.songs,
         icon: Icons.music_note_rounded,
         colors: <Color>[
           Color(0xFFFFD36A),
@@ -236,7 +237,7 @@ class LandscapeHomePage extends StatelessWidget {
         action: _HomeShortcutAction.songs,
       ),
       _HomeShortcut(
-        label: '歌星',
+        label: _HomeShortcutLabel.artists,
         icon: Icons.person_rounded,
         colors: <Color>[
           Color(0xFF9CC9FF),
@@ -247,7 +248,7 @@ class LandscapeHomePage extends StatelessWidget {
         action: _HomeShortcutAction.artists,
       ),
       _HomeShortcut(
-        label: '本地',
+        label: _HomeShortcutLabel.local,
         icon: Icons.library_music_rounded,
         colors: <Color>[Color(0xFF65D8FF), Color(0xFF2E9DFF)],
         enabled: true,
@@ -462,9 +463,9 @@ class _HomeToolbar extends StatelessWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Text(
-                  '麦麦KTV',
-                  style: TextStyle(
+                Text(
+                  context.l10n.appName,
+                  style: const TextStyle(
                     color: Color(0xFFFFD85E),
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -486,9 +487,9 @@ class _HomeToolbar extends StatelessWidget {
             )
           : Row(
               children: <Widget>[
-                const Text(
-                  '麦麦KTV',
-                  style: TextStyle(
+                Text(
+                  context.l10n.appName,
+                  style: const TextStyle(
                     color: Color(0xFFFFD85E),
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -685,7 +686,7 @@ class _ShortcutCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      shortcut.label,
+                      _localizedShortcutLabel(context, shortcut.label),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -712,7 +713,7 @@ class _HomeShortcut {
     this.action,
   });
 
-  final String label;
+  final _HomeShortcutLabel label;
   final IconData icon;
   final List<Color> colors;
   final bool enabled;
@@ -720,3 +721,25 @@ class _HomeShortcut {
 }
 
 enum _HomeShortcutAction { songs, local, favorites, frequent, artists }
+
+enum _HomeShortcutLabel {
+  charts,
+  songs,
+  artists,
+  local,
+  favorites,
+  frequent,
+  categories,
+}
+
+String _localizedShortcutLabel(BuildContext context, _HomeShortcutLabel label) {
+  return switch (label) {
+    _HomeShortcutLabel.charts => context.l10n.charts,
+    _HomeShortcutLabel.songs => context.l10n.songTitle,
+    _HomeShortcutLabel.artists => context.l10n.artist,
+    _HomeShortcutLabel.local => context.l10n.local,
+    _HomeShortcutLabel.favorites => context.l10n.favorites,
+    _HomeShortcutLabel.frequent => context.l10n.frequent,
+    _HomeShortcutLabel.categories => context.l10n.categories,
+  };
+}
