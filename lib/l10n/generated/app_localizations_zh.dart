@@ -324,6 +324,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get selectDirectory => '选择目录';
 
   @override
+  String get chooseCurrentDirectory => '选择当前目录';
+
+  @override
+  String get noSubdirectories => '当前目录没有子目录。';
+
+  @override
+  String get retry => '重试';
+
+  @override
   String get selectVideo => '选择视频';
 
   @override
@@ -331,7 +340,48 @@ class AppLocalizationsZh extends AppLocalizations {
       '连接支持 WebDAV 的网盘、NAS 或私有云。局域网地址可以使用 HTTP，公网地址必须使用 HTTPS。账号密码仅保存在系统安全存储中。';
 
   @override
+  String get smbDescription =>
+      '连接 NAS 或 Windows 的 SMB 共享目录。默认协商 SMB 3.x（包括 3.0、3.0.2 和 3.1.1），强制消息签名，不回落到 SMB 2.x。用户名、密码和域可留空以使用访客访问。';
+
+  @override
+  String get smbWizardDescription =>
+      '输入服务器地址后，应用会自动查找可用共享。仅在服务器要求时登录，然后直接选择歌曲目录。';
+
+  @override
+  String get smbConnectServer => '连接服务器';
+
+  @override
+  String get smbLoginRequired => '服务器要求登录后才能继续';
+
+  @override
+  String get smbContinue => '继续';
+
+  @override
+  String get smbChooseSongFolder => '选择歌曲目录';
+
+  @override
+  String get smbNoFolderSelected => '尚未选择歌曲目录';
+
+  @override
+  String get smbUseAccount => '使用账号登录';
+
+  @override
+  String get smbChangeServer => '更换服务器';
+
+  @override
+  String get smbNoShares => '没有找到可浏览的共享文件夹。请确认账号具有访问权限。';
+
+  @override
   String get serverAddress => '服务器地址';
+
+  @override
+  String get smbHost => '主机名或 IP 地址';
+
+  @override
+  String get smbShare => '共享名称';
+
+  @override
+  String get smbDomain => '域（可选）';
 
   @override
   String get username => '用户名';
@@ -365,6 +415,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get clearWebDavConfiguration => '清空 WebDAV 配置';
+
+  @override
+  String get clearSmbConfiguration => '清空 SMB 配置';
 
   @override
   String pendingDownloadsTab(int count) {
@@ -922,6 +975,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get selectDirectory => '選擇目錄';
 
   @override
+  String get chooseCurrentDirectory => '選擇目前目錄';
+
+  @override
+  String get noSubdirectories => '目前目錄沒有子目錄。';
+
+  @override
+  String get retry => '重試';
+
+  @override
   String get selectVideo => '選擇影片';
 
   @override
@@ -929,7 +991,48 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '連接支援 WebDAV 的網盤、NAS 或私有雲。區域網路地址可以使用 HTTP，公網地址必須使用 HTTPS。帳號密碼只會保存在系統安全儲存空間中。';
 
   @override
+  String get smbDescription =>
+      '連接 NAS 或 Windows 的 SMB 共用資料夾。預設協商 SMB 3.x（包括 3.0、3.0.2 及 3.1.1），強制訊息簽章，不回落到 SMB 2.x。使用者名稱、密碼及網域可留空以使用訪客存取。';
+
+  @override
+  String get smbWizardDescription =>
+      '輸入伺服器地址後，應用程式會自動尋找可用共用資料夾。只在伺服器要求時登入，然後直接選擇歌曲目錄。';
+
+  @override
+  String get smbConnectServer => '連接伺服器';
+
+  @override
+  String get smbLoginRequired => '伺服器要求登入後才能繼續';
+
+  @override
+  String get smbContinue => '繼續';
+
+  @override
+  String get smbChooseSongFolder => '選擇歌曲目錄';
+
+  @override
+  String get smbNoFolderSelected => '尚未選擇歌曲目錄';
+
+  @override
+  String get smbUseAccount => '使用帳號登入';
+
+  @override
+  String get smbChangeServer => '更換伺服器';
+
+  @override
+  String get smbNoShares => '找不到可瀏覽的共用資料夾。請確認帳號具有存取權限。';
+
+  @override
   String get serverAddress => '伺服器地址';
+
+  @override
+  String get smbHost => '主機名稱或 IP 位址';
+
+  @override
+  String get smbShare => '共用名稱';
+
+  @override
+  String get smbDomain => '網域（選填）';
 
   @override
   String get username => '使用者名稱';
@@ -963,6 +1066,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get clearWebDavConfiguration => '清除 WebDAV 設定';
+
+  @override
+  String get clearSmbConfiguration => '清除 SMB 設定';
 
   @override
   String pendingDownloadsTab(int count) {

@@ -693,6 +693,24 @@ abstract class AppLocalizations {
   /// **'选择目录'**
   String get selectDirectory;
 
+  /// No description provided for @chooseCurrentDirectory.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择当前目录'**
+  String get chooseCurrentDirectory;
+
+  /// No description provided for @noSubdirectories.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前目录没有子目录。'**
+  String get noSubdirectories;
+
+  /// No description provided for @retry.
+  ///
+  /// In zh, this message translates to:
+  /// **'重试'**
+  String get retry;
+
   /// No description provided for @selectVideo.
   ///
   /// In zh, this message translates to:
@@ -705,11 +723,89 @@ abstract class AppLocalizations {
   /// **'连接支持 WebDAV 的网盘、NAS 或私有云。局域网地址可以使用 HTTP，公网地址必须使用 HTTPS。账号密码仅保存在系统安全存储中。'**
   String get webDavDescription;
 
+  /// No description provided for @smbDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接 NAS 或 Windows 的 SMB 共享目录。默认协商 SMB 3.x（包括 3.0、3.0.2 和 3.1.1），强制消息签名，不回落到 SMB 2.x。用户名、密码和域可留空以使用访客访问。'**
+  String get smbDescription;
+
+  /// No description provided for @smbWizardDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入服务器地址后，应用会自动查找可用共享。仅在服务器要求时登录，然后直接选择歌曲目录。'**
+  String get smbWizardDescription;
+
+  /// No description provided for @smbConnectServer.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接服务器'**
+  String get smbConnectServer;
+
+  /// No description provided for @smbLoginRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器要求登录后才能继续'**
+  String get smbLoginRequired;
+
+  /// No description provided for @smbContinue.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续'**
+  String get smbContinue;
+
+  /// No description provided for @smbChooseSongFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择歌曲目录'**
+  String get smbChooseSongFolder;
+
+  /// No description provided for @smbNoFolderSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未选择歌曲目录'**
+  String get smbNoFolderSelected;
+
+  /// No description provided for @smbUseAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用账号登录'**
+  String get smbUseAccount;
+
+  /// No description provided for @smbChangeServer.
+  ///
+  /// In zh, this message translates to:
+  /// **'更换服务器'**
+  String get smbChangeServer;
+
+  /// No description provided for @smbNoShares.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到可浏览的共享文件夹。请确认账号具有访问权限。'**
+  String get smbNoShares;
+
   /// No description provided for @serverAddress.
   ///
   /// In zh, this message translates to:
   /// **'服务器地址'**
   String get serverAddress;
+
+  /// No description provided for @smbHost.
+  ///
+  /// In zh, this message translates to:
+  /// **'主机名或 IP 地址'**
+  String get smbHost;
+
+  /// No description provided for @smbShare.
+  ///
+  /// In zh, this message translates to:
+  /// **'共享名称'**
+  String get smbShare;
+
+  /// No description provided for @smbDomain.
+  ///
+  /// In zh, this message translates to:
+  /// **'域（可选）'**
+  String get smbDomain;
 
   /// No description provided for @username.
   ///
@@ -776,6 +872,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'清空 WebDAV 配置'**
   String get clearWebDavConfiguration;
+
+  /// No description provided for @clearSmbConfiguration.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空 SMB 配置'**
+  String get clearSmbConfiguration;
 
   /// No description provided for @pendingDownloadsTab.
   ///

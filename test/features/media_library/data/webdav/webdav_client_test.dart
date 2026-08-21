@@ -75,6 +75,30 @@ void main() {
 
     expect(await partial.readAsString(), 'abcdef');
   });
+
+  test('lists only WebDAV directories for the folder picker', () async {
+    final HttpServer server = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    addTearDown(() => server.close(force: true));
+    server.listen((HttpRequest request) async {
+      expect(request.method, 'PROPFIND');
+      await request.drain<void>();
+      request.response.statusCode = HttpStatus.multiStatus;
+      request.response.headers.contentType = ContentType('application', 'xml');
+      request.response.write(_rootListing);
+      await request.response.close();
+    });
+
+    final List<WebDavRemoteFile> directories = await _buildClient(
+      server.port,
+    ).listDirectories(path: '/KTV');
+
+    expect(directories.map((WebDavRemoteFile file) => file.path), <String>[
+      '/KTV/sub',
+    ]);
+  });
 }
 
 WebDavClient _buildClient(int port) {

@@ -12,11 +12,14 @@ import '../../ktv/application/download_manager_models.dart';
 import '../../ktv/application/ktv_controller.dart';
 import '../../media_library/data/baidu_pan/baidu_pan_models.dart';
 import '../../media_library/data/cloud/cloud_playback_cache.dart';
+import '../../media_library/data/smb/smb_models.dart';
+import '../../media_library/data/webdav/webdav_models.dart';
 import '../../update/application/update_controller.dart';
 import '../../update/domain/update_check_result.dart';
 import '../application/baidu_pan_settings_controller.dart';
 import '../data/qr_image_save_data_source.dart';
 import '../application/settings_controller.dart';
+import '../application/smb_settings_controller.dart';
 import '../application/webdav_settings_controller.dart';
 
 class SettingsPageResult {
@@ -35,6 +38,7 @@ class SettingsPage extends StatelessWidget {
     required this.controller,
     required this.baiduPanController,
     required this.webDavController,
+    required this.smbController,
     required this.ktvController,
     required this.updateController,
     required this.localeController,
@@ -43,6 +47,7 @@ class SettingsPage extends StatelessWidget {
   final SettingsController controller;
   final BaiduPanSettingsController baiduPanController;
   final WebDavSettingsController webDavController;
+  final SmbSettingsController smbController;
   final KtvController ktvController;
   final UpdateController updateController;
   final LocaleController localeController;
@@ -111,6 +116,7 @@ class SettingsPage extends StatelessWidget {
                     controller,
                     baiduPanController,
                     webDavController,
+                    smbController,
                     ktvController,
                     updateController,
                   ]),
@@ -118,6 +124,7 @@ class SettingsPage extends StatelessWidget {
                     final bool baiduPanReady =
                         baiduPanController.canRefreshRemoteFolder;
                     final bool webDavReady = webDavController.isConfigured;
+                    final bool smbReady = smbController.isConfigured;
                     final String? baiduPanRootPath =
                         baiduPanController.rootPath;
                     final int downloadingCount =
@@ -173,6 +180,36 @@ class SettingsPage extends StatelessWidget {
                                     builder: (BuildContext context) {
                                       return _WebDavSettingsPage(
                                         controller: webDavController,
+                                      );
+                                    },
+                                  ),
+                                );
+                            if (!context.mounted || result == null) {
+                              return;
+                            }
+                            Navigator.of(context).pop(result);
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _SettingsEntryCard(
+                          title: 'SMB',
+                          subtitle: smbController.isLoading
+                              ? context.l10n.loading
+                              : smbReady
+                              ? context.l10n.configuredPath(
+                                  '${smbController.share}${smbController.rootPath}',
+                                )
+                              : context.l10n.notConfigured,
+                          icon: Icons.storage_rounded,
+                          onTap: () async {
+                            final SettingsPageResult? result =
+                                await Navigator.of(
+                                  context,
+                                ).push<SettingsPageResult>(
+                                  MaterialPageRoute<SettingsPageResult>(
+                                    builder: (BuildContext context) {
+                                      return _SmbSettingsPage(
+                                        controller: smbController,
                                       );
                                     },
                                   ),
@@ -1145,6 +1182,714 @@ class _LocalDirectorySettingsPageState
   }
 }
 
+class _SmbSettingsPage extends StatefulWidget {
+  const _SmbSettingsPage({required this.controller});
+
+  final SmbSettingsController controller;
+
+  @override
+  State<_SmbSettingsPage> createState() => _SmbSettingsPageState();
+}
+
+class _SmbSettingsPageState extends State<_SmbSettingsPage> {
+  late final TextEditingController _hostController = TextEditingController(
+    text: widget.controller.host ?? '',
+  );
+  late final TextEditingController _domainController = TextEditingController(
+    text: widget.controller.domain ?? '',
+  );
+  late final TextEditingController _usernameController = TextEditingController(
+    text: widget.controller.username ?? '',
+  );
+  final TextEditingController _passwordController = TextEditingController();
+  late final TextEditingController _rootController = TextEditingController(
+    text: widget.controller.rootPath ?? '/',
+  );
+  late _SmbSetupStep _step = widget.controller.isConfigured
+      ? _SmbSetupStep.location
+      : _SmbSetupStep.server;
+  late bool _useCredentials =
+      widget.controller.username?.trim().isNotEmpty == true;
+  String? _selectedShare;
+  List<SmbShare> _shares = const <SmbShare>[];
+  String? _pageError;
+  bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedShare = widget.controller.share;
+  }
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _domainController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _rootController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.controller,
+      builder: (BuildContext context, _) {
+        final bool busy =
+            widget.controller.isLoading ||
+            widget.controller.isSaving ||
+            widget.controller.isTesting ||
+            widget.controller.isBrowsing;
+        return Scaffold(
+          backgroundColor: const Color(0xFF0A0014),
+          appBar: AppBar(
+            title: const Text('SMB'),
+            backgroundColor: Colors.transparent,
+          ),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: <Widget>[
+                    Text(
+                      context.l10n.smbWizardDescription,
+                      style: const TextStyle(height: 1.5),
+                    ),
+                    const SizedBox(height: 18),
+                    _buildStep(context, busy),
+                    if (widget.controller.isConfigured) ...<Widget>[
+                      const SizedBox(height: 12),
+                      TextButton.icon(
+                        onPressed: busy ? null : _clearSettings,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: Text(context.l10n.clearSmbConfiguration),
+                      ),
+                    ],
+                    if (_pageError != null) ...<Widget>[
+                      const SizedBox(height: 14),
+                      _WebDavStatusMessage(message: _pageError!, isError: true),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStep(BuildContext context, bool busy) {
+    return switch (_step) {
+      _SmbSetupStep.server => _buildServerStep(context, busy),
+      _SmbSetupStep.credentials => _buildCredentialsStep(context, busy),
+      _SmbSetupStep.location => _buildLocationStep(context, busy),
+    };
+  }
+
+  Widget _buildServerStep(BuildContext context, bool busy) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        TextField(
+          controller: _hostController,
+          enabled: !busy,
+          autocorrect: false,
+          decoration: InputDecoration(
+            labelText: context.l10n.smbHost,
+            hintText: '192.168.1.10',
+            prefixIcon: const Icon(Icons.dns_rounded),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 18),
+        FilledButton.icon(
+          onPressed: busy ? null : _connectAnonymously,
+          icon: busy
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.arrow_forward_rounded),
+          label: Text(context.l10n.smbConnectServer),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCredentialsStep(BuildContext context, bool busy) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.dns_rounded),
+          title: Text(_hostController.text.trim()),
+          subtitle: Text(context.l10n.smbLoginRequired),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _usernameController,
+          enabled: !busy,
+          autocorrect: false,
+          decoration: InputDecoration(
+            labelText: context.l10n.username,
+            prefixIcon: const Icon(Icons.person_outline_rounded),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _passwordController,
+          enabled: !busy,
+          obscureText: _obscurePassword,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: InputDecoration(
+            labelText: widget.controller.hasPassword
+                ? context.l10n.passwordKeepHint
+                : context.l10n.password,
+            prefixIcon: const Icon(Icons.lock_outline_rounded),
+            suffixIcon: IconButton(
+              tooltip: _obscurePassword
+                  ? context.l10n.showPassword
+                  : context.l10n.hidePassword,
+              onPressed: () => setState(() {
+                _obscurePassword = !_obscurePassword;
+              }),
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+              ),
+            ),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _domainController,
+          enabled: !busy,
+          autocorrect: false,
+          decoration: InputDecoration(
+            labelText: context.l10n.smbDomain,
+            prefixIcon: const Icon(Icons.corporate_fare_rounded),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: <Widget>[
+            IconButton(
+              tooltip: context.l10n.back,
+              onPressed: busy ? null : () => _goToServerStep(),
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: busy ? null : _connectWithCredentials,
+                icon: busy
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.login_rounded),
+                label: Text(context.l10n.smbContinue),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLocationStep(BuildContext context, bool busy) {
+    final String? share = _selectedShare;
+    final String selectedLocation = share == null
+        ? context.l10n.smbNoFolderSelected
+        : _displayLocation(share, _rootController.text);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.folder_open_rounded),
+          title: Text(context.l10n.songRootDirectory),
+          subtitle: Text(selectedLocation),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: busy ? null : _chooseLocation,
+          icon: const Icon(Icons.drive_file_move_outline),
+          label: Text(context.l10n.smbChooseSongFolder),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: busy ? null : _showCredentials,
+          icon: const Icon(Icons.person_outline_rounded),
+          label: Text(context.l10n.smbUseAccount),
+        ),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: busy ? null : _goToServerStep,
+          icon: const Icon(Icons.dns_outlined),
+          label: Text(context.l10n.smbChangeServer),
+        ),
+        if (share != null) ...<Widget>[
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: busy ? null : _saveAndScan,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFFF6E67),
+            ),
+            icon: const Icon(Icons.save_rounded),
+            label: Text(
+              widget.controller.isSaving
+                  ? context.l10n.saving
+                  : context.l10n.saveAndScan,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _connectAnonymously() async {
+    final bool connected = await _loadShares(authenticated: false);
+    if (!mounted) {
+      return;
+    }
+    if (!connected) {
+      setState(() {
+        _step = _SmbSetupStep.credentials;
+        _pageError = null;
+      });
+      return;
+    }
+    _usernameController.clear();
+    _passwordController.clear();
+    _domainController.clear();
+    _useCredentials = false;
+    await _chooseLocation();
+  }
+
+  Future<void> _connectWithCredentials() async {
+    final bool connected = await _loadShares(authenticated: true);
+    if (!connected || !mounted) {
+      return;
+    }
+    _useCredentials = true;
+    await _chooseLocation();
+  }
+
+  Future<bool> _loadShares({required bool authenticated}) async {
+    setState(() {
+      _pageError = null;
+    });
+    try {
+      final List<SmbShare> shares = await widget.controller.listShares(
+        host: _hostController.text,
+        username: authenticated ? _usernameController.text : '',
+        password: authenticated ? _passwordController.text : '',
+        domain: authenticated ? _domainController.text : '',
+        useStoredPassword: authenticated,
+      );
+      shares.sort(
+        (SmbShare left, SmbShare right) =>
+            left.name.toLowerCase().compareTo(right.name.toLowerCase()),
+      );
+      if (!mounted) {
+        return false;
+      }
+      if (shares.isEmpty) {
+        setState(() {
+          _pageError = context.l10n.smbNoShares;
+        });
+        return false;
+      }
+      setState(() {
+        _shares = shares;
+        _step = _SmbSetupStep.location;
+      });
+      return true;
+    } catch (_) {
+      if (mounted && authenticated) {
+        setState(() {
+          _pageError = widget.controller.errorMessage;
+        });
+      }
+      return false;
+    }
+  }
+
+  Future<void> _chooseLocation() async {
+    if (_shares.isEmpty) {
+      final bool loaded = await _loadShares(authenticated: _useCredentials);
+      if (!loaded || !mounted) {
+        return;
+      }
+    }
+    final _SmbLocationSelection? selection =
+        await showDialog<_SmbLocationSelection>(
+          context: context,
+          builder: (BuildContext context) => _SmbLocationPickerDialog(
+            controller: widget.controller,
+            host: _hostController.text,
+            shares: _shares,
+            username: _useCredentials ? _usernameController.text : '',
+            password: _useCredentials ? _passwordController.text : '',
+            domain: _useCredentials ? _domainController.text : '',
+            initialShare: _selectedShare,
+            initialPath: _rootController.text,
+          ),
+        );
+    if (selection == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _selectedShare = selection.share;
+      _rootController.text = selection.path;
+      _pageError = null;
+    });
+  }
+
+  Future<void> _saveAndScan() async {
+    final String? share = _selectedShare;
+    if (share == null) {
+      return;
+    }
+    final bool saved = await widget.controller.saveSettings(
+      host: _hostController.text,
+      share: share,
+      domain: _domainController.text,
+      username: _usernameController.text,
+      password: _passwordController.text,
+      rootPath: _rootController.text,
+    );
+    if (!saved || !mounted) {
+      return;
+    }
+    Navigator.of(
+      context,
+    ).pop(const SettingsPageResult(refreshAggregatedSources: true));
+  }
+
+  Future<void> _clearSettings() async {
+    await widget.controller.clearSettings();
+    if (!mounted) {
+      return;
+    }
+    _hostController.clear();
+    _domainController.clear();
+    _usernameController.clear();
+    _passwordController.clear();
+    _rootController.text = '/';
+    Navigator.of(
+      context,
+    ).pop(const SettingsPageResult(refreshAggregatedSources: true));
+  }
+
+  void _showCredentials() {
+    setState(() {
+      _step = _SmbSetupStep.credentials;
+      _pageError = null;
+    });
+  }
+
+  void _goToServerStep() {
+    setState(() {
+      _step = _SmbSetupStep.server;
+      _shares = const <SmbShare>[];
+      _selectedShare = null;
+      _rootController.text = '/';
+      _pageError = null;
+    });
+  }
+
+  String _displayLocation(String share, String path) {
+    final String suffix = path == '/' ? '' : path;
+    return 'smb://${_hostController.text.trim()}/$share$suffix';
+  }
+}
+
+enum _SmbSetupStep { server, credentials, location }
+
+class _SmbLocationSelection {
+  const _SmbLocationSelection({required this.share, required this.path});
+
+  final String share;
+  final String path;
+}
+
+class _SmbLocationPickerDialog extends StatefulWidget {
+  const _SmbLocationPickerDialog({
+    required this.controller,
+    required this.host,
+    required this.shares,
+    required this.username,
+    required this.password,
+    required this.domain,
+    required this.initialShare,
+    required this.initialPath,
+  });
+
+  final SmbSettingsController controller;
+  final String host;
+  final List<SmbShare> shares;
+  final String username;
+  final String password;
+  final String domain;
+  final String? initialShare;
+  final String initialPath;
+
+  @override
+  State<_SmbLocationPickerDialog> createState() =>
+      _SmbLocationPickerDialogState();
+}
+
+class _SmbLocationPickerDialogState extends State<_SmbLocationPickerDialog> {
+  late String? _share =
+      widget.shares.any((SmbShare share) => share.name == widget.initialShare)
+      ? widget.initialShare
+      : null;
+  late String _path = _share == null ? '/' : _normalizePath(widget.initialPath);
+  List<SmbRemoteFile> _directories = const <SmbRemoteFile>[];
+  Object? _error;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_share != null) {
+      unawaited(_loadDirectories(_path));
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.l10n.selectDirectory),
+      content: SizedBox(
+        width: 520,
+        height: 420,
+        child: Column(
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                IconButton(
+                  tooltip: context.l10n.back,
+                  onPressed: _share == null || _isLoading
+                      ? null
+                      : _path == '/'
+                      ? _showShares
+                      : () => _loadDirectories(_parentPath(_path)),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                Expanded(
+                  child: Text(
+                    _locationLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  tooltip: context.l10n.retry,
+                  onPressed: _isLoading
+                      ? null
+                      : _share == null
+                      ? null
+                      : () => _loadDirectories(_path),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            Expanded(child: _buildDirectoryBody(context)),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          child: Text(context.l10n.cancel),
+        ),
+        FilledButton.icon(
+          onPressed: _isLoading || _share == null
+              ? null
+              : () => Navigator.pop(
+                  context,
+                  _SmbLocationSelection(share: _share!, path: _path),
+                ),
+          icon: const Icon(Icons.folder_open),
+          label: Text(context.l10n.chooseCurrentDirectory),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDirectoryBody(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_share == null) {
+      return ListView.separated(
+        itemCount: widget.shares.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (BuildContext context, int index) {
+          final SmbShare share = widget.shares[index];
+          return ListTile(
+            leading: const Icon(Icons.storage_rounded),
+            title: Text(share.name),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              setState(() {
+                _share = share.name;
+                _path = '/';
+              });
+              _loadDirectories('/');
+            },
+          );
+        },
+      );
+    }
+    final Object? error = _error;
+    if (error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.error_outline, size: 32),
+            const SizedBox(height: 10),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(height: 1.4),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () => _loadDirectories(_path),
+              icon: const Icon(Icons.refresh),
+              label: Text(context.l10n.retry),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_directories.isEmpty) {
+      return Center(child: Text(context.l10n.noSubdirectories));
+    }
+    return ListView.separated(
+      itemCount: _directories.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (BuildContext context, int index) {
+        final SmbRemoteFile directory = _directories[index];
+        return ListTile(
+          leading: const Icon(Icons.folder_outlined),
+          title: Text(
+            directory.serverFilename,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _loadDirectories(directory.path),
+        );
+      },
+    );
+  }
+
+  Future<void> _loadDirectories(String path) async {
+    final String normalizedPath = _normalizePath(path);
+    setState(() {
+      _path = normalizedPath;
+      _directories = const <SmbRemoteFile>[];
+      _error = null;
+      _isLoading = true;
+    });
+    try {
+      final List<SmbRemoteFile> directories = await widget.controller
+          .listDirectories(
+            host: widget.host,
+            share: _share!,
+            username: widget.username,
+            password: widget.password,
+            domain: widget.domain,
+            path: normalizedPath,
+          );
+      directories.sort(
+        (SmbRemoteFile left, SmbRemoteFile right) => left.serverFilename
+            .toLowerCase()
+            .compareTo(right.serverFilename.toLowerCase()),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _directories = directories;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error;
+        _isLoading = false;
+      });
+    }
+  }
+
+  String get _locationLabel {
+    final String? share = _share;
+    if (share == null) {
+      return 'smb://${widget.host.trim()}';
+    }
+    final String suffix = _path == '/' ? '' : _path;
+    return 'smb://${widget.host.trim()}/$share$suffix';
+  }
+
+  void _showShares() {
+    setState(() {
+      _share = null;
+      _path = '/';
+      _directories = const <SmbRemoteFile>[];
+      _error = null;
+      _isLoading = false;
+    });
+  }
+
+  String _parentPath(String path) {
+    if (path == '/') {
+      return '/';
+    }
+    final List<String> segments = path
+        .split('/')
+        .where((String segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    if (segments.length <= 1) {
+      return '/';
+    }
+    return '/${segments.sublist(0, segments.length - 1).join('/')}';
+  }
+
+  String _normalizePath(String value) {
+    final List<String> segments = value
+        .trim()
+        .replaceAll('\\', '/')
+        .split('/')
+        .where((String segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    return segments.isEmpty ? '/' : '/${segments.join('/')}';
+  }
+}
+
 class _WebDavSettingsPage extends StatefulWidget {
   const _WebDavSettingsPage({required this.controller});
 
@@ -1184,7 +1929,8 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
         final bool busy =
             widget.controller.isLoading ||
             widget.controller.isSaving ||
-            widget.controller.isTesting;
+            widget.controller.isTesting ||
+            widget.controller.isBrowsing;
         return Scaffold(
           backgroundColor: const Color(0xFF0A0014),
           appBar: AppBar(
@@ -1261,11 +2007,19 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                     TextField(
                       controller: _rootController,
                       enabled: !busy,
+                      readOnly: true,
+                      showCursor: false,
+                      onTap: _chooseRootDirectory,
                       autocorrect: false,
                       decoration: InputDecoration(
                         labelText: context.l10n.songRootDirectory,
                         hintText: '/KTV',
                         prefixIcon: const Icon(Icons.folder_open_rounded),
+                        suffixIcon: IconButton(
+                          tooltip: context.l10n.selectDirectory,
+                          onPressed: busy ? null : _chooseRootDirectory,
+                          icon: const Icon(Icons.drive_file_move_outline),
+                        ),
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -1348,6 +2102,28 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
     );
   }
 
+  Future<void> _chooseRootDirectory() async {
+    if (widget.controller.isLoading ||
+        widget.controller.isSaving ||
+        widget.controller.isTesting ||
+        widget.controller.isBrowsing) {
+      return;
+    }
+    final String? selectedPath = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) => _WebDavDirectoryPickerDialog(
+        controller: widget.controller,
+        serverUrl: _serverController.text,
+        username: _usernameController.text,
+        password: _passwordController.text,
+        initialPath: _rootController.text,
+      ),
+    );
+    if (selectedPath != null && mounted) {
+      _rootController.text = selectedPath;
+    }
+  }
+
   Future<void> _saveAndScan() async {
     final bool saved = await widget.controller.saveSettings(
       serverUrl: _serverController.text,
@@ -1375,6 +2151,204 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
     Navigator.of(
       context,
     ).pop(const SettingsPageResult(refreshAggregatedSources: true));
+  }
+}
+
+class _WebDavDirectoryPickerDialog extends StatefulWidget {
+  const _WebDavDirectoryPickerDialog({
+    required this.controller,
+    required this.serverUrl,
+    required this.username,
+    required this.password,
+    required this.initialPath,
+  });
+
+  final WebDavSettingsController controller;
+  final String serverUrl;
+  final String username;
+  final String password;
+  final String initialPath;
+
+  @override
+  State<_WebDavDirectoryPickerDialog> createState() =>
+      _WebDavDirectoryPickerDialogState();
+}
+
+class _WebDavDirectoryPickerDialogState
+    extends State<_WebDavDirectoryPickerDialog> {
+  late String _path = _normalizePath(widget.initialPath);
+  List<WebDavRemoteFile> _directories = const <WebDavRemoteFile>[];
+  Object? _error;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadDirectories(_path));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(context.l10n.selectDirectory),
+      content: SizedBox(
+        width: 520,
+        height: 420,
+        child: Column(
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                IconButton(
+                  tooltip: context.l10n.back,
+                  onPressed: _path == '/' || _isLoading
+                      ? null
+                      : () => _loadDirectories(_parentPath(_path)),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                Expanded(
+                  child: Text(
+                    _path,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  tooltip: context.l10n.retry,
+                  onPressed: _isLoading ? null : () => _loadDirectories(_path),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            Expanded(child: _buildDirectoryBody(context)),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          child: Text(context.l10n.cancel),
+        ),
+        FilledButton.icon(
+          onPressed: _isLoading ? null : () => Navigator.pop(context, _path),
+          icon: const Icon(Icons.folder_open),
+          label: Text(context.l10n.chooseCurrentDirectory),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDirectoryBody(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final Object? error = _error;
+    if (error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.error_outline, size: 32),
+            const SizedBox(height: 10),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(height: 1.4),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () => _loadDirectories(_path),
+              icon: const Icon(Icons.refresh),
+              label: Text(context.l10n.retry),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_directories.isEmpty) {
+      return Center(child: Text(context.l10n.noSubdirectories));
+    }
+    return ListView.separated(
+      itemCount: _directories.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (BuildContext context, int index) {
+        final WebDavRemoteFile directory = _directories[index];
+        return ListTile(
+          leading: const Icon(Icons.folder_outlined),
+          title: Text(
+            directory.serverFilename,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _loadDirectories(directory.path),
+        );
+      },
+    );
+  }
+
+  Future<void> _loadDirectories(String path) async {
+    final String normalizedPath = _normalizePath(path);
+    setState(() {
+      _path = normalizedPath;
+      _directories = const <WebDavRemoteFile>[];
+      _error = null;
+      _isLoading = true;
+    });
+    try {
+      final List<WebDavRemoteFile> directories = await widget.controller
+          .listDirectories(
+            serverUrl: widget.serverUrl,
+            username: widget.username,
+            password: widget.password,
+            path: normalizedPath,
+          );
+      directories.sort(
+        (WebDavRemoteFile left, WebDavRemoteFile right) => left.serverFilename
+            .toLowerCase()
+            .compareTo(right.serverFilename.toLowerCase()),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _directories = directories;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error;
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _parentPath(String path) {
+    if (path == '/') {
+      return '/';
+    }
+    final List<String> segments = path
+        .split('/')
+        .where((String segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    if (segments.length <= 1) {
+      return '/';
+    }
+    return '/${segments.sublist(0, segments.length - 1).join('/')}';
+  }
+
+  String _normalizePath(String value) {
+    final List<String> segments = value
+        .trim()
+        .split('/')
+        .where((String segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    return segments.isEmpty ? '/' : '/${segments.join('/')}';
   }
 }
 

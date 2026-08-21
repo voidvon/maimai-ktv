@@ -334,6 +334,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectDirectory => 'Choose folder';
 
   @override
+  String get chooseCurrentDirectory => 'Choose this folder';
+
+  @override
+  String get noSubdirectories => 'No subfolders in this folder.';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
   String get selectVideo => 'Choose video';
 
   @override
@@ -341,7 +350,49 @@ class AppLocalizationsEn extends AppLocalizations {
       'Connect a WebDAV drive, NAS, or private cloud. HTTP is allowed for local network addresses; public addresses must use HTTPS. Credentials are stored only in secure system storage.';
 
   @override
+  String get smbDescription =>
+      'Connect to an SMB share on a NAS or Windows computer. SMB 3.x is negotiated by default, including 3.0, 3.0.2, and 3.1.1. Message signing is required and SMB 2.x fallback is disabled. Leave username, password, and domain blank for guest access.';
+
+  @override
+  String get smbWizardDescription =>
+      'Enter the server address and the app will find available shares. Sign in only when required, then choose the song folder directly.';
+
+  @override
+  String get smbConnectServer => 'Connect to server';
+
+  @override
+  String get smbLoginRequired => 'Sign in to this server to continue';
+
+  @override
+  String get smbContinue => 'Continue';
+
+  @override
+  String get smbChooseSongFolder => 'Choose song folder';
+
+  @override
+  String get smbNoFolderSelected => 'No song folder selected';
+
+  @override
+  String get smbUseAccount => 'Sign in with an account';
+
+  @override
+  String get smbChangeServer => 'Change server';
+
+  @override
+  String get smbNoShares =>
+      'No browsable shared folders were found. Check that this account has access.';
+
+  @override
   String get serverAddress => 'Server address';
+
+  @override
+  String get smbHost => 'Hostname or IP address';
+
+  @override
+  String get smbShare => 'Share name';
+
+  @override
+  String get smbDomain => 'Domain (optional)';
 
   @override
   String get username => 'Username';
@@ -375,6 +426,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get clearWebDavConfiguration => 'Clear WebDAV configuration';
+
+  @override
+  String get clearSmbConfiguration => 'Clear SMB configuration';
 
   @override
   String pendingDownloadsTab(int count) {

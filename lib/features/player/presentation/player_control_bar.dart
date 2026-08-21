@@ -53,36 +53,6 @@ class PlayerControlBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              IconButton(
-                tooltip: context.l10n.pitchDown,
-                onPressed:
-                    controller.hasMedia &&
-                        controller.pitchShiftSemitones >
-                            PlayerController.minPitchShiftSemitones
-                    ? () => controller.shiftPitchBy(-1)
-                    : null,
-                icon: const Icon(Icons.remove_rounded),
-              ),
-              TextButton.icon(
-                onPressed: controller.hasMedia
-                    ? controller.resetPitchShift
-                    : null,
-                icon: const Icon(Icons.music_note_rounded),
-                label: Text(
-                  context.pitchShiftLabel(controller.pitchShiftSemitones),
-                ),
-              ),
-              IconButton(
-                tooltip: context.l10n.pitchUp,
-                onPressed:
-                    controller.hasMedia &&
-                        controller.pitchShiftSemitones <
-                            PlayerController.maxPitchShiftSemitones
-                    ? () => controller.shiftPitchBy(1)
-                    : null,
-                icon: const Icon(Icons.add_rounded),
-              ),
-              const SizedBox(width: 12),
               IconButton.filled(
                 onPressed: controller.hasMedia
                     ? controller.togglePlayback

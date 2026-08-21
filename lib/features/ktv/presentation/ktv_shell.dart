@@ -15,11 +15,15 @@ import '../../media_library/data/baidu_pan/file_baidu_pan_auth_store.dart';
 import '../../media_library/data/baidu_pan/file_baidu_pan_source_config_store.dart';
 import '../../media_library/data/cloud/cloud_playback_cache.dart';
 import '../../media_library/data/cloud/cloud_song_download_service.dart';
+import '../../media_library/data/smb/file_smb_store.dart';
+import '../../media_library/data/smb/smb_client.dart';
+import '../../media_library/data/smb/smb_credential_store.dart';
 import '../../media_library/data/webdav/file_webdav_store.dart';
 import '../../media_library/data/webdav/webdav_client.dart';
 import '../../media_library/data/webdav/webdav_credential_store.dart';
 import '../../settings/application/baidu_pan_settings_controller.dart';
 import '../../settings/application/settings_controller.dart';
+import '../../settings/application/smb_settings_controller.dart';
 import '../../settings/application/webdav_settings_controller.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../update/application/update_controller.dart';
@@ -166,6 +170,18 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
       ),
     );
     unawaited(webDavController.load());
+    final FileSmbSourceConfigStore smbConfigStore = FileSmbSourceConfigStore();
+    final SecureSmbCredentialStore smbCredentialStore =
+        SecureSmbCredentialStore();
+    final SmbSettingsController smbController = SmbSettingsController(
+      configStore: smbConfigStore,
+      credentialStore: smbCredentialStore,
+      client: SmbClient(
+        configStore: smbConfigStore,
+        credentialStore: smbCredentialStore,
+      ),
+    );
+    unawaited(smbController.load());
     final SettingsPageResult? result = await Navigator.of(context)
         .push<SettingsPageResult>(
           MaterialPageRoute<SettingsPageResult>(
@@ -174,6 +190,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
                 controller: settingsController,
                 baiduPanController: baiduPanController,
                 webDavController: webDavController,
+                smbController: smbController,
                 ktvController: _controller,
                 updateController: widget.updateController,
                 localeController: widget.localeController,
@@ -185,6 +202,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
     settingsController.dispose();
     baiduPanController.dispose();
     webDavController.dispose();
+    smbController.dispose();
 
     if (!mounted || result == null) {
       return;

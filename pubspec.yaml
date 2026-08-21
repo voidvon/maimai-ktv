@@ -44,6 +44,7 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_secure_storage: ^10.0.0
   shared_preferences: ^2.5.3
+  dart_smb2: 0.1.1
   xml: ^6.6.1
 
   # The following adds the Cupertino Icons font to your application.

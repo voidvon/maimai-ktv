@@ -8,7 +8,7 @@ import 'package:maimai_ktv/l10n/generated/app_localizations.dart';
 import '../../../test_support/ktv_test_doubles.dart';
 
 void main() {
-  testWidgets('song book pitch controls adjust and reset the current key', (
+  testWidgets('song book hides pitch shift controls', (
     WidgetTester tester,
   ) async {
     final FakePlayerController controller = FakePlayerController();
@@ -46,13 +46,8 @@ void main() {
       ),
     );
 
-    expect(find.text('原调'), findsOneWidget);
-    await tester.tap(find.text('升调'));
-    await tester.pump();
-    expect(find.text('+1调'), findsOneWidget);
-
-    await tester.tap(find.text('+1调'));
-    await tester.pump();
-    expect(find.text('原调'), findsOneWidget);
+    expect(find.text('降调'), findsNothing);
+    expect(find.text('原调'), findsNothing);
+    expect(find.text('升调'), findsNothing);
   });
 }

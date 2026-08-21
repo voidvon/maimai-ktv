@@ -1,4 +1,6 @@
 PODS:
+  - dart_smb2 (0.1.1):
+    - FlutterMacOS
   - file_selector_macos (0.0.1):
     - FlutterMacOS
   - flutter_secure_storage_darwin (10.0.0):
@@ -21,6 +23,7 @@ PODS:
   - VLCKit (3.7.3)
 
 DEPENDENCIES:
+  - dart_smb2 (from `Flutter/ephemeral/.symlinks/plugins/dart_smb2/macos`)
   - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
   - flutter_secure_storage_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - FlutterMacOS (from `Flutter/ephemeral`)
@@ -35,6 +38,8 @@ SPEC REPOS:
     - VLCKit
 
 EXTERNAL SOURCES:
+  dart_smb2:
+    :path: Flutter/ephemeral/.symlinks/plugins/dart_smb2/macos
   file_selector_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos
   flutter_secure_storage_darwin:
@@ -53,6 +58,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos
 
 SPEC CHECKSUMS:
+  dart_smb2: 8087200a41cb2d3ff42fe8894af7860b3f3e295e
   file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
@@ -63,6 +69,6 @@ SPEC CHECKSUMS:
   url_launcher_macos: f87a979182d112f911de6820aefddaf56ee9fbfd
   VLCKit: 4f2c462daaab6de88b93ab7609bdefbada557a4d
 
-PODFILE CHECKSUM: 45ef203332e4860c8d89b2ebd53a1537a910f0f8
+PODFILE CHECKSUM: 49d9b72b22780898410001fcd7772590244307b5
 
 COCOAPODS: 1.16.2

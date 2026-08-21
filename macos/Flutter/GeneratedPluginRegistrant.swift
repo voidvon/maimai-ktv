@@ -5,6 +5,7 @@
 import FlutterMacOS
 import Foundation
 
+import dart_smb2
 import file_selector_macos
 import flutter_secure_storage_darwin
 import ktv2
@@ -14,6 +15,7 @@ import sqflite_darwin
 import url_launcher_macos
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+  DartSmb2Plugin.register(with: registry.registrar(forPlugin: "DartSmb2Plugin"))
   FileSelectorPlugin.register(with: registry.registrar(forPlugin: "FileSelectorPlugin"))
   FlutterSecureStorageDarwinPlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStorageDarwinPlugin"))
   Ktv2Plugin.register(with: registry.registrar(forPlugin: "Ktv2Plugin"))

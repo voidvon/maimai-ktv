@@ -13,8 +13,16 @@ import '../features/media_library/data/baidu_pan/file_baidu_pan_auth_store.dart'
 import '../features/media_library/data/baidu_pan/file_baidu_pan_playback_cache.dart';
 import '../features/media_library/data/baidu_pan/file_baidu_pan_source_config_store.dart';
 import '../features/media_library/data/cloud/cloud_playback_cache.dart';
+import '../features/media_library/data/cloud/cloud_song_download_service.dart';
 import '../features/media_library/data/local_song_source_adapter.dart';
 import '../features/media_library/data/media_library_repository.dart';
+import '../features/media_library/data/smb/file_smb_playback_cache.dart';
+import '../features/media_library/data/smb/file_smb_store.dart';
+import '../features/media_library/data/smb/smb_client.dart';
+import '../features/media_library/data/smb/smb_credential_store.dart';
+import '../features/media_library/data/smb/smb_remote_data_source.dart';
+import '../features/media_library/data/smb/smb_song_download_service.dart';
+import '../features/media_library/data/smb/smb_song_source.dart';
 import '../features/media_library/data/webdav/file_webdav_playback_cache.dart';
 import '../features/media_library/data/webdav/file_webdav_store.dart';
 import '../features/media_library/data/webdav/webdav_client.dart';
@@ -84,6 +92,24 @@ KtvController createKtvController({
     sourceConfigStore: webDavConfigStore,
     remoteDataSource: webDavRemoteDataSource,
   );
+  final FileSmbSourceConfigStore smbConfigStore = FileSmbSourceConfigStore();
+  final SecureSmbCredentialStore smbCredentialStore =
+      SecureSmbCredentialStore();
+  final SmbClient smbClient = SmbClient(
+    configStore: smbConfigStore,
+    credentialStore: smbCredentialStore,
+  );
+  final DefaultSmbRemoteDataSource smbRemoteDataSource =
+      DefaultSmbRemoteDataSource(client: smbClient);
+  final FileSmbPlaybackCache smbPlaybackCache = FileSmbPlaybackCache(
+    client: smbClient,
+    remoteDataSource: smbRemoteDataSource,
+  );
+  final SmbSongSource smbSongSource = SmbSongSource(
+    mediaLibraryRepository: repository,
+    sourceConfigStore: smbConfigStore,
+    remoteDataSource: smbRemoteDataSource,
+  );
   return KtvController(
     mediaLibraryRepository: repository,
     aggregatedLibraryRepository: DefaultAggregatedLibraryRepository(
@@ -93,14 +119,16 @@ KtvController createKtvController({
         localSongSource,
         baiduPanSongSource,
         webDavSongSource,
+        smbSongSource,
       ],
     ),
     playerController: playerController ?? createPlayerController(),
     baiduPanSongDownloadService: BaiduPanSongDownloadService(
       playbackCache: baiduPanPlaybackCache,
     ),
-    songDownloadServices: <String, WebDavSongDownloadService>{
+    songDownloadServices: <String, CloudSongDownloadService>{
       'webdav': WebDavSongDownloadService(playbackCache: webDavPlaybackCache),
+      'smb': SmbSongDownloadService(playbackCache: smbPlaybackCache),
     },
     playableSongResolver:
         playableSongResolver ??
@@ -109,6 +137,7 @@ KtvController createKtvController({
           cloudPlaybackCaches: <String, CloudPlaybackCache>{
             'baidu_pan': baiduPanPlaybackCache,
             'webdav': webDavPlaybackCache,
+            'smb': smbPlaybackCache,
           },
         ),
   );

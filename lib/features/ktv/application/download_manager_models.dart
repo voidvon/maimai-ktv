@@ -13,6 +13,8 @@ String mapDownloadSourceLabel(String sourceId) {
       return '百度网盘';
     case 'webdav':
       return 'WebDAV';
+    case 'smb':
+      return 'SMB';
     case 'local':
       return '本地目录';
     default:

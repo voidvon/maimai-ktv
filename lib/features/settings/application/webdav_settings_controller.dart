@@ -27,6 +27,7 @@ class WebDavSettingsController extends ChangeNotifier {
   bool _isLoading = false;
   bool _isSaving = false;
   bool _isTesting = false;
+  bool _isBrowsing = false;
   String? _errorMessage;
   String? _successMessage;
 
@@ -38,6 +39,7 @@ class WebDavSettingsController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   bool get isTesting => _isTesting;
+  bool get isBrowsing => _isBrowsing;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
   bool get isConfigured =>
@@ -129,6 +131,42 @@ class WebDavSettingsController extends ChangeNotifier {
       return false;
     } finally {
       _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  Future<List<WebDavRemoteFile>> listDirectories({
+    required String serverUrl,
+    required String username,
+    required String password,
+    required String path,
+  }) async {
+    _isBrowsing = true;
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+    try {
+      final WebDavSourceConfig draft = _buildConfig(
+        serverUrl: serverUrl,
+        username: username,
+        rootPath: path,
+      );
+      final String effectivePassword = password.trim().isNotEmpty
+          ? password
+          : await _credentialStore.readPassword() ?? '';
+      if (effectivePassword.isEmpty) {
+        throw const WebDavException('请输入 WebDAV 密码');
+      }
+      return await _client.listDirectories(
+        config: draft,
+        password: effectivePassword,
+        path: path,
+      );
+    } catch (error) {
+      _errorMessage = '读取 WebDAV 目录失败：$error';
+      rethrow;
+    } finally {
+      _isBrowsing = false;
       notifyListeners();
     }
   }

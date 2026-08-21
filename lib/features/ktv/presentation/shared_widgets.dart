@@ -427,51 +427,6 @@ class _PreviewViewportHostState extends State<PreviewViewportHost> {
                                             ),
                                             const SizedBox(width: 8),
                                             FullscreenToolbarButton(
-                                              label: context.l10n.pitchDown,
-                                              icon: Icons.remove_rounded,
-                                              onPressed:
-                                                  widget.controller.hasMedia &&
-                                                      widget
-                                                              .controller
-                                                              .pitchShiftSemitones >
-                                                          PlayerController
-                                                              .minPitchShiftSemitones
-                                                  ? () => widget.controller
-                                                        .shiftPitchBy(-1)
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            FullscreenToolbarButton(
-                                              label: context.pitchShiftLabel(
-                                                widget
-                                                    .controller
-                                                    .pitchShiftSemitones,
-                                              ),
-                                              icon: Icons.music_note_rounded,
-                                              onPressed:
-                                                  widget.controller.hasMedia
-                                                  ? widget
-                                                        .controller
-                                                        .resetPitchShift
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            FullscreenToolbarButton(
-                                              label: context.l10n.pitchUp,
-                                              icon: Icons.add_rounded,
-                                              onPressed:
-                                                  widget.controller.hasMedia &&
-                                                      widget
-                                                              .controller
-                                                              .pitchShiftSemitones <
-                                                          PlayerController
-                                                              .maxPitchShiftSemitones
-                                                  ? () => widget.controller
-                                                        .shiftPitchBy(1)
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            FullscreenToolbarButton(
                                               label: widget.controller.isPlaying
                                                   ? context.l10n.pause
                                                   : context.l10n.play,

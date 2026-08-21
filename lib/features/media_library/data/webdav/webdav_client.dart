@@ -36,6 +36,21 @@ class WebDavClient {
     await _propfind(connection, config?.rootPath ?? connection.config.rootPath);
   }
 
+  Future<List<WebDavRemoteFile>> listDirectories({
+    required String path,
+    WebDavSourceConfig? config,
+    String? password,
+  }) async {
+    final _WebDavConnection connection = await _resolveConnection(
+      config: config,
+      password: password,
+    );
+    final List<WebDavRemoteFile> entries = await _propfind(connection, path);
+    return entries
+        .where((WebDavRemoteFile file) => file.isDirectory)
+        .toList(growable: false);
+  }
+
   Future<List<WebDavRemoteFile>> scanRoot(String rootPath) async {
     final _WebDavConnection connection = await _resolveConnection();
     final List<WebDavRemoteFile> files = <WebDavRemoteFile>[];
