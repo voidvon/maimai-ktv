@@ -39,6 +39,8 @@ class NativeKtvPlayerHost(
         const val audioOutputSwitchApplyDelayMs = 30L
         const val audioOutputSwitchMuteDurationMs = lowLatencyCachingMs.toLong()
         const val nativeSingleTrackRoutingEnabled = true
+        const val minPitchShiftSemitones = -6
+        const val maxPitchShiftSemitones = 6
 
         val libVlcBridgeLoaded =
             if (!nativeSingleTrackRoutingEnabled) {
@@ -91,6 +93,7 @@ class NativeKtvPlayerHost(
     private var playbackCompleted = false
     private var playbackError: String? = null
     private var requestedAudioOutputMode = AudioOutputMode.ORIGINAL
+    private var pitchShiftSemitones = 0
     private var selectedAudioTrackTitle: String? = null
     private var selectedAudioChannelCount: Int? = null
     private var lastKnownPositionMs = 0L
@@ -163,7 +166,8 @@ class NativeKtvPlayerHost(
                         call.argument<String>("path")
                             ?: throw IllegalArgumentException("Missing media path")
                     val mode = parseAudioOutputMode(call.argument("audioOutputMode"))
-                    result.success(open(path, mode))
+                    val pitchShift = call.argument<Number>("pitchShiftSemitones")?.toInt() ?: 0
+                    result.success(open(path, mode, pitchShift))
                 }
                 "play" -> {
                     playbackCompleted = false
@@ -189,6 +193,13 @@ class NativeKtvPlayerHost(
                     playbackError = null
                     hasPendingAudioOutputModeApply = true
                     requestAudioOutputModeApply()
+                    result.success(snapshot())
+                }
+                "setPitchShift" -> {
+                    val semitones =
+                        call.argument<Number>("semitones")?.toInt()
+                            ?: throw IllegalArgumentException("Missing pitch shift semitones")
+                    setPitchShiftSemitones(semitones)
                     result.success(snapshot())
                 }
                 "clearMedia" -> {
@@ -496,10 +507,12 @@ class NativeKtvPlayerHost(
     private fun open(
         path: String,
         mode: AudioOutputMode,
+        pitchShift: Int,
     ): Map<String, Any?> {
         ensurePlayablePath(path)
         currentMediaPath = path
         requestedAudioOutputMode = mode
+        pitchShiftSemitones = normalizePitchShift(pitchShift)
         currentPlaybackPath = resolvePlaybackPath(path)
         playbackError = null
         playbackCompleted = false
@@ -512,7 +525,7 @@ class NativeKtvPlayerHost(
         selectedAudioChannelCount = null
         Log.i(
             tag,
-            "open sourcePath=$path playbackPath=$currentPlaybackPath mode=$mode",
+            "open sourcePath=$path playbackPath=$currentPlaybackPath mode=$mode pitch=$pitchShiftSemitones",
         )
         queueOrOpenPlaybackMedia(currentPlaybackPath ?: path, 0L, shouldResume = true)
         return snapshot()
@@ -593,6 +606,20 @@ class NativeKtvPlayerHost(
         player.setTime(targetPositionMs)
     }
 
+    private fun setPitchShiftSemitones(semitones: Int) {
+        val normalized = normalizePitchShift(semitones)
+        if (pitchShiftSemitones == normalized) {
+            return
+        }
+        pitchShiftSemitones = normalized
+        playbackError = null
+
+        val path = currentPlaybackPath ?: return
+        val preservePositionMs = currentPositionMs
+        val shouldResume = playerOrNull?.isPlaying ?: false
+        queueOrOpenPlaybackMedia(path, preservePositionMs, shouldResume)
+    }
+
     private fun clearMedia() {
         cancelPendingAudioOutputModeApply()
         cancelPendingAudioOutputSwitchUnmute()
@@ -625,6 +652,7 @@ class NativeKtvPlayerHost(
             "playbackDurationMs" to currentDurationMs,
             "videoTrackCount" to mediaTrackCounts.video,
             "audioTrackCount" to maxOf(mediaTrackCounts.audio, resolvedAudioTrackCount(audioTracks)),
+            "pitchShiftSemitones" to pitchShiftSemitones,
             "playbackError" to playbackError,
             "selectedAudioTrackTitle" to selectedAudioTrackTitle,
             "selectedAudioChannelCount" to selectedAudioChannelCount,
@@ -988,7 +1016,15 @@ class NativeKtvPlayerHost(
                 Media(libVlc, path)
             }
         applyLowLatencyMediaOptions(media)
+        if (pitchShiftSemitones != 0) {
+            media.addOption(":audio-filter=scaletempo_pitch")
+            media.addOption(":pitch-shift=$pitchShiftSemitones")
+        }
         return media
+    }
+
+    private fun normalizePitchShift(semitones: Int): Int {
+        return semitones.coerceIn(minPitchShiftSemitones, maxPitchShiftSemitones)
     }
 
     private fun buildLibVlcOptions(): ArrayList<String> {

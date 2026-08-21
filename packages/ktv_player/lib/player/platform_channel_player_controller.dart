@@ -161,6 +161,7 @@ abstract class PlatformChannelPlayerController extends PlayerController {
       final snapshot = await _channels.invoke('open', {
         'path': source.path,
         'audioOutputMode': _stateStore.audioOutputMode.name,
+        'pitchShiftSemitones': 0,
       });
       _stateStore.setPreparingPlayback(false);
       if (snapshot != null) {
@@ -252,6 +253,35 @@ abstract class PlatformChannelPlayerController extends PlayerController {
       }
     } catch (error) {
       _stateStore.setPlaybackError('原唱/伴唱切换失败：$error');
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<void> setPitchShiftSemitones(int semitones) async {
+    final normalizedSemitones = semitones.clamp(
+      PlayerController.minPitchShiftSemitones,
+      PlayerController.maxPitchShiftSemitones,
+    );
+    if (_stateStore.pitchShiftSemitones == normalizedSemitones) {
+      return;
+    }
+
+    _stateStore.setPitchShiftSemitones(normalizedSemitones);
+    notifyListeners();
+    if (_stateStore.currentMediaPath == null) {
+      return;
+    }
+
+    try {
+      final snapshot = await _channels.invoke('setPitchShift', {
+        'semitones': normalizedSemitones,
+      });
+      if (snapshot != null) {
+        _applySnapshot(snapshot);
+      }
+    } catch (error) {
+      _stateStore.setPlaybackError('变调失败：$error');
       notifyListeners();
     }
   }

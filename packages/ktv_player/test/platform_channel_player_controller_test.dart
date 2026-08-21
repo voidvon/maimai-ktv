@@ -84,6 +84,51 @@ void main() {
     controller.dispose();
   });
 
+  test('pitch shift is clamped and forwarded while playing', () async {
+    final controller = _TestPlatformChannelPlayerController();
+
+    await controller.openMedia(
+      const MediaSource(path: '/tmp/demo.mp4', displayName: 'demo'),
+    );
+    await controller.setPitchShiftSemitones(20);
+
+    expect(
+      controller.pitchShiftSemitones,
+      PlayerController.maxPitchShiftSemitones,
+    );
+    final MethodCall pitchCall = methodCalls.firstWhere(
+      (MethodCall call) => call.method == 'setPitchShift',
+    );
+    expect(
+      pitchCall.arguments,
+      containsPair('semitones', PlayerController.maxPitchShiftSemitones),
+    );
+
+    controller.dispose();
+  });
+
+  test('openMedia resets pitch shift for the next song', () async {
+    final controller = _TestPlatformChannelPlayerController();
+
+    await controller.openMedia(
+      const MediaSource(path: '/tmp/first.mp4', displayName: 'first'),
+    );
+    await controller.setPitchShiftSemitones(-3);
+    expect(controller.pitchShiftSemitones, -3);
+
+    await controller.openMedia(
+      const MediaSource(path: '/tmp/second.mp4', displayName: 'second'),
+    );
+
+    expect(controller.pitchShiftSemitones, 0);
+    final MethodCall openCall = methodCalls.lastWhere(
+      (MethodCall call) => call.method == 'open',
+    );
+    expect(openCall.arguments, containsPair('pitchShiftSemitones', 0));
+
+    controller.dispose();
+  });
+
   test('clearMedia forwards channel call and resets hasMedia', () async {
     final controller = _TestPlatformChannelPlayerController();
 

@@ -59,6 +59,38 @@ class SongBookActionRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 ActionPill(
+                  label: context.l10n.pitchDown,
+                  icon: Icons.remove_rounded,
+                  onPressed:
+                      controller.hasMedia &&
+                          controller.pitchShiftSemitones >
+                              PlayerController.minPitchShiftSemitones
+                      ? () => controller.shiftPitchBy(-1)
+                      : null,
+                ),
+                const SizedBox(width: 4),
+                ActionPill(
+                  label: context.pitchShiftLabel(
+                    controller.pitchShiftSemitones,
+                  ),
+                  icon: Icons.music_note_rounded,
+                  onPressed: controller.hasMedia
+                      ? controller.resetPitchShift
+                      : null,
+                ),
+                const SizedBox(width: 4),
+                ActionPill(
+                  label: context.l10n.pitchUp,
+                  icon: Icons.add_rounded,
+                  onPressed:
+                      controller.hasMedia &&
+                          controller.pitchShiftSemitones <
+                              PlayerController.maxPitchShiftSemitones
+                      ? () => controller.shiftPitchBy(1)
+                      : null,
+                ),
+                const SizedBox(width: 4),
+                ActionPill(
                   label: context.l10n.skip,
                   icon: Icons.skip_next_rounded,
                   onPressed: controller.hasMedia || queueCount > 0

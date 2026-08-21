@@ -17,6 +17,8 @@ namespace {
 constexpr int kAudioChannelStereo = 1;
 constexpr int kAudioChannelLeft = 3;
 constexpr int kAudioChannelRight = 4;
+constexpr int kMinPitchShiftSemitones = -6;
+constexpr int kMaxPitchShiftSemitones = 6;
 constexpr wchar_t kVideoHostWindowClassName[] = L"Ktv2VlcVideoHostWindow";
 
 LRESULT CALLBACK VideoHostWindowProc(HWND hwnd,
@@ -46,6 +48,7 @@ struct Ktv2Plugin::LibVlcFunctions {
   void (*libvlc_release)(libvlc_instance_t*) = nullptr;
   libvlc_media_t* (*libvlc_media_new_path)(libvlc_instance_t*, const char*) =
       nullptr;
+  void (*libvlc_media_add_option)(libvlc_media_t*, const char*) = nullptr;
   void (*libvlc_media_release)(libvlc_media_t*) = nullptr;
   libvlc_media_player_t* (*libvlc_media_player_new_from_media)(
       libvlc_media_t*) = nullptr;
@@ -138,11 +141,13 @@ void Ktv2Plugin::HandleMethodCall(
     const auto path = GetStringArgument(*arguments, "path");
     const std::string mode =
         GetStringArgument(*arguments, "audioOutputMode").value_or("original");
+    const int pitch_shift = static_cast<int>(
+        GetDoubleArgument(*arguments, "pitchShiftSemitones").value_or(0));
     if (!path.has_value()) {
       result->Error("invalid_args", "open requires path");
       return;
     }
-    ok = OpenMediaLocked(*path, mode);
+    ok = OpenMediaLocked(*path, mode, pitch_shift);
   } else if (method == "play") {
     ok = PlayLocked();
   } else if (method == "pause") {
@@ -165,6 +170,17 @@ void Ktv2Plugin::HandleMethodCall(
     }
     ok = SetAudioOutputModeLocked(
         GetStringArgument(*arguments, "mode").value_or("original"));
+  } else if (method == "setPitchShift") {
+    if (arguments == nullptr) {
+      result->Error("invalid_args", "setPitchShift requires arguments");
+      return;
+    }
+    const auto semitones = GetDoubleArgument(*arguments, "semitones");
+    if (!semitones.has_value()) {
+      result->Error("invalid_args", "setPitchShift requires semitones");
+      return;
+    }
+    ok = SetPitchShiftLocked(static_cast<int>(*semitones));
   } else if (method == "attachVideoView") {
     if (arguments == nullptr) {
       result->Error("invalid_args", "attachVideoView requires arguments");
@@ -276,6 +292,7 @@ bool Ktv2Plugin::EnsureLibVlcLoaded() {
   if (!load_symbol(vlc->libvlc_new, "libvlc_new") ||
       !load_symbol(vlc->libvlc_release, "libvlc_release") ||
       !load_symbol(vlc->libvlc_media_new_path, "libvlc_media_new_path") ||
+      !load_symbol(vlc->libvlc_media_add_option, "libvlc_media_add_option") ||
       !load_symbol(vlc->libvlc_media_release, "libvlc_media_release") ||
       !load_symbol(vlc->libvlc_media_player_new_from_media,
                    "libvlc_media_player_new_from_media") ||
@@ -334,9 +351,13 @@ bool Ktv2Plugin::EnsureLibVlcLoaded() {
 }
 
 bool Ktv2Plugin::OpenMediaLocked(const std::string& path,
-                                 const std::string& mode) {
+                                 const std::string& mode,
+                                 int pitch_shift_semitones) {
   requested_audio_output_mode_ =
       mode == "accompaniment" ? "accompaniment" : "original";
+  pitch_shift_semitones_ = std::clamp(
+      pitch_shift_semitones, kMinPitchShiftSemitones,
+      kMaxPitchShiftSemitones);
   playback_error_.clear();
   is_playback_completed_ = false;
 
@@ -354,6 +375,12 @@ bool Ktv2Plugin::OpenMediaLocked(const std::string& path,
     CaptureLibVlcErrorLocked("libVLC 无法打开当前文件。");
     LogLineLocked("libvlc_media_new_path failed: " + playback_error_);
     return false;
+  }
+  if (pitch_shift_semitones_ != 0) {
+    vlc_->libvlc_media_add_option(media, ":audio-filter=scaletempo_pitch");
+    const std::string pitch_option =
+        ":pitch-shift=" + std::to_string(pitch_shift_semitones_);
+    vlc_->libvlc_media_add_option(media, pitch_option.c_str());
   }
 
   vlc_->player = vlc_->libvlc_media_player_new_from_media(media);
@@ -426,6 +453,36 @@ bool Ktv2Plugin::SetAudioOutputModeLocked(const std::string& mode) {
   }
   RefreshTrackMetadataLocked();
   return ApplyAudioOutputModeLocked();
+}
+
+bool Ktv2Plugin::SetPitchShiftLocked(int semitones) {
+  const int normalized = std::clamp(
+      semitones, kMinPitchShiftSemitones, kMaxPitchShiftSemitones);
+  if (pitch_shift_semitones_ == normalized) {
+    return true;
+  }
+  if (vlc_ == nullptr || vlc_->player == nullptr ||
+      current_media_path_.empty()) {
+    pitch_shift_semitones_ = normalized;
+    return true;
+  }
+
+  const std::string path = current_media_path_;
+  const std::string mode = requested_audio_output_mode_;
+  const int64_t position_ms =
+      vlc_->libvlc_media_player_get_time(vlc_->player);
+  const bool should_resume =
+      vlc_->libvlc_media_player_is_playing(vlc_->player) != 0;
+  if (!OpenMediaLocked(path, mode, normalized)) {
+    return false;
+  }
+  if (position_ms > 0) {
+    vlc_->libvlc_media_player_set_time(vlc_->player, position_ms);
+  }
+  if (!should_resume) {
+    vlc_->libvlc_media_player_pause(vlc_->player);
+  }
+  return true;
 }
 
 bool Ktv2Plugin::ClearMediaLocked() {
@@ -687,6 +744,8 @@ flutter::EncodableMap Ktv2Plugin::CurrentSnapshotLocked() const {
       flutter::EncodableValue(video_track_count_);
   snapshot[flutter::EncodableValue("audioTrackCount")] =
       flutter::EncodableValue(audio_track_count_);
+  snapshot[flutter::EncodableValue("pitchShiftSemitones")] =
+      flutter::EncodableValue(pitch_shift_semitones_);
   snapshot[flutter::EncodableValue("selectedAudioTrackTitle")] =
       selected_audio_track_title_.empty() ? flutter::EncodableValue()
                                           : flutter::EncodableValue(selected_audio_track_title_);

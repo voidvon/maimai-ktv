@@ -7,6 +7,7 @@ class NativePlayerSnapshot {
     required this.playbackDuration,
     required this.videoTrackCount,
     required this.audioTrackCount,
+    required this.pitchShiftSemitones,
     required this.selectedAudioTrackTitle,
     required this.selectedAudioChannelCount,
     required this.playbackError,
@@ -25,6 +26,8 @@ class NativePlayerSnapshot {
       ),
       videoTrackCount: (snapshot['videoTrackCount'] as num?)?.round() ?? 0,
       audioTrackCount: (snapshot['audioTrackCount'] as num?)?.round() ?? 0,
+      pitchShiftSemitones:
+          (snapshot['pitchShiftSemitones'] as num?)?.round() ?? 0,
       selectedAudioTrackTitle: snapshot['selectedAudioTrackTitle'] as String?,
       selectedAudioChannelCount: (snapshot['selectedAudioChannelCount'] as num?)
           ?.round(),
@@ -39,6 +42,7 @@ class NativePlayerSnapshot {
   final Duration playbackDuration;
   final int videoTrackCount;
   final int audioTrackCount;
+  final int pitchShiftSemitones;
   final String? selectedAudioTrackTitle;
   final int? selectedAudioChannelCount;
   final String? playbackError;

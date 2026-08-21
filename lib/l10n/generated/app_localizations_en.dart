@@ -143,6 +143,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accompaniment => 'Backing';
 
   @override
+  String get pitchDown => 'Lower';
+
+  @override
+  String get pitchUp => 'Raise';
+
+  @override
+  String get originalKey => 'Original key';
+
+  @override
+  String pitchShiftValue(String value) {
+    return 'Key $value';
+  }
+
+  @override
   String queuedCount(int count) {
     return 'Queue $count';
   }

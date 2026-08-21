@@ -413,6 +413,7 @@ class FakePlayerController extends PlayerController {
         playbackDuration: _state.playbackDuration,
         playbackPosition: _state.playbackPosition,
         audioOutputMode: _state.audioOutputMode,
+        pitchShiftSemitones: _state.pitchShiftSemitones,
       ),
     );
   }
@@ -430,6 +431,7 @@ class FakePlayerController extends PlayerController {
               .round(),
         ),
         audioOutputMode: _state.audioOutputMode,
+        pitchShiftSemitones: _state.pitchShiftSemitones,
       ),
     );
   }
@@ -443,6 +445,24 @@ class FakePlayerController extends PlayerController {
         playbackDuration: _state.playbackDuration,
         playbackPosition: _state.playbackPosition,
         audioOutputMode: mode,
+        pitchShiftSemitones: _state.pitchShiftSemitones,
+      ),
+    );
+  }
+
+  @override
+  Future<void> setPitchShiftSemitones(int semitones) async {
+    setState(
+      PlayerState(
+        currentMediaPath: _state.currentMediaPath,
+        isPlaying: _state.isPlaying,
+        playbackDuration: _state.playbackDuration,
+        playbackPosition: _state.playbackPosition,
+        audioOutputMode: _state.audioOutputMode,
+        pitchShiftSemitones: semitones.clamp(
+          PlayerController.minPitchShiftSemitones,
+          PlayerController.maxPitchShiftSemitones,
+        ),
       ),
     );
   }

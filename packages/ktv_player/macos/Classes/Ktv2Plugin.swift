@@ -54,6 +54,7 @@ private final class NativeKtvPlayerBridge: NSObject, FlutterStreamHandler, VLCMe
   private weak var videoView: NSView?
   private var eventSink: FlutterEventSink?
   private var requestedAudioOutputMode = "original"
+  private var pitchShiftSemitones = 0
   private var currentSingleTrackAudioOutputMode: String?
   private var isApplyingAudioOutputMode = false
   private var currentSourceMediaPath: String?
@@ -137,13 +138,21 @@ private final class NativeKtvPlayerBridge: NSObject, FlutterStreamHandler, VLCMe
 
   private func media(for mediaPath: String, singleTrackMode: String?) -> VLCMedia {
     let media = VLCMedia(path: mediaPath)
+    var audioFilters: [String] = []
     if let singleTrackMode {
       let modeValue = audioChannel(for: singleTrackMode)
       let monoChannel = monoChannelLabel(for: singleTrackMode)
       media.addOption(":stereo-mode=\(modeValue)")
-      media.addOption(":audio-filter=mono")
+      audioFilters.append("mono")
       media.addOption(":sout-mono-channel=\(monoChannel)")
       media.addOption(":sout-mono-downmix=false")
+    }
+    if pitchShiftSemitones != 0 {
+      audioFilters.append("scaletempo_pitch")
+      media.addOption(":pitch-shift=\(pitchShiftSemitones)")
+    }
+    if !audioFilters.isEmpty {
+      media.addOption(":audio-filter=\(audioFilters.joined(separator: ","))")
     }
     return media
   }
@@ -345,6 +354,7 @@ private final class NativeKtvPlayerBridge: NSObject, FlutterStreamHandler, VLCMe
       "playbackDurationMs": durationMs,
       "videoTrackCount": videoTracks.count,
       "audioTrackCount": audioTracks.count,
+      "pitchShiftSemitones": pitchShiftSemitones,
       "playbackError": playbackError as Any
     ]
   }
@@ -414,6 +424,9 @@ private final class NativeKtvPlayerBridge: NSObject, FlutterStreamHandler, VLCMe
       if let mode = arguments["audioOutputMode"] as? String {
         requestedAudioOutputMode = mode
       }
+      pitchShiftSemitones = normalizedPitchShift(
+        arguments["pitchShiftSemitones"] as? Int ?? 0
+      )
       logAudioRouting("open path=\(path) mode=\(requestedAudioOutputMode)")
 
       guard FileManager.default.fileExists(atPath: path) else {
@@ -492,6 +505,22 @@ private final class NativeKtvPlayerBridge: NSObject, FlutterStreamHandler, VLCMe
       logAudioRouting("setAudioOutputMode mode=\(requestedAudioOutputMode)")
       applyRequestedAudioOutputModeIfPossible()
       result(currentSnapshot())
+    case "setPitchShift":
+      guard
+        let arguments = call.arguments as? [String: Any],
+        let semitones = arguments["semitones"] as? Int
+      else {
+        result(
+          FlutterError(
+            code: "INVALID_ARGUMENT",
+            message: "Missing pitch shift semitones.",
+            details: nil
+          )
+        )
+        return
+      }
+      setPitchShift(semitones)
+      result(currentSnapshot())
     case "clearMedia":
       clearMedia()
       result(currentSnapshot())
@@ -509,6 +538,28 @@ private final class NativeKtvPlayerBridge: NSObject, FlutterStreamHandler, VLCMe
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  private func normalizedPitchShift(_ semitones: Int) -> Int {
+    min(max(semitones, -6), 6)
+  }
+
+  private func setPitchShift(_ semitones: Int) {
+    let normalized = normalizedPitchShift(semitones)
+    guard normalized != pitchShiftSemitones else {
+      return
+    }
+    pitchShiftSemitones = normalized
+    playbackError = nil
+    guard let sourceMediaPath = currentSourceMediaPath else {
+      return
+    }
+    reopenPlayer(
+      with: sourceMediaPath,
+      preserve: currentPlaybackProgress,
+      shouldResume: player.isPlaying,
+      singleTrackMode: nil
+    )
   }
 
   private func clearMedia() {

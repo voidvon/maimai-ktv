@@ -13,6 +13,7 @@ class PlayerState {
     this.playbackDiagnostics,
     this.videoTrackCount = 0,
     this.audioTrackCount = 0,
+    this.pitchShiftSemitones = 0,
     this.audioModeDescription = '开始播放后可切换',
     this.currentMediaPath,
   });
@@ -28,6 +29,7 @@ class PlayerState {
   final String? playbackDiagnostics;
   final int videoTrackCount;
   final int audioTrackCount;
+  final int pitchShiftSemitones;
   final String audioModeDescription;
   final String? currentMediaPath;
 

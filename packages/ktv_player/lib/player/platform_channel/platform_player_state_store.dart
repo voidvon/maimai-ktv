@@ -15,6 +15,7 @@ class PlatformPlayerStateStore {
   String? _playbackDiagnostics;
   int _videoTrackCount = 0;
   int _audioTrackCount = 0;
+  int _pitchShiftSemitones = 0;
   String? _selectedAudioTrackTitle;
   int? _selectedAudioChannelCount;
 
@@ -30,6 +31,7 @@ class PlatformPlayerStateStore {
   String? get playbackDiagnostics => _playbackDiagnostics;
   int get videoTrackCount => _videoTrackCount;
   int get audioTrackCount => _audioTrackCount;
+  int get pitchShiftSemitones => _pitchShiftSemitones;
   String? get selectedAudioTrackTitle => _selectedAudioTrackTitle;
   int? get selectedAudioChannelCount => _selectedAudioChannelCount;
 
@@ -46,6 +48,7 @@ class PlatformPlayerStateStore {
       playbackDiagnostics: _playbackDiagnostics,
       videoTrackCount: _videoTrackCount,
       audioTrackCount: _audioTrackCount,
+      pitchShiftSemitones: _pitchShiftSemitones,
       audioModeDescription: audioModeDescription,
       currentMediaPath: _currentMediaPath,
     );
@@ -66,6 +69,7 @@ class PlatformPlayerStateStore {
     _playbackDiagnostics = initializingDiagnostics;
     _videoTrackCount = 0;
     _audioTrackCount = 0;
+    _pitchShiftSemitones = 0;
     _selectedAudioTrackTitle = null;
     _selectedAudioChannelCount = null;
   }
@@ -78,6 +82,7 @@ class PlatformPlayerStateStore {
     _playbackDuration = snapshot.playbackDuration;
     _videoTrackCount = snapshot.videoTrackCount;
     _audioTrackCount = snapshot.audioTrackCount;
+    _pitchShiftSemitones = snapshot.pitchShiftSemitones;
     _selectedAudioTrackTitle = snapshot.selectedAudioTrackTitle;
     _selectedAudioChannelCount = snapshot.selectedAudioChannelCount;
     _playbackError = snapshot.playbackError;
@@ -113,6 +118,10 @@ class PlatformPlayerStateStore {
     _audioOutputMode = mode;
   }
 
+  void setPitchShiftSemitones(int semitones) {
+    _pitchShiftSemitones = semitones;
+  }
+
   void setPlaybackError(String? error) {
     _playbackError = error;
   }
@@ -137,6 +146,7 @@ class PlatformPlayerStateStore {
     _playbackDiagnostics = null;
     _videoTrackCount = 0;
     _audioTrackCount = 0;
+    _pitchShiftSemitones = 0;
     _selectedAudioTrackTitle = null;
     _selectedAudioChannelCount = null;
   }

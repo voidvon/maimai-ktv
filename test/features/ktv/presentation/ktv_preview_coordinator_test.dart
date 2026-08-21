@@ -125,6 +125,9 @@ class _TestPlayerController extends PlayerController {
   Future<void> seekToProgress(double progress) async {}
 
   @override
+  Future<void> setPitchShiftSemitones(int semitones) async {}
+
+  @override
   Future<void> togglePlayback() async {}
 
   @override

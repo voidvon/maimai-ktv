@@ -351,6 +351,30 @@ abstract class AppLocalizations {
   /// **'伴唱'**
   String get accompaniment;
 
+  /// No description provided for @pitchDown.
+  ///
+  /// In zh, this message translates to:
+  /// **'降调'**
+  String get pitchDown;
+
+  /// No description provided for @pitchUp.
+  ///
+  /// In zh, this message translates to:
+  /// **'升调'**
+  String get pitchUp;
+
+  /// No description provided for @originalKey.
+  ///
+  /// In zh, this message translates to:
+  /// **'原调'**
+  String get originalKey;
+
+  /// No description provided for @pitchShiftValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'{value}调'**
+  String pitchShiftValue(String value);
+
   /// No description provided for @queuedCount.
   ///
   /// In zh, this message translates to:

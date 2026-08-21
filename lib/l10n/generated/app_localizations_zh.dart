@@ -141,6 +141,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accompaniment => '伴唱';
 
   @override
+  String get pitchDown => '降调';
+
+  @override
+  String get pitchUp => '升调';
+
+  @override
+  String get originalKey => '原调';
+
+  @override
+  String pitchShiftValue(String value) {
+    return '$value调';
+  }
+
+  @override
   String queuedCount(int count) {
     return '已点$count';
   }
@@ -723,6 +737,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get accompaniment => '伴唱';
+
+  @override
+  String get pitchDown => '降調';
+
+  @override
+  String get pitchUp => '升調';
+
+  @override
+  String get originalKey => '原調';
+
+  @override
+  String pitchShiftValue(String value) {
+    return '$value調';
+  }
 
   @override
   String queuedCount(int count) {

@@ -9,11 +9,13 @@ class _FakePlayerController extends PlayerController {
   }) : _audioOutputMode = audioOutputMode;
 
   AudioOutputMode _audioOutputMode;
+  int _pitchShiftSemitones = 0;
   final String? mediaPath;
 
   @override
   PlayerState get state => PlayerState(
     audioOutputMode: _audioOutputMode,
+    pitchShiftSemitones: _pitchShiftSemitones,
     currentMediaPath: mediaPath,
   );
 
@@ -30,6 +32,14 @@ class _FakePlayerController extends PlayerController {
 
   @override
   Future<void> seekToProgress(double progress) async {}
+
+  @override
+  Future<void> setPitchShiftSemitones(int semitones) async {
+    _pitchShiftSemitones = semitones.clamp(
+      PlayerController.minPitchShiftSemitones,
+      PlayerController.maxPitchShiftSemitones,
+    );
+  }
 
   @override
   Future<void> togglePlayback() async {}
@@ -57,5 +67,16 @@ void main() {
 
     expect(controller.audioOutputMode, AudioOutputMode.original);
     expect(controller.hasMedia, isFalse);
+  });
+
+  test('shiftPitchBy adjusts from the current semitone', () async {
+    final controller = _FakePlayerController(
+      audioOutputMode: AudioOutputMode.original,
+    );
+
+    await controller.shiftPitchBy(-2);
+    await controller.shiftPitchBy(1);
+
+    expect(controller.pitchShiftSemitones, -1);
   });
 }

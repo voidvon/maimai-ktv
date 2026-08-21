@@ -5,6 +5,9 @@ import 'audio_output_mode.dart';
 import 'player_state.dart';
 
 abstract class PlayerController extends ChangeNotifier {
+  static const int minPitchShiftSemitones = -6;
+  static const int maxPitchShiftSemitones = 6;
+
   PlayerState get state;
   Listenable get videoViewListenable => this;
 
@@ -21,6 +24,7 @@ abstract class PlayerController extends ChangeNotifier {
   String? get playbackDiagnostics => state.playbackDiagnostics;
   int get videoTrackCount => state.videoTrackCount;
   int get audioTrackCount => state.audioTrackCount;
+  int get pitchShiftSemitones => state.pitchShiftSemitones;
   String get audioModeDescription => state.audioModeDescription;
   String? get currentMediaPath => state.currentMediaPath;
 
@@ -42,7 +46,14 @@ abstract class PlayerController extends ChangeNotifier {
 
   Future<void> seekToProgress(double progress);
   Future<void> applyAudioOutputMode(AudioOutputMode mode);
+  Future<void> setPitchShiftSemitones(int semitones);
   Widget? buildVideoView();
+
+  Future<void> shiftPitchBy(int semitones) {
+    return setPitchShiftSemitones(pitchShiftSemitones + semitones);
+  }
+
+  Future<void> resetPitchShift() => setPitchShiftSemitones(0);
 
   Future<void> toggleAudioOutputMode() {
     final nextMode = audioOutputMode == AudioOutputMode.original

@@ -52,11 +52,14 @@ class Ktv2Plugin : public flutter::Plugin {
 
   bool EnsureLibVlcLoaded();
   void DisposePlayerLocked();
-  bool OpenMediaLocked(const std::string& path, const std::string& mode);
+  bool OpenMediaLocked(const std::string& path,
+                       const std::string& mode,
+                       int pitch_shift_semitones);
   bool PlayLocked();
   bool PauseLocked();
   bool SeekToProgressLocked(double progress);
   bool SetAudioOutputModeLocked(const std::string& mode);
+  bool SetPitchShiftLocked(int semitones);
   bool AttachVideoViewLocked(int left, int top, int width, int height);
   bool DetachVideoViewLocked();
   bool ClearMediaLocked();
@@ -91,6 +94,7 @@ class Ktv2Plugin : public flutter::Plugin {
   std::mutex mutex_;
   std::unique_ptr<LibVlcFunctions> vlc_;
   std::string requested_audio_output_mode_ = "original";
+  int pitch_shift_semitones_ = 0;
   std::string current_media_path_;
   std::string playback_error_;
   std::string selected_audio_track_title_;
