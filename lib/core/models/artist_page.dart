@@ -17,6 +17,6 @@ class ArtistPage {
     if (pageSize <= 0 || totalCount <= 0) {
       return 1;
     }
-    return ((totalCount + pageSize - 1) / pageSize).ceil();
+    return (totalCount + pageSize - 1) ~/ pageSize;
   }
 }

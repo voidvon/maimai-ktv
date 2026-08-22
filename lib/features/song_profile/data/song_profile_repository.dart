@@ -8,15 +8,22 @@ class SongProfileRepository {
     : _database = database ?? SongProfileDatabase();
 
   final SongProfileDatabase _database;
+  _SongIdSnapshot? _songIdSnapshot;
+  int _songIdSnapshotGeneration = 0;
 
   static const String _listSeparator = '\n';
 
-  Future<void> close() => _database.close();
+  Future<void> close() async {
+    _invalidateSongIdSnapshot();
+    await _database.close();
+  }
 
   Future<bool> toggleFavorite({required Song song}) async {
     try {
       final Database database = await _database.database;
-      return database.transaction((Transaction txn) async {
+      final bool nextIsFavorite = await database.transaction((
+        Transaction txn,
+      ) async {
         final Map<String, Object?> values = await _loadOrCreateRow(
           txn,
           song: song,
@@ -37,6 +44,8 @@ class SongProfileRepository {
         );
         return nextIsFavorite;
       });
+      _invalidateSongIdSnapshot();
+      return nextIsFavorite;
     } catch (_) {
       return false;
     }
@@ -59,6 +68,7 @@ class SongProfileRepository {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       });
+      _invalidateSongIdSnapshot();
     } catch (_) {
       return;
     }
@@ -83,6 +93,7 @@ class SongProfileRepository {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       });
+      _invalidateSongIdSnapshot();
     } catch (_) {
       return;
     }
@@ -128,17 +139,16 @@ class SongProfileRepository {
     String? artist,
     String searchQuery = '',
   }) {
+    final _SongIdSnapshotKey snapshotKey = _SongIdSnapshotKey.favorite(
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+    );
     return _guardListResult(
       () => _querySongIds(
         pageIndex: pageIndex,
         pageSize: pageSize,
-        language: language,
-        artist: artist,
-        searchQuery: searchQuery,
-        whereClause: '${SongProfileDatabase.columnIsFavorite} = 1',
-        whereArgs: const <Object?>[],
-        orderBy:
-            '${SongProfileDatabase.columnFavoritedAt} DESC, ${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+        snapshotKey: snapshotKey,
       ),
     );
   }
@@ -148,14 +158,13 @@ class SongProfileRepository {
     String? artist,
     String searchQuery = '',
   }) {
+    final _SongIdSnapshotKey snapshotKey = _SongIdSnapshotKey.favorite(
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+    );
     return _guardCountResult(
-      () => _countSongs(
-        language: language,
-        artist: artist,
-        searchQuery: searchQuery,
-        whereClause: '${SongProfileDatabase.columnIsFavorite} = 1',
-        whereArgs: const <Object?>[],
-      ),
+      () async => (await _loadSongIdSnapshot(snapshotKey)).length,
     );
   }
 
@@ -166,17 +175,16 @@ class SongProfileRepository {
     String? artist,
     String searchQuery = '',
   }) {
+    final _SongIdSnapshotKey snapshotKey = _SongIdSnapshotKey.frequent(
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+    );
     return _guardListResult(
       () => _querySongIds(
         pageIndex: pageIndex,
         pageSize: pageSize,
-        language: language,
-        artist: artist,
-        searchQuery: searchQuery,
-        whereClause: '${SongProfileDatabase.columnPlayCount} > 0',
-        whereArgs: const <Object?>[],
-        orderBy:
-            '${SongProfileDatabase.columnPlayCount} DESC, ${SongProfileDatabase.columnLastPlayedAt} DESC, ${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+        snapshotKey: snapshotKey,
       ),
     );
   }
@@ -186,105 +194,90 @@ class SongProfileRepository {
     String? artist,
     String searchQuery = '',
   }) {
+    final _SongIdSnapshotKey snapshotKey = _SongIdSnapshotKey.frequent(
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+    );
     return _guardCountResult(
-      () => _countSongs(
-        language: language,
-        artist: artist,
-        searchQuery: searchQuery,
-        whereClause: '${SongProfileDatabase.columnPlayCount} > 0',
-        whereArgs: const <Object?>[],
-      ),
+      () async => (await _loadSongIdSnapshot(snapshotKey)).length,
     );
   }
 
   Future<List<String>> _querySongIds({
     required int pageIndex,
     required int pageSize,
-    required String? language,
-    required String? artist,
-    required String searchQuery,
-    required String whereClause,
-    required List<Object?> whereArgs,
-    required String orderBy,
+    required _SongIdSnapshotKey snapshotKey,
   }) async {
-    final List<Map<String, Object?>> rows = await _loadFilteredRows(
-      language: language,
-      artist: artist,
-      searchQuery: searchQuery,
-      whereClause: whereClause,
-      whereArgs: whereArgs,
-      orderBy: orderBy,
-    );
+    final List<String> songIds = await _loadSongIdSnapshot(snapshotKey);
     final int normalizedPageIndex = pageIndex < 0 ? 0 : pageIndex;
     final int normalizedPageSize = pageSize <= 0 ? 1 : pageSize;
     final int start = normalizedPageIndex * normalizedPageSize;
-    final int end = (start + normalizedPageSize).clamp(0, rows.length);
-    final List<Map<String, Object?>> pageRows = start >= rows.length
-        ? const <Map<String, Object?>>[]
-        : rows.sublist(start, end);
-    return pageRows
-        .map(
-          (Map<String, Object?> row) =>
-              row[SongProfileDatabase.columnSongId]?.toString() ?? '',
-        )
-        .where((String songId) => songId.isNotEmpty)
-        .toList(growable: false);
+    final int end = (start + normalizedPageSize).clamp(0, songIds.length);
+    return start >= songIds.length
+        ? const <String>[]
+        : songIds.sublist(start, end);
   }
 
-  Future<int> _countSongs({
-    required String? language,
-    required String? artist,
-    required String searchQuery,
-    required String whereClause,
-    required List<Object?> whereArgs,
-  }) async {
-    final List<Map<String, Object?>> rows = await _loadFilteredRows(
-      language: language,
-      artist: artist,
-      searchQuery: searchQuery,
-      whereClause: whereClause,
-      whereArgs: whereArgs,
-      orderBy:
-          '${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+  Future<List<String>> _loadSongIdSnapshot(_SongIdSnapshotKey snapshotKey) {
+    final _SongIdSnapshot? cachedSnapshot = _songIdSnapshot;
+    if (cachedSnapshot != null && cachedSnapshot.key == snapshotKey) {
+      return cachedSnapshot.songIds;
+    }
+
+    final int generation = ++_songIdSnapshotGeneration;
+    final Future<List<String>> songIds = _loadSongIdSnapshotRows(
+      snapshotKey,
+      generation: generation,
     );
-    return rows.length;
+    _songIdSnapshot = _SongIdSnapshot(key: snapshotKey, songIds: songIds);
+    return songIds;
   }
 
-  Future<List<Map<String, Object?>>> _loadFilteredRows({
-    required String? language,
-    required String? artist,
-    required String searchQuery,
-    required String whereClause,
-    required List<Object?> whereArgs,
-    required String orderBy,
+  Future<List<String>> _loadSongIdSnapshotRows(
+    _SongIdSnapshotKey snapshotKey, {
+    required int generation,
   }) async {
-    final String normalizedLanguage = (language ?? '').trim();
-    final String normalizedArtist = (artist ?? '').trim();
-    final String normalizedSearchQuery = searchQuery.trim().toLowerCase();
-    final Database database = await _database.database;
-    final List<Map<String, Object?>> rows = await database.query(
-      SongProfileDatabase.tableName,
-      where: whereClause,
-      whereArgs: whereArgs,
-      orderBy: orderBy,
-    );
-    return rows
-        .where((Map<String, Object?> row) {
-          final Song song = _mapRowToSong(row);
-          if (normalizedLanguage.isNotEmpty &&
-              !song.languages.contains(normalizedLanguage)) {
-            return false;
-          }
-          if (normalizedArtist.isNotEmpty &&
-              !_extractArtistNames(song.artist).contains(normalizedArtist)) {
-            return false;
-          }
-          if (normalizedSearchQuery.isEmpty) {
-            return true;
-          }
-          return song.searchIndex.contains(normalizedSearchQuery);
-        })
-        .toList(growable: false);
+    try {
+      final Database database = await _database.database;
+      final List<Map<String, Object?>> rows = await database.query(
+        SongProfileDatabase.tableName,
+        where: snapshotKey.whereClause,
+        orderBy: snapshotKey.orderBy,
+      );
+      final List<String> songIds = <String>[];
+      for (final Map<String, Object?> row in rows) {
+        final Song song = _mapRowToSong(row);
+        if (snapshotKey.language.isNotEmpty &&
+            !song.languages.contains(snapshotKey.language)) {
+          continue;
+        }
+        if (snapshotKey.artist.isNotEmpty &&
+            !_extractArtistNames(song.artist).contains(snapshotKey.artist)) {
+          continue;
+        }
+        if (snapshotKey.searchQuery.isNotEmpty &&
+            !song.searchIndex.contains(snapshotKey.searchQuery)) {
+          continue;
+        }
+        final String songId =
+            row[SongProfileDatabase.columnSongId]?.toString() ?? '';
+        if (songId.isNotEmpty) {
+          songIds.add(songId);
+        }
+      }
+      return List<String>.unmodifiable(songIds);
+    } catch (_) {
+      if (_songIdSnapshotGeneration == generation) {
+        _songIdSnapshot = null;
+      }
+      rethrow;
+    }
+  }
+
+  void _invalidateSongIdSnapshot() {
+    _songIdSnapshotGeneration += 1;
+    _songIdSnapshot = null;
   }
 
   Future<Map<String, Object?>> _loadOrCreateRow(
@@ -409,4 +402,93 @@ class SongProfileRepository {
     }
     return artists;
   }
+}
+
+enum _SongIdSnapshotType { favorite, frequent }
+
+class _SongIdSnapshotKey {
+  const _SongIdSnapshotKey._({
+    required this.type,
+    required this.language,
+    required this.artist,
+    required this.searchQuery,
+  });
+
+  factory _SongIdSnapshotKey.favorite({
+    required String? language,
+    required String? artist,
+    required String searchQuery,
+  }) {
+    return _SongIdSnapshotKey._normalized(
+      type: _SongIdSnapshotType.favorite,
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+    );
+  }
+
+  factory _SongIdSnapshotKey.frequent({
+    required String? language,
+    required String? artist,
+    required String searchQuery,
+  }) {
+    return _SongIdSnapshotKey._normalized(
+      type: _SongIdSnapshotType.frequent,
+      language: language,
+      artist: artist,
+      searchQuery: searchQuery,
+    );
+  }
+
+  factory _SongIdSnapshotKey._normalized({
+    required _SongIdSnapshotType type,
+    required String? language,
+    required String? artist,
+    required String searchQuery,
+  }) {
+    return _SongIdSnapshotKey._(
+      type: type,
+      language: (language ?? '').trim(),
+      artist: (artist ?? '').trim(),
+      searchQuery: searchQuery.trim().toLowerCase(),
+    );
+  }
+
+  final _SongIdSnapshotType type;
+  final String language;
+  final String artist;
+  final String searchQuery;
+
+  String get whereClause => switch (type) {
+    _SongIdSnapshotType.favorite =>
+      '${SongProfileDatabase.columnIsFavorite} = 1',
+    _SongIdSnapshotType.frequent =>
+      '${SongProfileDatabase.columnPlayCount} > 0',
+  };
+
+  String get orderBy => switch (type) {
+    _SongIdSnapshotType.favorite =>
+      '${SongProfileDatabase.columnFavoritedAt} DESC, ${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+    _SongIdSnapshotType.frequent =>
+      '${SongProfileDatabase.columnPlayCount} DESC, ${SongProfileDatabase.columnLastPlayedAt} DESC, ${SongProfileDatabase.columnUpdatedAt} DESC, ${SongProfileDatabase.columnTitle} COLLATE NOCASE ASC',
+  };
+
+  @override
+  bool operator ==(Object other) {
+    return other is _SongIdSnapshotKey &&
+        other.type == type &&
+        other.language == language &&
+        other.artist == artist &&
+        other.searchQuery == searchQuery;
+  }
+
+  @override
+  int get hashCode => Object.hash(type, language, artist, searchQuery);
+}
+
+class _SongIdSnapshot {
+  const _SongIdSnapshot({required this.key, required this.songIds});
+
+  final _SongIdSnapshotKey key;
+  final Future<List<String>> songIds;
 }

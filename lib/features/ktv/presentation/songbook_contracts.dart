@@ -47,20 +47,20 @@ class SongBookLibraryViewModel {
     required this.downloadedSongKeys,
     required this.totalCount,
     required this.pageIndex,
-    required this.totalPages,
-    required this.pageSize,
+    required this.hasMore,
     required this.hasConfiguredDirectory,
     required this.hasConfiguredAggregatedSources,
     required this.isScanning,
     required this.isLoadingPage,
     required this.scanErrorMessage,
+    required this.loadMoreErrorMessage,
   });
 
   final String searchQuery;
   final String selectedLanguage;
   final List<Song> songs;
   final List<Artist> artists;
-  final List<String> favoriteSongIds;
+  final Set<String> favoriteSongIds;
   final Set<String> downloadableSourceIds;
   final Set<String> downloadingSongIds;
   final Map<String, double> downloadingSongProgressByKey;
@@ -68,13 +68,13 @@ class SongBookLibraryViewModel {
   final Set<String> downloadedSongKeys;
   final int totalCount;
   final int pageIndex;
-  final int totalPages;
-  final int pageSize;
+  final bool hasMore;
   final bool hasConfiguredDirectory;
   final bool hasConfiguredAggregatedSources;
   final bool isScanning;
   final bool isLoadingPage;
   final String? scanErrorMessage;
+  final String? loadMoreErrorMessage;
 
   bool supportsDownload(Song song) =>
       downloadableSourceIds.contains(song.sourceId);
@@ -142,7 +142,7 @@ class SongBookLibraryCallbacks {
     required this.onAppendSearchToken,
     required this.onRemoveSearchCharacter,
     required this.onClearSearch,
-    required this.onRequestLibraryPage,
+    required this.onLoadMore,
     required this.onRequestSong,
     required this.onToggleFavorite,
     required this.onDownloadSong,
@@ -152,7 +152,7 @@ class SongBookLibraryCallbacks {
   final ValueChanged<String> onAppendSearchToken;
   final VoidCallback onRemoveSearchCharacter;
   final VoidCallback onClearSearch;
-  final void Function(int pageIndex, int pageSize) onRequestLibraryPage;
+  final VoidCallback onLoadMore;
   final ValueChanged<Song> onRequestSong;
   final ValueChanged<Song> onToggleFavorite;
   final ValueChanged<Song> onDownloadSong;

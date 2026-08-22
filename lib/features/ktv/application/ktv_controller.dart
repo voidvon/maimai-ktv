@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:ktv2/ktv2.dart';
 
@@ -140,17 +141,18 @@ class KtvController extends ChangeNotifier {
   String? get scanDirectoryPath => _state.scanDirectoryPath;
   bool get isScanningLibrary => _state.isScanningLibrary;
   bool get isLoadingLibraryPage => _state.isLoadingLibraryPage;
+  bool get hasMoreLibraryItems => _state.hasMoreLibraryItems;
   bool get hasConfiguredDirectory => _state.hasConfiguredDirectory;
   bool get hasConfiguredAggregatedSources =>
       _state.hasConfiguredAggregatedSources;
   bool get canNavigateBack => _navigationHistory.canNavigateBack;
-  List<Song> get queuedSongs => List<Song>.unmodifiable(_state.queuedSongs);
+  List<Song> get queuedSongs => UnmodifiableListView<Song>(_state.queuedSongs);
   List<Song> get librarySongs =>
-      List<Song>.unmodifiable(_state.libraryPageSongs);
+      UnmodifiableListView<Song>(_state.libraryPageSongs);
   List<Artist> get libraryArtists =>
-      List<Artist>.unmodifiable(_state.libraryPageArtists);
-  List<String> get favoriteSongIds =>
-      List<String>.unmodifiable(_state.libraryFavoriteSongIds);
+      UnmodifiableListView<Artist>(_state.libraryPageArtists);
+  Set<String> get favoriteSongIds =>
+      UnmodifiableSetView<String>(_state.libraryFavoriteSongIds);
   Set<String> get downloadingSongIds => Set<String>.unmodifiable(
     _downloadTasksByKey.values
         .map((DownloadingSongItem item) => item.songId)
@@ -176,7 +178,7 @@ class KtvController extends ChangeNotifier {
           ): item.status,
       });
   Set<String> get downloadedSongKeys =>
-      Set<String>.unmodifiable(_downloadedSongKeys);
+      UnmodifiableSetView<String>(_downloadedSongKeys);
   Set<String> get downloadableSourceIds =>
       Set<String>.unmodifiable(_songDownloadServices.keys.toSet());
   List<DownloadingSongItem> get downloadingSongs {
@@ -203,6 +205,7 @@ class KtvController extends ChangeNotifier {
   int get libraryPageIndex => _state.libraryPageIndex;
   int get libraryPageSize => _state.libraryPageSize;
   int get libraryTotalPages => _state.libraryTotalPages;
+  String? get libraryLoadMoreErrorMessage => _state.libraryLoadMoreErrorMessage;
   List<Song> get filteredQueuedSongs => _state.filteredQueuedSongs();
 
   String get currentTitle => _state.currentTitle;
@@ -372,14 +375,8 @@ class KtvController extends ChangeNotifier {
     return _librarySession.refreshConfiguredSources();
   }
 
-  Future<void> requestLibraryPage({
-    required int pageIndex,
-    required int pageSize,
-  }) {
-    return _librarySession.requestLibraryPage(
-      pageIndex: pageIndex,
-      pageSize: pageSize,
-    );
+  Future<void> loadMoreLibraryItems() {
+    return _librarySession.loadNextLibraryPage();
   }
 
   SongSelectionAction resolveSongSelectionAction(Song song) {
@@ -710,14 +707,12 @@ class KtvController extends ChangeNotifier {
     }
     _setState(
       _state.copyWith(
-        libraryFavoriteSongIds: nextFavoriteSongIds.toList(growable: false),
+        libraryFavoriteSongIds: Set<String>.unmodifiable(nextFavoriteSongIds),
       ),
     );
 
     if (_state.songBookMode == SongBookMode.favorites) {
-      await _librarySession.reloadLibraryPage(
-        pageIndex: _state.libraryPageIndex,
-      );
+      await _librarySession.refreshLoadedLibraryItems();
     }
   }
 
@@ -810,6 +805,9 @@ class KtvController extends ChangeNotifier {
   void _scheduleLibraryRefresh({required bool resetPage}) {
     _pendingSearchRefresh?.cancel();
     _pendingSearchRefresh = Timer(_searchRefreshDebounce, () {
+      if (_state.route == KtvRoute.queueList) {
+        return;
+      }
       unawaited(
         _librarySession.reloadLibraryPage(pageIndex: resetPage ? 0 : null),
       );
@@ -837,7 +835,7 @@ class KtvController extends ChangeNotifier {
         _state.songBookMode != SongBookMode.frequent) {
       return;
     }
-    await _librarySession.reloadLibraryPage(pageIndex: _state.libraryPageIndex);
+    await _librarySession.refreshLoadedLibraryItems();
   }
 
   void _applyNavigationState(NavigationDestination target) {
@@ -849,7 +847,7 @@ class KtvController extends ChangeNotifier {
         selectedArtist: target.selectedArtist,
         searchQuery: '',
         libraryPageIndex: 0,
-        libraryFavoriteSongIds: const <String>[],
+        libraryFavoriteSongIds: const <String>{},
       ),
     );
   }

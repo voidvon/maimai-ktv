@@ -335,11 +335,8 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
     _searchCoordinator.clear();
   }
 
-  Future<void> _requestLibraryPage(int pageIndex, int pageSize) {
-    return _controller.requestLibraryPage(
-      pageIndex: pageIndex,
-      pageSize: pageSize,
-    );
+  void _loadMoreLibraryItems() {
+    unawaited(_controller.loadMoreLibraryItems());
   }
 
   Future<void> _requestSong(Song song) async {
@@ -503,14 +500,14 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         downloadedSongKeys: _controller.downloadedSongKeys,
         totalCount: _controller.libraryTotalCount,
         pageIndex: _controller.libraryPageIndex,
-        totalPages: _controller.libraryTotalPages,
-        pageSize: _controller.libraryPageSize,
+        hasMore: _controller.hasMoreLibraryItems,
         hasConfiguredDirectory: _controller.hasConfiguredDirectory,
         hasConfiguredAggregatedSources:
             _controller.hasConfiguredAggregatedSources,
         isScanning: _controller.isScanningLibrary,
         isLoadingPage: _controller.isLoadingLibraryPage,
         scanErrorMessage: _controller.libraryScanErrorMessage,
+        loadMoreErrorMessage: _controller.libraryLoadMoreErrorMessage,
       ),
       playback: SongBookPlaybackViewModel(queuedSongs: _controller.queuedSongs),
     );
@@ -529,7 +526,7 @@ class _KtvShellState extends State<KtvShell> with WidgetsBindingObserver {
         onAppendSearchToken: _appendSearchToken,
         onRemoveSearchCharacter: _removeSearchCharacter,
         onClearSearch: _clearSearch,
-        onRequestLibraryPage: _requestLibraryPage,
+        onLoadMore: _loadMoreLibraryItems,
         onRequestSong: _requestSong,
         onToggleFavorite: _toggleFavorite,
         onDownloadSong: _downloadSong,

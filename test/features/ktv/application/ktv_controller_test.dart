@@ -189,6 +189,213 @@ void main() {
     });
 
     test(
+      'loadMoreLibraryItems appends fixed-size song batches through the last page',
+      () async {
+        final List<Song> songs = List<Song>.generate(
+          70,
+          (int index) => buildRemoteSong(
+            title: '歌曲 ${index.toString().padLeft(2, '0')}',
+            artist: '歌手 ${index % 5}',
+            sourceId: 'baidu_pan',
+            sourceSongId: 'song-$index',
+          ),
+        );
+        final KtvController controller = KtvController(
+          mediaLibraryRepository: createTestMediaLibraryRepository(
+            hasConfiguredAggregatedSources: true,
+          ),
+          aggregatedLibraryRepository: FakeAggregatedLibraryRepository(
+            aggregatedSongs: songs,
+          ),
+          songProfileRepository: _FakeSongProfileRepository(),
+          playerController: FakePlayerController(),
+          downloadTaskStore: MemoryDownloadTaskStore(),
+          playbackSessionStore: MemoryPlaybackSessionStore(),
+        );
+        addTearDown(controller.dispose);
+
+        controller.enterSongBook(
+          mode: SongBookMode.songs,
+          scope: LibraryScope.aggregated,
+        );
+        await settleControllerRefresh();
+
+        expect(controller.libraryPageSize, 32);
+        expect(controller.libraryPageIndex, 0);
+        expect(controller.libraryTotalCount, 70);
+        expect(controller.librarySongs, hasLength(32));
+        expect(controller.hasMoreLibraryItems, isTrue);
+
+        await controller.loadMoreLibraryItems();
+
+        expect(controller.libraryPageIndex, 1);
+        expect(controller.librarySongs, hasLength(64));
+        expect(controller.hasMoreLibraryItems, isTrue);
+
+        await controller.loadMoreLibraryItems();
+
+        expect(controller.libraryPageIndex, 2);
+        expect(controller.librarySongs, hasLength(70));
+        expect(controller.hasMoreLibraryItems, isFalse);
+        final List<String> loadedSongIds = controller.librarySongs
+            .map((Song song) => song.songId)
+            .toList(growable: false);
+        expect(loadedSongIds.toSet(), hasLength(70));
+
+        await controller.loadMoreLibraryItems();
+
+        expect(controller.libraryPageIndex, 2);
+        expect(
+          controller.librarySongs.map((Song song) => song.songId),
+          orderedEquals(loadedSongIds),
+        );
+      },
+    );
+
+    test('loadMoreLibraryItems preserves already loaded artists', () async {
+      final List<Song> songs = List<Song>.generate(
+        40,
+        (int index) => buildRemoteSong(
+          title: '代表作 ${index.toString().padLeft(2, '0')}',
+          artist: '歌手 ${index.toString().padLeft(2, '0')}',
+          sourceId: 'baidu_pan',
+          sourceSongId: 'artist-song-$index',
+        ),
+      );
+      final KtvController controller = KtvController(
+        mediaLibraryRepository: createTestMediaLibraryRepository(
+          hasConfiguredAggregatedSources: true,
+        ),
+        aggregatedLibraryRepository: FakeAggregatedLibraryRepository(
+          aggregatedSongs: songs,
+        ),
+        songProfileRepository: _FakeSongProfileRepository(),
+        playerController: FakePlayerController(),
+        downloadTaskStore: MemoryDownloadTaskStore(),
+        playbackSessionStore: MemoryPlaybackSessionStore(),
+      );
+      addTearDown(controller.dispose);
+
+      controller.enterSongBook(
+        mode: SongBookMode.artists,
+        scope: LibraryScope.aggregated,
+      );
+      await settleControllerRefresh();
+
+      final List<String> firstBatch = controller.libraryArtists
+          .map((artist) => artist.name)
+          .toList(growable: false);
+      expect(firstBatch, hasLength(32));
+      expect(controller.hasMoreLibraryItems, isTrue);
+
+      await controller.loadMoreLibraryItems();
+
+      final List<String> allArtists = controller.libraryArtists
+          .map((artist) => artist.name)
+          .toList(growable: false);
+      expect(allArtists, hasLength(40));
+      expect(allArtists.take(firstBatch.length), orderedEquals(firstBatch));
+      expect(allArtists.toSet(), hasLength(40));
+      expect(controller.hasMoreLibraryItems, isFalse);
+    });
+
+    test(
+      'favorite batches can advance past unresolved profile song IDs',
+      () async {
+        final Song validSong = buildRemoteSong(
+          title: '仍然有效',
+          artist: '测试歌手',
+          sourceId: 'baidu_pan',
+          sourceSongId: 'valid-song',
+        );
+        final _MutableSongProfileRepository profiles =
+            _MutableSongProfileRepository(
+              favoriteSongIds: <String>[
+                ...List<String>.generate(32, (int index) => 'stale-$index'),
+                validSong.songId,
+              ],
+            );
+        final KtvController controller = KtvController(
+          mediaLibraryRepository: createTestMediaLibraryRepository(
+            hasConfiguredAggregatedSources: true,
+          ),
+          aggregatedLibraryRepository: FakeAggregatedLibraryRepository(
+            aggregatedSongs: <Song>[validSong],
+          ),
+          songProfileRepository: profiles,
+          playerController: FakePlayerController(),
+          downloadTaskStore: MemoryDownloadTaskStore(),
+          playbackSessionStore: MemoryPlaybackSessionStore(),
+        );
+        addTearDown(controller.dispose);
+
+        controller.enterFavoritesBook();
+        await settleControllerRefresh();
+
+        expect(controller.librarySongs, isEmpty);
+        expect(controller.libraryPageIndex, 0);
+        expect(controller.hasMoreLibraryItems, isTrue);
+
+        await controller.loadMoreLibraryItems();
+
+        expect(controller.librarySongs, <Song>[validSong]);
+        expect(controller.libraryPageIndex, 1);
+        expect(controller.hasMoreLibraryItems, isFalse);
+      },
+    );
+
+    test(
+      'favorite refresh preserves the loaded prefix after removal',
+      () async {
+        final List<Song> songs = List<Song>.generate(
+          70,
+          (int index) => buildRemoteSong(
+            title: '收藏歌曲 ${index.toString().padLeft(2, '0')}',
+            artist: '测试歌手',
+            sourceId: 'baidu_pan',
+            sourceSongId: 'favorite-$index',
+          ),
+        );
+        final _MutableSongProfileRepository profiles =
+            _MutableSongProfileRepository(
+              favoriteSongIds: songs.map((Song song) => song.songId).toList(),
+            );
+        final KtvController controller = KtvController(
+          mediaLibraryRepository: createTestMediaLibraryRepository(
+            hasConfiguredAggregatedSources: true,
+          ),
+          aggregatedLibraryRepository: FakeAggregatedLibraryRepository(
+            aggregatedSongs: songs,
+          ),
+          songProfileRepository: profiles,
+          playerController: FakePlayerController(),
+          downloadTaskStore: MemoryDownloadTaskStore(),
+          playbackSessionStore: MemoryPlaybackSessionStore(),
+        );
+        addTearDown(controller.dispose);
+
+        controller.enterFavoritesBook();
+        await settleControllerRefresh();
+        await controller.loadMoreLibraryItems();
+
+        expect(controller.libraryPageIndex, 1);
+        expect(controller.librarySongs, hasLength(64));
+
+        final Song removedSong = songs[10];
+        final Song backfilledSong = songs[64];
+        await controller.toggleFavorite(removedSong);
+
+        expect(controller.libraryPageIndex, 1);
+        expect(controller.libraryPageSize, 32);
+        expect(controller.librarySongs, hasLength(64));
+        expect(controller.librarySongs, isNot(contains(removedSong)));
+        expect(controller.librarySongs, contains(backfilledSong));
+        expect(controller.libraryTotalCount, 69);
+        expect(controller.hasMoreLibraryItems, isTrue);
+      },
+    );
+
+    test(
       'resolveSongSelectionAction distinguishes queue, start, and resume',
       () async {
         final Song localSong = buildLocalSong(title: '本地歌曲', artist: '歌手甲');
@@ -273,6 +480,56 @@ class _FakeSongProfileRepository extends SongProfileRepository {
   @override
   Future<Set<String>> loadFavoriteSongIds(Iterable<String> songIds) async {
     return <String>{};
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
+class _MutableSongProfileRepository extends SongProfileRepository {
+  _MutableSongProfileRepository({required List<String> favoriteSongIds})
+    : _favoriteSongIds = Set<String>.of(favoriteSongIds);
+
+  final Set<String> _favoriteSongIds;
+
+  @override
+  Future<bool> toggleFavorite({required Song song}) async {
+    if (_favoriteSongIds.remove(song.songId)) {
+      return false;
+    }
+    _favoriteSongIds.add(song.songId);
+    return true;
+  }
+
+  @override
+  Future<Set<String>> loadFavoriteSongIds(Iterable<String> songIds) async {
+    return songIds.where(_favoriteSongIds.contains).toSet();
+  }
+
+  @override
+  Future<List<String>> queryFavoriteSongIds({
+    required int pageIndex,
+    required int pageSize,
+    String? language,
+    String? artist,
+    String searchQuery = '',
+  }) async {
+    final List<String> songIds = _favoriteSongIds.toList(growable: false);
+    final int start = pageIndex * pageSize;
+    if (start >= songIds.length) {
+      return const <String>[];
+    }
+    final int end = (start + pageSize).clamp(0, songIds.length);
+    return songIds.sublist(start, end);
+  }
+
+  @override
+  Future<int> countFavoriteSongs({
+    String? language,
+    String? artist,
+    String searchQuery = '',
+  }) async {
+    return _favoriteSongIds.length;
   }
 
   @override

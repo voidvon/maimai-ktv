@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math' as math;
 
 import '../../../core/models/artist.dart';
@@ -103,7 +104,7 @@ class LibrarySession {
         _readState().copyWith(
           libraryPageSongs: const <Song>[],
           libraryPageArtists: const <Artist>[],
-          libraryFavoriteSongIds: const <String>[],
+          libraryFavoriteSongIds: const <String>{},
           libraryTotalCount: 0,
           libraryPageIndex: 0,
           libraryScanErrorMessage: '扫描本地目录失败：$error',
@@ -115,19 +116,29 @@ class LibrarySession {
     }
   }
 
-  Future<void> requestLibraryPage({
-    required int pageIndex,
-    required int pageSize,
-  }) {
+  Future<void> loadNextLibraryPage() {
     final KtvState state = _readState();
-    final int normalizedPageSize = math.max(1, pageSize);
-    final int previousOffset = state.libraryPageIndex * state.libraryPageSize;
-    final int nextPageIndex = normalizedPageSize == state.libraryPageSize
-        ? pageIndex
-        : previousOffset ~/ normalizedPageSize;
+    if (state.route != KtvRoute.songBook ||
+        state.isLoadingLibraryPage ||
+        !state.hasMoreLibraryItems) {
+      return Future<void>.value();
+    }
     return reloadLibraryPage(
-      pageIndex: nextPageIndex,
-      pageSize: normalizedPageSize,
+      pageIndex: state.libraryPageIndex + 1,
+      pageSize: state.libraryPageSize,
+      append: true,
+    );
+  }
+
+  Future<void> refreshLoadedLibraryItems() {
+    final KtvState state = _readState();
+    final int retainedPageIndex = state.libraryPageIndex;
+    final int retainedPageSize = state.libraryPageSize;
+    return reloadLibraryPage(
+      pageIndex: 0,
+      pageSize: retainedPageSize * (retainedPageIndex + 1),
+      retainedPageIndex: retainedPageIndex,
+      retainedPageSize: retainedPageSize,
     );
   }
 
@@ -147,7 +158,7 @@ class LibrarySession {
         return;
       }
       await reloadLibraryPage(
-        pageIndex: _readState().libraryPageIndex,
+        pageIndex: 0,
         pageSize: _readState().libraryPageSize,
         clearErrorMessage: true,
       );
@@ -175,7 +186,7 @@ class LibrarySession {
       await _libraryRepository.refreshSources(localDirectory: directory);
       await _syncConfiguredSourceFlags(localDirectory: directory);
       await reloadLibraryPage(
-        pageIndex: state.libraryPageIndex,
+        pageIndex: 0,
         pageSize: state.libraryPageSize,
         clearErrorMessage: true,
       );
@@ -192,6 +203,9 @@ class LibrarySession {
     int? pageIndex,
     int? pageSize,
     bool clearErrorMessage = false,
+    bool append = false,
+    int? retainedPageIndex,
+    int? retainedPageSize,
   }) async {
     final KtvState state = _readState();
     final String? directory = state.scanDirectoryPath;
@@ -202,10 +216,11 @@ class LibrarySession {
         state.copyWith(
           libraryPageSongs: const <Song>[],
           libraryPageArtists: const <Artist>[],
-          libraryFavoriteSongIds: const <String>[],
+          libraryFavoriteSongIds: const <String>{},
           libraryTotalCount: 0,
           libraryPageIndex: 0,
           isLoadingLibraryPage: false,
+          libraryLoadMoreErrorMessage: null,
         ),
       );
       return;
@@ -216,13 +231,23 @@ class LibrarySession {
       0,
       pageIndex ?? state.libraryPageIndex,
     );
+    final int loadingPageIndex = math.max(
+      0,
+      retainedPageIndex ?? (append ? state.libraryPageIndex : targetPageIndex),
+    );
+    final int resultPageIndex = math.max(
+      0,
+      retainedPageIndex ?? targetPageIndex,
+    );
+    final int resultPageSize = math.max(1, retainedPageSize ?? targetPageSize);
     final int generation = ++_libraryQueryGeneration;
 
     _writeState(
       state.copyWith(
         isLoadingLibraryPage: true,
-        libraryPageIndex: targetPageIndex,
-        libraryPageSize: targetPageSize,
+        libraryPageIndex: loadingPageIndex,
+        libraryPageSize: resultPageSize,
+        libraryLoadMoreErrorMessage: null,
         libraryScanErrorMessage: clearErrorMessage
             ? null
             : state.libraryScanErrorMessage,
@@ -247,6 +272,9 @@ class LibrarySession {
           pageIndex: targetPageIndex,
           pageSize: targetPageSize,
           clearErrorMessage: clearErrorMessage,
+          append: append,
+          resultPageIndex: resultPageIndex,
+          resultPageSize: resultPageSize,
         );
         return;
       }
@@ -261,6 +289,9 @@ class LibrarySession {
           pageIndex: targetPageIndex,
           pageSize: targetPageSize,
           clearErrorMessage: clearErrorMessage,
+          append: append,
+          resultPageIndex: resultPageIndex,
+          resultPageSize: resultPageSize,
         );
         return;
       }
@@ -275,6 +306,9 @@ class LibrarySession {
           pageIndex: targetPageIndex,
           pageSize: targetPageSize,
           clearErrorMessage: clearErrorMessage,
+          append: append,
+          resultPageIndex: resultPageIndex,
+          resultPageSize: resultPageSize,
         );
         return;
       }
@@ -289,20 +323,30 @@ class LibrarySession {
         pageIndex: targetPageIndex,
         pageSize: targetPageSize,
         clearErrorMessage: clearErrorMessage,
+        append: append,
+        resultPageIndex: resultPageIndex,
+        resultPageSize: resultPageSize,
       );
     } catch (error) {
       if (generation != _libraryQueryGeneration) {
         return;
       }
+      final KtvState currentState = _readState();
       _writeState(
-        _readState().copyWith(
-          libraryPageSongs: const <Song>[],
-          libraryPageArtists: const <Artist>[],
-          libraryFavoriteSongIds: const <String>[],
-          libraryTotalCount: 0,
-          isLoadingLibraryPage: false,
-          libraryScanErrorMessage: '加载歌曲列表失败：$error',
-        ),
+        append
+            ? currentState.copyWith(
+                isLoadingLibraryPage: false,
+                libraryLoadMoreErrorMessage: '加载更多歌曲失败：$error',
+              )
+            : currentState.copyWith(
+                libraryPageSongs: const <Song>[],
+                libraryPageArtists: const <Artist>[],
+                libraryFavoriteSongIds: const <String>{},
+                libraryTotalCount: 0,
+                isLoadingLibraryPage: false,
+                libraryScanErrorMessage: '加载歌曲列表失败：$error',
+                libraryLoadMoreErrorMessage: null,
+              ),
       );
     }
   }
@@ -316,6 +360,9 @@ class LibrarySession {
     required int pageIndex,
     required int pageSize,
     required bool clearErrorMessage,
+    required bool append,
+    required int resultPageIndex,
+    required int resultPageSize,
   }) async {
     final ArtistPage page = await _libraryRepository.queryArtists(
       scope: scope,
@@ -331,6 +378,16 @@ class LibrarySession {
 
     final int totalPages = page.totalPages;
     if (page.totalCount > 0 && pageIndex >= totalPages) {
+      if (append) {
+        _writeState(
+          _readState().copyWith(
+            libraryTotalCount: page.totalCount,
+            isLoadingLibraryPage: false,
+            libraryLoadMoreErrorMessage: null,
+          ),
+        );
+        return;
+      }
       await reloadLibraryPage(
         pageIndex: totalPages - 1,
         pageSize: pageSize,
@@ -342,14 +399,17 @@ class LibrarySession {
     _writeState(
       _readState().copyWith(
         libraryPageSongs: const <Song>[],
-        libraryPageArtists: page.artists,
-        libraryFavoriteSongIds: const <String>[],
+        libraryPageArtists: append
+            ? _mergeArtists(_readState().libraryPageArtists, page.artists)
+            : page.artists,
+        libraryFavoriteSongIds: const <String>{},
         hasConfiguredAggregatedSources:
             _readState().hasConfiguredAggregatedSources || page.totalCount > 0,
         libraryTotalCount: page.totalCount,
-        libraryPageIndex: page.pageIndex,
-        libraryPageSize: page.pageSize,
+        libraryPageIndex: resultPageIndex,
+        libraryPageSize: resultPageSize,
         isLoadingLibraryPage: false,
+        libraryLoadMoreErrorMessage: null,
         libraryScanErrorMessage: clearErrorMessage
             ? null
             : _readState().libraryScanErrorMessage,
@@ -367,6 +427,9 @@ class LibrarySession {
     required int pageIndex,
     required int pageSize,
     required bool clearErrorMessage,
+    required bool append,
+    required int resultPageIndex,
+    required int resultPageSize,
   }) async {
     final SongPage page = await _libraryRepository.querySongs(
       scope: scope,
@@ -383,6 +446,16 @@ class LibrarySession {
 
     final int totalPages = page.totalPages;
     if (page.totalCount > 0 && pageIndex >= totalPages) {
+      if (append) {
+        _writeState(
+          _readState().copyWith(
+            libraryTotalCount: page.totalCount,
+            isLoadingLibraryPage: false,
+            libraryLoadMoreErrorMessage: null,
+          ),
+        );
+        return;
+      }
       await reloadLibraryPage(
         pageIndex: totalPages - 1,
         pageSize: pageSize,
@@ -399,15 +472,20 @@ class LibrarySession {
 
     _writeState(
       _readState().copyWith(
-        libraryPageSongs: page.songs,
+        libraryPageSongs: append
+            ? _mergeSongs(_readState().libraryPageSongs, page.songs)
+            : page.songs,
         libraryPageArtists: const <Artist>[],
-        libraryFavoriteSongIds: favoriteSongIds.toList(growable: false),
+        libraryFavoriteSongIds: append
+            ? _mergeIds(_readState().libraryFavoriteSongIds, favoriteSongIds)
+            : Set<String>.unmodifiable(favoriteSongIds),
         hasConfiguredAggregatedSources:
             _readState().hasConfiguredAggregatedSources || page.totalCount > 0,
         libraryTotalCount: page.totalCount,
-        libraryPageIndex: page.pageIndex,
-        libraryPageSize: page.pageSize,
+        libraryPageIndex: resultPageIndex,
+        libraryPageSize: resultPageSize,
         isLoadingLibraryPage: false,
+        libraryLoadMoreErrorMessage: null,
         libraryScanErrorMessage: clearErrorMessage
             ? null
             : _readState().libraryScanErrorMessage,
@@ -424,6 +502,9 @@ class LibrarySession {
     required int pageIndex,
     required int pageSize,
     required bool clearErrorMessage,
+    required bool append,
+    required int resultPageIndex,
+    required int resultPageSize,
   }) async {
     final List<String> favoriteSongIds = await _songProfileRepository
         .queryFavoriteSongIds(
@@ -456,15 +537,20 @@ class LibrarySession {
 
     _writeState(
       _readState().copyWith(
-        libraryPageSongs: songs,
+        libraryPageSongs: append
+            ? _mergeSongs(_readState().libraryPageSongs, songs)
+            : songs,
         libraryPageArtists: const <Artist>[],
-        libraryFavoriteSongIds: favoriteSongIds,
+        libraryFavoriteSongIds: append
+            ? _mergeIds(_readState().libraryFavoriteSongIds, favoriteSongIds)
+            : Set<String>.unmodifiable(favoriteSongIds),
         hasConfiguredAggregatedSources:
             _readState().hasConfiguredAggregatedSources || songs.isNotEmpty,
         libraryTotalCount: totalCount,
-        libraryPageIndex: pageIndex,
-        libraryPageSize: pageSize,
+        libraryPageIndex: resultPageIndex,
+        libraryPageSize: resultPageSize,
         isLoadingLibraryPage: false,
+        libraryLoadMoreErrorMessage: null,
         libraryScanErrorMessage: clearErrorMessage
             ? null
             : _readState().libraryScanErrorMessage,
@@ -481,6 +567,9 @@ class LibrarySession {
     required int pageIndex,
     required int pageSize,
     required bool clearErrorMessage,
+    required bool append,
+    required int resultPageIndex,
+    required int resultPageSize,
   }) async {
     final List<String> songIds = await _songProfileRepository
         .queryFrequentSongIds(
@@ -519,20 +608,53 @@ class LibrarySession {
 
     _writeState(
       _readState().copyWith(
-        libraryPageSongs: songs,
+        libraryPageSongs: append
+            ? _mergeSongs(_readState().libraryPageSongs, songs)
+            : songs,
         libraryPageArtists: const <Artist>[],
-        libraryFavoriteSongIds: favoriteSongIds.toList(growable: false),
+        libraryFavoriteSongIds: append
+            ? _mergeIds(_readState().libraryFavoriteSongIds, favoriteSongIds)
+            : Set<String>.unmodifiable(favoriteSongIds),
         hasConfiguredAggregatedSources:
             _readState().hasConfiguredAggregatedSources || songs.isNotEmpty,
         libraryTotalCount: totalCount,
-        libraryPageIndex: pageIndex,
-        libraryPageSize: pageSize,
+        libraryPageIndex: resultPageIndex,
+        libraryPageSize: resultPageSize,
         isLoadingLibraryPage: false,
+        libraryLoadMoreErrorMessage: null,
         libraryScanErrorMessage: clearErrorMessage
             ? null
             : _readState().libraryScanErrorMessage,
       ),
     );
+  }
+
+  List<Song> _mergeSongs(List<Song> loaded, Iterable<Song> nextPage) {
+    final List<Song> merged = List<Song>.of(loaded);
+    final Set<Song> seen = loaded.toSet();
+    for (final Song song in nextPage) {
+      if (seen.add(song)) {
+        merged.add(song);
+      }
+    }
+    return UnmodifiableListView<Song>(merged);
+  }
+
+  List<Artist> _mergeArtists(List<Artist> loaded, Iterable<Artist> nextPage) {
+    final List<Artist> merged = List<Artist>.of(loaded);
+    final Set<String> seenNames = loaded
+        .map((Artist artist) => artist.name)
+        .toSet();
+    for (final Artist artist in nextPage) {
+      if (seenNames.add(artist.name)) {
+        merged.add(artist);
+      }
+    }
+    return UnmodifiableListView<Artist>(merged);
+  }
+
+  Set<String> _mergeIds(Iterable<String> loaded, Iterable<String> nextPage) {
+    return UnmodifiableSetView<String>(<String>{...loaded, ...nextPage});
   }
 
   Future<void> _syncConfiguredSourceFlags({

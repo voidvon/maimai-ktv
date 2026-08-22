@@ -17,11 +17,12 @@ class LibraryState {
     this.isLoadingLibraryPage = false,
     this.pageSongs = const <Song>[],
     this.pageArtists = const <Artist>[],
-    this.favoriteSongIds = const <String>[],
+    this.favoriteSongIds = const <String>{},
     this.totalCount = 0,
     this.pageIndex = 0,
-    this.pageSize = 8,
+    this.pageSize = 32,
     this.scanErrorMessage,
+    this.loadMoreErrorMessage,
   });
 
   static const Object _unset = Object();
@@ -34,11 +35,12 @@ class LibraryState {
   final bool isLoadingLibraryPage;
   final List<Song> pageSongs;
   final List<Artist> pageArtists;
-  final List<String> favoriteSongIds;
+  final Set<String> favoriteSongIds;
   final int totalCount;
   final int pageIndex;
   final int pageSize;
   final String? scanErrorMessage;
+  final String? loadMoreErrorMessage;
 
   bool get hasConfiguredDirectory => scanDirectoryPath != null;
 
@@ -46,8 +48,10 @@ class LibraryState {
     if (pageSize <= 0 || totalCount <= 0) {
       return 1;
     }
-    return ((totalCount + pageSize - 1) / pageSize).ceil();
+    return (totalCount + pageSize - 1) ~/ pageSize;
   }
+
+  bool get hasMoreItems => totalCount > 0 && pageIndex + 1 < totalPages;
 
   LibraryState copyWith({
     Object? scanDirectoryPath = _unset,
@@ -58,11 +62,12 @@ class LibraryState {
     bool? isLoadingLibraryPage,
     List<Song>? pageSongs,
     List<Artist>? pageArtists,
-    List<String>? favoriteSongIds,
+    Set<String>? favoriteSongIds,
     int? totalCount,
     int? pageIndex,
     int? pageSize,
     Object? scanErrorMessage = _unset,
+    Object? loadMoreErrorMessage = _unset,
   }) {
     return LibraryState(
       scanDirectoryPath: identical(scanDirectoryPath, _unset)
@@ -83,6 +88,9 @@ class LibraryState {
       scanErrorMessage: identical(scanErrorMessage, _unset)
           ? this.scanErrorMessage
           : scanErrorMessage as String?,
+      loadMoreErrorMessage: identical(loadMoreErrorMessage, _unset)
+          ? this.loadMoreErrorMessage
+          : loadMoreErrorMessage as String?,
     );
   }
 }
@@ -117,6 +125,7 @@ class KtvState {
   final PlaybackState playback;
 
   String? get libraryScanErrorMessage => library.scanErrorMessage;
+  String? get libraryLoadMoreErrorMessage => library.loadMoreErrorMessage;
   String? get scanDirectoryPath => library.scanDirectoryPath;
   LibraryScope get libraryScope => library.scope;
   bool get hasConfiguredAggregatedSources =>
@@ -127,7 +136,7 @@ class KtvState {
   List<Song> get queuedSongs => playback.queuedSongs;
   List<Song> get libraryPageSongs => library.pageSongs;
   List<Artist> get libraryPageArtists => library.pageArtists;
-  List<String> get libraryFavoriteSongIds => library.favoriteSongIds;
+  Set<String> get libraryFavoriteSongIds => library.favoriteSongIds;
   int get libraryTotalCount => library.totalCount;
   int get libraryPageIndex => library.pageIndex;
   int get libraryPageSize => library.pageSize;
@@ -138,6 +147,7 @@ class KtvState {
   String get normalizedSearchQuery => library.searchQuery.trim().toLowerCase();
 
   int get libraryTotalPages => library.totalPages;
+  bool get hasMoreLibraryItems => library.hasMoreItems;
 
   List<Song> filteredQueuedSongs() {
     if (normalizedSearchQuery.isEmpty) {
@@ -187,10 +197,11 @@ class KtvState {
     List<Song>? queuedSongs,
     List<Song>? libraryPageSongs,
     List<Artist>? libraryPageArtists,
-    List<String>? libraryFavoriteSongIds,
+    Set<String>? libraryFavoriteSongIds,
     int? libraryTotalCount,
     int? libraryPageIndex,
     int? libraryPageSize,
+    Object? libraryLoadMoreErrorMessage = _unset,
   }) {
     final LibraryState nextLibrary = (library ?? this.library).copyWith(
       scanDirectoryPath: scanDirectoryPath,
@@ -206,6 +217,7 @@ class KtvState {
       pageIndex: libraryPageIndex,
       pageSize: libraryPageSize,
       scanErrorMessage: libraryScanErrorMessage,
+      loadMoreErrorMessage: libraryLoadMoreErrorMessage,
     );
     final PlaybackState nextPlayback = (playback ?? this.playback).copyWith(
       queuedSongs: queuedSongs,

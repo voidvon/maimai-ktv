@@ -52,6 +52,8 @@ class MediaLibraryRepository {
   final MediaIndexStore _mediaIndexStore;
   final Map<String, List<Song>> _cachedSongsByDirectory =
       <String, List<Song>>{};
+  _SongFilterSnapshot? _songFilterSnapshot;
+  _ArtistFilterSnapshot? _artistFilterSnapshot;
 
   MediaIndexStore get mediaIndexStore => _mediaIndexStore;
 
@@ -144,12 +146,33 @@ class MediaLibraryRepository {
     final String normalizedQuery = searchQuery.trim().toLowerCase();
 
     final List<Song> songs = await _loadOrRestoreLocalSongs(directory);
-    final List<Song> filteredSongs = _filterSongs(
-      songs,
-      language: normalizedLanguage,
-      artist: normalizedArtist,
-      searchQuery: normalizedQuery,
-    );
+    final _SongFilterSnapshot? cachedSnapshot = _songFilterSnapshot;
+    final List<Song> filteredSongs;
+    if (cachedSnapshot != null &&
+        cachedSnapshot.matches(
+          directory: directory,
+          sourceSongs: songs,
+          language: normalizedLanguage,
+          artist: normalizedArtist,
+          searchQuery: normalizedQuery,
+        )) {
+      filteredSongs = cachedSnapshot.songs;
+    } else {
+      filteredSongs = _filterSongs(
+        songs,
+        language: normalizedLanguage,
+        artist: normalizedArtist,
+        searchQuery: normalizedQuery,
+      );
+      _songFilterSnapshot = _SongFilterSnapshot(
+        directory: directory,
+        sourceSongs: songs,
+        language: normalizedLanguage,
+        artist: normalizedArtist,
+        searchQuery: normalizedQuery,
+        songs: filteredSongs,
+      );
+    }
     return _buildSongPage(
       filteredSongs,
       pageIndex: normalizedPageIndex,
@@ -210,11 +233,30 @@ class MediaLibraryRepository {
     final String normalizedQuery = searchQuery.trim().toLowerCase();
 
     final List<Song> songs = await _loadOrRestoreLocalSongs(directory);
-    final List<Artist> artists = _buildArtistsFromSongs(
-      songs,
-      language: normalizedLanguage,
-      searchQuery: normalizedQuery,
-    );
+    final _ArtistFilterSnapshot? cachedSnapshot = _artistFilterSnapshot;
+    final List<Artist> artists;
+    if (cachedSnapshot != null &&
+        cachedSnapshot.matches(
+          directory: directory,
+          sourceSongs: songs,
+          language: normalizedLanguage,
+          searchQuery: normalizedQuery,
+        )) {
+      artists = cachedSnapshot.artists;
+    } else {
+      artists = _buildArtistsFromSongs(
+        songs,
+        language: normalizedLanguage,
+        searchQuery: normalizedQuery,
+      );
+      _artistFilterSnapshot = _ArtistFilterSnapshot(
+        directory: directory,
+        sourceSongs: songs,
+        language: normalizedLanguage,
+        searchQuery: normalizedQuery,
+        artists: artists,
+      );
+    }
     return _buildArtistPage(
       artists,
       pageIndex: normalizedPageIndex,
@@ -355,6 +397,12 @@ class MediaLibraryRepository {
     _cachedSongsByDirectory[sourceRootId] = songs
         .map(_mapLibrarySong)
         .toList(growable: false);
+    if (_songFilterSnapshot?.directory == sourceRootId) {
+      _songFilterSnapshot = null;
+    }
+    if (_artistFilterSnapshot?.directory == sourceRootId) {
+      _artistFilterSnapshot = null;
+    }
     return count;
   }
 
@@ -473,6 +521,66 @@ class MediaLibraryRepository {
       pageIndex: normalizedPageIndex,
       pageSize: normalizedPageSize,
     );
+  }
+}
+
+class _SongFilterSnapshot {
+  const _SongFilterSnapshot({
+    required this.directory,
+    required this.sourceSongs,
+    required this.language,
+    required this.artist,
+    required this.searchQuery,
+    required this.songs,
+  });
+
+  final String directory;
+  final List<Song> sourceSongs;
+  final String language;
+  final String artist;
+  final String searchQuery;
+  final List<Song> songs;
+
+  bool matches({
+    required String directory,
+    required List<Song> sourceSongs,
+    required String language,
+    required String artist,
+    required String searchQuery,
+  }) {
+    return this.directory == directory &&
+        identical(this.sourceSongs, sourceSongs) &&
+        this.language == language &&
+        this.artist == artist &&
+        this.searchQuery == searchQuery;
+  }
+}
+
+class _ArtistFilterSnapshot {
+  const _ArtistFilterSnapshot({
+    required this.directory,
+    required this.sourceSongs,
+    required this.language,
+    required this.searchQuery,
+    required this.artists,
+  });
+
+  final String directory;
+  final List<Song> sourceSongs;
+  final String language;
+  final String searchQuery;
+  final List<Artist> artists;
+
+  bool matches({
+    required String directory,
+    required List<Song> sourceSongs,
+    required String language,
+    required String searchQuery,
+  }) {
+    return this.directory == directory &&
+        identical(this.sourceSongs, sourceSongs) &&
+        this.language == language &&
+        this.searchQuery == searchQuery;
   }
 }
 
