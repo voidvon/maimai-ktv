@@ -120,3 +120,17 @@ This file records the exact branch, commit and release link used for each publis
   - maimai-ktv-1.0.0-alpha.8-android-armeabi-v7a.apk
   - maimai-ktv-1.0.0-alpha.8-android-x86_64.apk
   - maimai-ktv-1.0.0-alpha.8-android-universal.apk
+
+## v1.0.0-alpha.9
+- Date: 2026-08-22
+- Title: 麦麦KTV v1.0.0-alpha.9
+- Repo: voidvon/maimai-ktv
+- Branch: main
+- Commit: 3e6c70b (3e6c70b5d9c2c3960b3655e900835260fca0ebb0)
+- Dirty Worktree: no
+- Release: https://github.com/voidvon/maimai-ktv/releases/tag/v1.0.0-alpha.9
+- Assets:
+  - maimai-ktv-1.0.0-alpha.9-android-arm64-v8a.apk
+  - maimai-ktv-1.0.0-alpha.9-android-armeabi-v7a.apk
+  - maimai-ktv-1.0.0-alpha.9-android-x86_64.apk
+  - maimai-ktv-1.0.0-alpha.9-android-universal.apk
