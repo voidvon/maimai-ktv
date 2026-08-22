@@ -8,6 +8,22 @@ The format is intentionally simple:
 - Focus on what users can perceive.
 - Avoid implementation details unless they affect usage.
 
+## [v1.0.0-alpha.9] - 2026-08-22
+
+### 新增
+
+- 歌曲搜索支持实时拼音首字母匹配，输入简拼时也能更快找到目标歌曲。
+- 歌曲列表改为无限滚动加载，并在加载失败时提供重试入口。
+
+### 变更
+
+- 优化歌曲分页、筛选和缓存逻辑，收藏、常用歌曲与搜索结果的加载更流畅。
+- 修复 Android 设备上升降调未实际生效的问题。
+
+### 说明
+
+- 这是一个 Alpha 预发布版本，主要用于测试与验证。
+
 ## [v1.0.0-alpha.8] - 2026-08-21
 
 ### 新增
