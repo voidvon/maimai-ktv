@@ -12,6 +12,7 @@ import '../../../core/models/artist_page.dart';
 import '../../../core/models/song.dart';
 import '../../../core/models/song_identity.dart';
 import '../../../core/models/song_page.dart';
+import '../../../core/search/song_search_matcher.dart';
 import 'media_library_data_source.dart';
 
 class CachedLocalSongFingerprint {
@@ -508,6 +509,18 @@ class MediaIndexStore {
     final Database db = await database;
     final int normalizedPageIndex = pageIndex < 0 ? 0 : pageIndex;
     final int normalizedPageSize = pageSize <= 0 ? 1 : pageSize;
+    final String normalizedQuery = searchQuery.trim().toLowerCase();
+    if (normalizedQuery.isNotEmpty) {
+      return _queryAggregateSongsWithLiveSearch(
+        db: db,
+        pageIndex: normalizedPageIndex,
+        pageSize: normalizedPageSize,
+        activeLocalRootId: activeLocalRootId,
+        language: language,
+        artist: artist,
+        searchQuery: normalizedQuery,
+      );
+    }
     final _SqlClause whereClause = _buildAggregateSongWhereClause(
       activeLocalRootId: activeLocalRootId,
       language: language,
@@ -569,6 +582,63 @@ class MediaIndexStore {
     );
   }
 
+  Future<SongPage> _queryAggregateSongsWithLiveSearch({
+    required Database db,
+    required int pageIndex,
+    required int pageSize,
+    required String? activeLocalRootId,
+    required String language,
+    required String artist,
+    required String searchQuery,
+  }) async {
+    final _SqlClause whereClause = _buildAggregateSongWhereClause(
+      activeLocalRootId: activeLocalRootId,
+      language: language,
+      artist: artist,
+      searchQuery: '',
+      aggregateAlias: 'a',
+    );
+    final List<Map<String, Object?>> rows = await db.rawQuery('''
+      SELECT a.$columnAggregateSongId
+      FROM $aggregateSongItemsTable a
+      WHERE ${whereClause.sql}
+      ORDER BY a.$columnCanonicalTitle COLLATE NOCASE ASC,
+               a.$columnCanonicalArtist COLLATE NOCASE ASC,
+               a.$columnAggregateSongId ASC
+      ''', whereClause.args);
+    final List<String> aggregateSongIds = rows
+        .map((Map<String, Object?> row) => row[columnAggregateSongId])
+        .whereType<String>()
+        .toList(growable: false);
+    final Map<String, Song> songsById = <String, Song>{};
+    const int batchSize = 400;
+    for (int start = 0; start < aggregateSongIds.length; start += batchSize) {
+      final int end = (start + batchSize).clamp(0, aggregateSongIds.length);
+      final List<Song> songs = await _loadResolvedAggregateSongs(
+        aggregateSongIds: aggregateSongIds.sublist(start, end),
+        activeLocalRootId: activeLocalRootId,
+      );
+      for (final Song song in songs) {
+        songsById[song.songId] = song;
+      }
+    }
+    final List<Song> matches = aggregateSongIds
+        .map((String songId) => songsById[songId])
+        .whereType<Song>()
+        .where((Song song) => matchesSongSearch(song, searchQuery))
+        .toList(growable: false);
+    final int start = pageIndex * pageSize;
+    final int end = (start + pageSize).clamp(0, matches.length);
+    return SongPage(
+      songs: start >= matches.length
+          ? const <Song>[]
+          : matches.sublist(start, end),
+      totalCount: matches.length,
+      pageIndex: pageIndex,
+      pageSize: pageSize,
+    );
+  }
+
   Future<ArtistPage> queryAggregateArtists({
     required int pageIndex,
     required int pageSize,
@@ -587,12 +657,6 @@ class MediaIndexStore {
       aggregateAlias: 'a',
     );
     final String artistNameFilter = searchQuery.trim().toLowerCase();
-    final String searchFilterSql = artistNameFilter.isEmpty
-        ? ''
-        : 'WHERE artist_name_lower LIKE ?';
-    final List<Object?> searchFilterArgs = artistNameFilter.isEmpty
-        ? const <Object?>[]
-        : <Object?>['%$artistNameFilter%'];
     final String baseArtistSql =
         '''
       WITH RECURSIVE available_aggregate_songs AS (
@@ -646,16 +710,46 @@ class MediaIndexStore {
         GROUP BY artist_name
       )
     ''';
+    if (artistNameFilter.isNotEmpty) {
+      final List<Map<String, Object?>> rows = await db.rawQuery('''
+        $baseArtistSql
+        SELECT artist_name, song_count, artist_name_lower
+        FROM artist_counts
+        ORDER BY artist_name COLLATE NOCASE ASC
+        ''', whereClause.args);
+      final List<Artist> matches = rows
+          .map(
+            (Map<String, Object?> row) => Artist(
+              name: row['artist_name']?.toString() ?? '未识别歌手',
+              songCount: _readInt(row['song_count']),
+              searchIndex: row['artist_name_lower']?.toString() ?? '',
+            ),
+          )
+          .where(
+            (Artist artist) => matchesTextSearch(
+              artist.name,
+              artistNameFilter,
+              exactSearchIndex: artist.searchIndex,
+            ),
+          )
+          .toList(growable: false);
+      final int start = normalizedPageIndex * normalizedPageSize;
+      final int end = (start + normalizedPageSize).clamp(0, matches.length);
+      return ArtistPage(
+        artists: start >= matches.length
+            ? const <Artist>[]
+            : matches.sublist(start, end),
+        totalCount: matches.length,
+        pageIndex: normalizedPageIndex,
+        pageSize: normalizedPageSize,
+      );
+    }
     final int totalCount = _firstIntValue(
-      await db.rawQuery(
-        '''
+      await db.rawQuery('''
         $baseArtistSql
         SELECT COUNT(*)
         FROM artist_counts
-        $searchFilterSql
-        ''',
-        <Object?>[...whereClause.args, ...searchFilterArgs],
-      ),
+        ''', whereClause.args),
     );
     if (totalCount == 0) {
       return ArtistPage(
@@ -671,13 +765,11 @@ class MediaIndexStore {
       $baseArtistSql
       SELECT artist_name, song_count, artist_name_lower
       FROM artist_counts
-      $searchFilterSql
       ORDER BY artist_name COLLATE NOCASE ASC
       LIMIT ? OFFSET ?
       ''',
       <Object?>[
         ...whereClause.args,
-        ...searchFilterArgs,
         normalizedPageSize,
         normalizedPageIndex * normalizedPageSize,
       ],

@@ -35,7 +35,7 @@ dependencies:
   ktv2:
     path: packages/ktv_player
   file_selector: ^1.1.0
-  lpinyin: ^2.0.3
+  pinyin_pro_flutter: ^1.0.3
   path: ^1.9.1
   path_provider: ^2.1.5
   package_info_plus: ^9.0.0

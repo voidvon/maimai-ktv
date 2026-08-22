@@ -1,7 +1,6 @@
 ﻿import 'dart:io';
 import 'dart:convert';
 
-import 'package:lpinyin/lpinyin.dart';
 import 'package:path/path.dart' as path;
 import 'package:maimai_ktv/core/media/supported_video_formats.dart';
 
@@ -189,12 +188,9 @@ class LibrarySong {
       buildLocalSourceSongId(fingerprint: sourceFingerprint);
 
   String get searchIndex {
-    final String raw =
-        '$title $artist ${languages.join(' ')} ${tags.join(' ')} $fileName $extension'
-            .toLowerCase();
-    final String titleInitials = _buildPinyinInitials(title);
-    final String artistInitials = _buildPinyinInitials(artist);
-    return '$raw $titleInitials $artistInitials'.trim();
+    return '$title $artist ${languages.join(' ')} ${tags.join(' ')} '
+            '$fileName $extension'
+        .toLowerCase();
   }
 }
 
@@ -210,17 +206,4 @@ int _computeFnv1a64(Iterable<List<int>> chunks) {
     }
   }
   return hash;
-}
-
-String _buildPinyinInitials(String source) {
-  final String normalizedSource = source.trim();
-  if (normalizedSource.isEmpty) {
-    return '';
-  }
-
-  // Intentionally use only initials, not full pinyin.
-  final String initials = PinyinHelper.getShortPinyin(
-    normalizedSource,
-  ).toLowerCase();
-  return initials.replaceAll(RegExp(r'[^a-z0-9]'), '');
 }

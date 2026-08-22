@@ -6,6 +6,7 @@ import '../../../core/models/artist_page.dart';
 import '../../../core/models/song.dart';
 import '../../../core/models/song_identity.dart';
 import '../../../core/models/song_page.dart';
+import '../../../core/search/song_search_matcher.dart';
 import 'android_storage_data_source.dart';
 import 'media_index_store.dart';
 import 'media_library_data_source.dart';
@@ -442,7 +443,7 @@ class MediaLibraryRepository {
           if (searchQuery.isEmpty) {
             return true;
           }
-          return song.searchIndex.contains(searchQuery);
+          return matchesSongSearch(song, searchQuery);
         })
         .toList(growable: false);
   }
@@ -478,7 +479,11 @@ class MediaLibraryRepository {
               if (searchQuery.isEmpty) {
                 return true;
               }
-              return item.searchIndex.contains(searchQuery);
+              return matchesTextSearch(
+                item.name,
+                searchQuery,
+                exactSearchIndex: item.searchIndex,
+              );
             })
             .toList(growable: false)
           ..sort(

@@ -160,17 +160,33 @@ void main() {
 
     expect(await repository.scanLibrary('/music'), 2);
 
-    final SongPage page = await repository.querySongs(
+    final SongPage exactPage = await repository.querySongs(
       directory: '/music',
       pageIndex: 0,
       pageSize: 10,
       language: '国语',
       searchQuery: '周杰',
     );
+    final SongPage initialsPage = await repository.querySongs(
+      directory: '/music',
+      pageIndex: 0,
+      pageSize: 10,
+      language: '国语',
+      searchQuery: 'qhc',
+    );
+    final SongPage fullPinyinPage = await repository.querySongs(
+      directory: '/music',
+      pageIndex: 0,
+      pageSize: 10,
+      language: '国语',
+      searchQuery: 'qinghuaci',
+    );
 
     expect(dataSource.scanCallCount, 1);
-    expect(page.totalCount, 1);
-    expect(page.songs.single.title, '青花瓷');
+    expect(exactPage.totalCount, 1);
+    expect(exactPage.songs.single.title, '青花瓷');
+    expect(initialsPage.songs.single.title, '青花瓷');
+    expect(fullPinyinPage.totalCount, 0);
   });
 
   test(

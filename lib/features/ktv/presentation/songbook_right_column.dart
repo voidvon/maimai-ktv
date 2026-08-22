@@ -5,6 +5,7 @@ import 'package:ktv2/ktv2.dart';
 import '../../../core/localization/localization_extensions.dart';
 import '../../../core/models/artist.dart';
 import '../../../core/models/song.dart';
+import '../../../core/search/song_search_matcher.dart';
 import '../application/download_manager_models.dart';
 import '../application/ktv_controller.dart';
 import 'queue_page.dart';
@@ -706,7 +707,7 @@ class _SongBookRightColumnState extends State<SongBookRightColumn> {
     return allEntries
         .where(
           (QueuedSongEntry entry) =>
-              entry.song.searchIndex.contains(normalizedQuery),
+              matchesSongSearch(entry.song, normalizedQuery),
         )
         .toList(growable: false);
   }

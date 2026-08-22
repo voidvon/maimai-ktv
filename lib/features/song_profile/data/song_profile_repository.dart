@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/models/song.dart';
+import '../../../core/search/song_search_matcher.dart';
 import 'song_profile_database.dart';
 
 class SongProfileRepository {
@@ -256,8 +257,7 @@ class SongProfileRepository {
             !_extractArtistNames(song.artist).contains(snapshotKey.artist)) {
           continue;
         }
-        if (snapshotKey.searchQuery.isNotEmpty &&
-            !song.searchIndex.contains(snapshotKey.searchQuery)) {
+        if (!matchesSongSearch(song, snapshotKey.searchQuery)) {
           continue;
         }
         final String songId =

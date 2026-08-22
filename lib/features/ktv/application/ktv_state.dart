@@ -1,5 +1,6 @@
-import '../../../core/models/song.dart';
 import '../../../core/models/artist.dart';
+import '../../../core/models/song.dart';
+import '../../../core/search/song_search_matcher.dart';
 
 enum KtvRoute { home, songBook, queueList }
 
@@ -154,7 +155,7 @@ class KtvState {
       return List<Song>.unmodifiable(queuedSongs);
     }
     return queuedSongs
-        .where((Song song) => song.searchIndex.contains(normalizedSearchQuery))
+        .where((Song song) => matchesSongSearch(song, normalizedSearchQuery))
         .toList(growable: false);
   }
 
